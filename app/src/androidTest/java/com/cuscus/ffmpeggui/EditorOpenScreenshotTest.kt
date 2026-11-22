@@ -49,7 +49,8 @@ class EditorOpenScreenshotTest {
         }
         val collection = MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
         val uri = context.contentResolver.insert(collection, values) ?: error("MediaStore insert failed")
-        context.assets.open("ci-test-video.mp4").use { input ->
+        // The asset lives in the test APK (androidTest/assets), not the app.
+        instrumentation.context.assets.open("ci-test-video.mp4").use { input ->
             context.contentResolver.openOutputStream(uri)?.use { input.copyTo(it) } ?: error("no output stream")
         }
         return uri

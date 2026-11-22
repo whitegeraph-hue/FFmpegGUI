@@ -32,11 +32,13 @@ import org.junit.Test
 class ExportSmokeTest {
 
     private val context get() = InstrumentationRegistry.getInstrumentation().targetContext
+    private val testAssets get() = InstrumentationRegistry.getInstrumentation().context.assets
 
     @Test
     fun followCropAndPauseCutExport() = runBlocking {
         val input = File(context.cacheDir, "ci-export-input.mp4")
-        context.assets.open("ci-test-video.mp4").use { src -> input.outputStream().use { src.copyTo(it) } }
+        // The asset lives in the test APK (androidTest/assets), not the app.
+        testAssets.open("ci-test-video.mp4").use { src -> input.outputStream().use { src.copyTo(it) } }
         val output = File(context.cacheDir, "ci-export-output.mp4")
         output.delete()
 

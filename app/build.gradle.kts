@@ -86,6 +86,9 @@ dependencies {
     implementation(libs.androidsvg)
 
     // The on-device checks of the smart-editing tools (see verify-runtime.yml).
+    // Declares androidx.activity.ComponentActivity in the debug app manifest so
+    // createAndroidComposeRule<ComponentActivity>() can launch it on device.
+    debugImplementation("androidx.compose.ui:ui-test-manifest")
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(libs.androidx.test.ext.junit)
