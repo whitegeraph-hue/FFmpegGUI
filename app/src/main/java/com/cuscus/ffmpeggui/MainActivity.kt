@@ -1123,6 +1123,7 @@ class MainActivity : ComponentActivity() {
                                         onClearSpoken = vm::clearSpokenSubtitles,
                                         onToTexts = vm::spokenSubtitlesToTexts,
                                         onEditLine = vm::editSpokenLine,
+                                        onCutLine = vm::cutSpokenRange,
                                         srt = vm::spokenSubtitlesSrt,
                                         onOpenSmartFeatures = { com.cuscus.ffmpeggui.settings.SmartPageRequest.next = com.cuscus.ffmpeggui.settings.SmartPage.SPEECH; navController.navigate(Screen.settingsCategory(SettingsCategory.SMART)) },
                                         onLyrics = vm::lyricsFromSpeech,

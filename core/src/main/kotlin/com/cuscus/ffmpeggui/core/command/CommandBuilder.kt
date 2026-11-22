@@ -1074,10 +1074,13 @@ class CommandBuilder(fonts: FontProvider) {
             else -> clipFrame(request, first) ?: (source.width to source.height)
         }
         var (w, h) = turnedAndCropped(request.effects, joined.first, joined.second)
-        // The subject-following reframe (see VideoFilters.wholeBefore) sets the frame.
+        // The subject-following reframe (see VideoFilters.wholeBefore) sets the
+        // frame; it crops before the quarter turns, so its window turns with the
+        // picture (as does the user's own crop after it).
         request.followCrop?.let {
-            w = it.outWidth
-            h = it.outHeight
+            val (cropW, cropH) = turnedAndCropped(request.effects, it.outWidth, it.outHeight)
+            w = cropW
+            h = cropH
         }
         // The canvas (see VideoFilters.canvasFilter): the frame grows to the ratio, even sides,
         // whether the picture is whole on it, covers it or is stretched to it.

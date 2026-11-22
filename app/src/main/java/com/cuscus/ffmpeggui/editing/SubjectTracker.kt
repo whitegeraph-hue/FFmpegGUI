@@ -26,21 +26,30 @@ class SubjectTracker(
     private val engine: () -> CutoutEngine?,
 ) {
 
+    /** The subject's track and the real frame size it was read from. */
+    data class SubjectTrack(val points: List<SubjectPoint>, val frameWidth: Int, val frameHeight: Int)
+
     /**
      * The subject's track through [sourceUri] ([durationMs] long), one point
      * about every [everyMs]; null when no frame could be read. [onProgress]
      * gets 0..1 as the frames are done. Points whose mask found nothing keep
      * the middle of the frame at confidence 0: the smoothing gives them no say.
+     *
+     * The frames are read as the phone shows them (a turned video's frames lie
+     * on their side already), which can differ from the probe's coded size: the
+     * result carries the frames' real size, which the crop window is built on.
      */
     suspend fun track(
         sourceUri: String,
         durationMs: Long,
         everyMs: Long = DEFAULT_EVERY_MS,
         onProgress: (Float) -> Unit = {},
-    ): List<SubjectPoint>? = withContext(Dispatchers.Default) {
+    ): SubjectTrack? = withContext(Dispatchers.Default) {
         val cutout = engine() ?: return@withContext null
         if (durationMs <= 0L) return@withContext null
         val points = mutableListOf<SubjectPoint>()
+        var frameWidth = 0
+        var frameHeight = 0
         var at = 0L
         var done = 0
         val total = (durationMs / everyMs).toInt() + 1
@@ -50,6 +59,10 @@ class SubjectTracker(
             if (framePath != null) {
                 val bitmap = BitmapFactory.decodeFile(framePath)
                 if (bitmap != null) {
+                    if (frameWidth == 0) {
+                        frameWidth = bitmap.width
+                        frameHeight = bitmap.height
+                    }
                     val mask = cutout.mask { side -> pixelsOf(bitmap, side) }
                     points += centroid(mask, at)
                     bitmap.recycle()
@@ -59,7 +72,7 @@ class SubjectTracker(
             onProgress(done.toFloat() / total)
             at += everyMs
         }
-        if (points.isEmpty()) null else points
+        if (points.isEmpty() || frameWidth == 0) null else SubjectTrack(points, frameWidth, frameHeight)
     }
 
     /** The [bitmap] squeezed to [side] x [side], ARGB row by row. */

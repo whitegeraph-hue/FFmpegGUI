@@ -154,6 +154,8 @@ class SubtitleEditing(
     val onToTexts: () -> Unit = {},
     /** Rewrites a line: source id, its start and end on the file's clock, the new text. */
     val onEditLine: (String, Long, Long, String) -> Unit = { _, _, _, _ -> },
+    /** Cuts a line's span of the main file out of the video (source id, start and end on the file's clock). */
+    val onCutLine: (String, Long, Long) -> Unit = { _, _, _ -> },
     /** The spoken subtitles as a .srt file, timed like the export. */
     val srt: () -> String? = { null },
     val onOpenSmartFeatures: () -> Unit = {},
@@ -838,13 +840,23 @@ private fun LinesPage(subtitles: SubtitleEditing) {
                 subtitles.onEditLine(line.sourceId, line.startMs, line.endMs, text)
                 editing = null
             },
+            // Only the main file plays on the sequence being edited: only its lines can be cut away.
+            onCut = if (line.sourceId == EditorSource.MAIN_ID) {
+                {
+                    haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+                    subtitles.onCutLine(line.sourceId, line.startMs, line.endMs)
+                    editing = null
+                }
+            } else {
+                null
+            },
             onDismiss = { editing = null },
         )
     }
 }
 
 @Composable
-private fun EditLineDialog(line: TranscriptLine, onSave: (String) -> Unit, onDismiss: () -> Unit) {
+private fun EditLineDialog(line: TranscriptLine, onSave: (String) -> Unit, onCut: (() -> Unit)? = null, onDismiss: () -> Unit) {
     var text by remember(line) { mutableStateOf(line.text) }
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -869,7 +881,12 @@ private fun EditLineDialog(line: TranscriptLine, onSave: (String) -> Unit, onDis
             Button(onClick = { onSave(text) }, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.subtitle_edit_save)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.subtitle_edit_cancel)) }
+            Row {
+                if (onCut != null) {
+                    TextButton(onClick = onCut) { Text(stringResource(R.string.subtitle_cut_line)) }
+                }
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.subtitle_edit_cancel)) }
+            }
         },
     )
 }

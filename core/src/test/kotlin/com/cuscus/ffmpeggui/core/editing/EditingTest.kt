@@ -7,6 +7,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlin.math.abs
@@ -175,6 +176,15 @@ class EditingTest {
     }
 
     @Test
+    fun `a short click track still gives its onsets but no tempo`() {
+        // Four seconds: under the floor the tempo needs (about five), the onsets still serve as beats.
+        val result = BeatTrack.analyze(clicks(seconds = 4, beatMs = 500), 16_000)
+        assertNull(result.tempoBpm)
+        assertEquals(7, result.onsetsMs.size)
+        assertEquals(result.onsetsMs.filter { it > 0 }, result.beatsMs)
+    }
+
+    @Test
     fun `snap moves near times onto beats and leaves far ones`() {
         val beats = listOf(0L, 500L, 1_000L)
         assertEquals(listOf(0L, 500L, 5_000L), BeatTrack.snap(listOf(40L, 480L, 5_000L), beats, maxDistanceMs = 150))
@@ -209,6 +219,29 @@ class EditingTest {
         val (cx, cy) = edge.centerAt(0)
         assertEquals(303f, cx, 0.01f)
         assertEquals(540f, cy, 0.01f)
+    }
+
+    @Test
+    fun `a window as wide as the frame stays centred without throwing`() {
+        val full = FollowCropTrack(
+            points = listOf(SubjectPoint(0, 0.1f, 0.9f, 1f)),
+            inWidth = 1080, inHeight = 1080, outWidth = 1080, outHeight = 1080,
+        )
+        val (cx, cy) = full.centerAt(0)
+        assertEquals(540f, cx, 0.01f)
+        assertEquals(540f, cy, 0.01f)
+    }
+
+    @Test
+    fun `an oversized window is refused`() {
+        val points = listOf(SubjectPoint(0, 0.5f, 0.5f, 1f))
+        assertThrows(IllegalArgumentException::class.java) { FollowCropTrack(points, 1920, 1080, 3840, 1080) }
+        // And a stored one reads as absent, never as a crash.
+        val written = com.cuscus.ffmpeggui.core.project.ModelJson.writeFollowCrop(FollowCropTrack(points, 1920, 1080, 606, 1080))
+        val broken = com.cuscus.ffmpeggui.core.project.Json.Obj(
+            written.fields + ("outWidth" to com.cuscus.ffmpeggui.core.project.Json.Num("3840")),
+        )
+        assertNull(com.cuscus.ffmpeggui.core.project.ModelJson.followCrop(broken))
     }
 
     @Test

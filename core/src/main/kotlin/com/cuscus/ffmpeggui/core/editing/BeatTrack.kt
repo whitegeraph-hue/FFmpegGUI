@@ -112,7 +112,10 @@ object BeatTrack {
      * stands out (speech-like sound, silence).
      */
     private fun estimateTempo(flux: FloatArray, hopMs: Int): Double? {
-        if (flux.size < 4 * MAX_BPM) return null
+        // The slowest beat's lag has to recur a few times for the
+        // autocorrelation to mean anything (about five seconds at MIN_BPM).
+        val slowestLag = (60000.0 / MIN_BPM / hopMs).roundToInt()
+        if (flux.size < slowestLag * 4) return null
         val minLag = (60000.0 / MAX_BPM / hopMs).roundToInt().coerceAtLeast(1)
         val maxLag = (60000.0 / MIN_BPM / hopMs).roundToInt().coerceAtMost(flux.size / 2)
         if (maxLag <= minLag) return null

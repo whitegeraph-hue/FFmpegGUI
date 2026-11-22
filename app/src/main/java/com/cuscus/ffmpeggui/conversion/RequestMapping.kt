@@ -153,14 +153,15 @@ private fun ConversionSettings.toRequestOf(
         resolution = resolution,
         framerate = framerate,
         quality = qualityLevel,
-        streamCopy = useStreamCopy,
+        // A follow crop is a filter: while one is set the video has to be encoded.
+        streamCopy = useStreamCopy && followCrop == null,
         keepHdr = keepHdr,
         audio = audioEncoding,
         gif = gif,
     ),
     // A speed curve is a clip's alone.
     effects = wholeEffects.copy(speedCurve = null),
-    // The subject-following reframe (a stream copy drops it, as every filter).
+    // The subject-following reframe (it turns the stream copy above off).
     followCrop = followCrop,
     audioEffects = audioEffects,
     canvas = projectRatio,

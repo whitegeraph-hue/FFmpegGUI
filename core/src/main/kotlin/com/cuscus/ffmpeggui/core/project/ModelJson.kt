@@ -1081,7 +1081,13 @@ object ModelJson {
         val numbers = (o["points"] as? Json.Arr)?.items?.map { it.asDouble()?.toFloat() ?: return null } ?: return null
         val points = numbers.unpackedPoints()
         if (points.isEmpty()) return null
-        val track = FollowCropTrack(points, o.int("inWidth", 0), o.int("inHeight", 0), o.int("outWidth", 0), o.int("outHeight", 0))
-        return track.takeIf { it.inWidth > 0 && it.inHeight > 0 && it.outWidth > 0 && it.outHeight > 0 }
+        val inWidth = o.int("inWidth", 0)
+        val inHeight = o.int("inHeight", 0)
+        val outWidth = o.int("outWidth", 0)
+        val outHeight = o.int("outHeight", 0)
+        // A window that does not fit inside its frame is refused, not built: the
+        // track's own checks would throw on it.
+        if (inWidth <= 0 || inHeight <= 0 || outWidth !in 2..inWidth || outHeight !in 2..inHeight) return null
+        return FollowCropTrack(points, inWidth, inHeight, outWidth, outHeight)
     }
 }

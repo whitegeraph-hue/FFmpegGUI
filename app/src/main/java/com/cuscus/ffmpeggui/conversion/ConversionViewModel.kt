@@ -108,6 +108,7 @@ import com.cuscus.ffmpeggui.core.editing.CutRange
 import com.cuscus.ffmpeggui.core.editing.FollowCropTrack
 import com.cuscus.ffmpeggui.core.editing.PauseCuts
 import com.cuscus.ffmpeggui.core.editing.SceneDetect
+import com.cuscus.ffmpeggui.core.editing.TranscriptEdits
 import com.cuscus.ffmpeggui.core.editing.normalized
 import com.cuscus.ffmpeggui.core.editing.splitAtAll
 import com.cuscus.ffmpeggui.core.editing.withoutRanges
@@ -4134,6 +4135,17 @@ class ConversionViewModel(
         editTimeline { timeline -> timeline.withoutRanges(chosen) { newId() } }
     }
 
+    /**
+     * Cuts the words [startMs]..[endMs] of the main file (on its own clock) out
+     * of the sequence: a line ticked away in the transcript (see SubtitlePanels).
+     */
+    fun cutSpokenRange(sourceId: String, startMs: Long, endMs: Long) {
+        if (sourceId != EditorSource.MAIN_ID || endMs <= startMs) return
+        val ranges = listOf(CutRange(startMs, endMs, TranscriptEdits.REASON_TRANSCRIPT)).ontoTimeline()
+        if (ranges.isEmpty()) return
+        editTimeline { timeline -> timeline.withoutRanges(ranges) { newId() } }
+    }
+
     /** Finds where the main file's scenes change, as split points to tick. */
     fun findSceneSplits(threshold: Double = SceneDetect.DEFAULT_THRESHOLD) {
         val features = smart ?: return
@@ -4258,15 +4270,26 @@ class ConversionViewModel(
             try {
                 val tracker = subjectTracker
                     ?: SubjectTracker(stillMaker) { smart?.cutoutEngine }.also { subjectTracker = it }
-                val points = tracker.track(source.uri.toString(), info.durationMs, everyMs) { fraction ->
+                val tracked = tracker.track(source.uri.toString(), info.durationMs, everyMs) { fraction ->
                     _followCropStatus.value = FollowCropStatus.Working(fraction)
                 }
-                if (points == null) {
+                if (tracked == null) {
                     _followCropStatus.value = FollowCropStatus.Failed
                     return@launch
                 }
-                val (w, h) = FollowCropTrack.windowSize(info.width, info.height, 9, 16)
-                val track = FollowCropTrack(points, info.width, info.height, w, h)
+                // Tracked on the file's own clock; the export's filter slides its
+                // window on the edited sequence's clock (see VideoFilters.wholeBefore).
+                val mapped = tracked.points.mapNotNull { point ->
+                    filePointOntoTimeline(point.atMs)?.let { point.copy(atMs = it) }
+                }
+                if (mapped.isEmpty()) {
+                    _followCropStatus.value = FollowCropStatus.Failed
+                    return@launch
+                }
+                // The frames the model saw, turned as the phone shows them: their
+                // size, not the probe's coded one, frames the window.
+                val (w, h) = FollowCropTrack.windowSize(tracked.frameWidth, tracked.frameHeight, 9, 16)
+                val track = FollowCropTrack(mapped, tracked.frameWidth, tracked.frameHeight, w, h)
                 mutate(stepKey = "followCrop") { it.copy(followCrop = track) }
                 _followCropStatus.value = FollowCropStatus.Idle
             } catch (e: CancellationException) {

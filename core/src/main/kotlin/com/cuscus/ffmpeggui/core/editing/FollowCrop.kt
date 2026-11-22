@@ -25,6 +25,9 @@ data class FollowCropTrack(
 ) {
     init {
         require(points.isNotEmpty()) { "A follow crop needs at least one look at the subject" }
+        require(inWidth > 0 && inHeight > 0) { "A follow crop needs the frame's size" }
+        // A window wider than the frame would break the smoothing's clamping.
+        require(outWidth in 2..inWidth && outHeight in 2..inHeight) { "The crop window must fit inside the frame" }
     }
 
     /**
@@ -44,8 +47,9 @@ data class FollowCropTrack(
             y += point.y * w
             weightSum += w
         }
-        val cx = (x / weightSum * inWidth).coerceIn(outWidth / 2f, inWidth - outWidth / 2f)
-        val cy = (y / weightSum * inHeight).coerceIn(outHeight / 2f, inHeight - outHeight / 2f)
+        // The clamp's ends stay ordered even for a window as wide as the frame.
+        val cx = (x / weightSum * inWidth).coerceIn(outWidth / 2f, (inWidth - outWidth / 2f).coerceAtLeast(outWidth / 2f))
+        val cy = (y / weightSum * inHeight).coerceIn(outHeight / 2f, (inHeight - outHeight / 2f).coerceAtLeast(outHeight / 2f))
         return cx to cy
     }
 

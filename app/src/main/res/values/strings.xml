@@ -649,7 +649,7 @@
     <string name="smart_beats_intro">Finds the beat of the music, to snap splits to it and to cut on it.</string>
     <string name="smart_beats_find">Find the beat</string>
     <string name="smart_beats_working">Listening for the beat…</string>
-    <string name="smart_beats_failed">No beat could be found in this sound.</string>
+    <string name="smart_beats_failed">No clear beat was found: the sound may be too short (under about five seconds) or have no steady beat.</string>
     <string name="smart_beats_tempo">%1$s BPM, %2$d beats</string>
     <string name="smart_beats_snap">Snap splits to the beat</string>
     <string name="smart_beats_list">%1$d of %2$d beats ticked</string>
@@ -1940,6 +1940,7 @@
     <string name="subtitle_edit_hint">The words share the time of the line. Leave it empty to remove the line.</string>
     <string name="subtitle_edit_save">Save</string>
     <string name="subtitle_edit_cancel">Cancel</string>
+    <string name="subtitle_cut_line">Cut from video</string>
 
     <!-- About: what runs the smart features, and their licences -->
     <string name="about_sherpa">sherpa-onnx</string>
