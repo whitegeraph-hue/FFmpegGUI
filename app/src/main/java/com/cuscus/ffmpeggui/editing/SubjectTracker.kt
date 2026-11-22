@@ -72,7 +72,7 @@ class SubjectTracker(
                         frameWidth = bitmap.width
                         frameHeight = bitmap.height
                     }
-                    val mask = cutout.mask { side -> pixelsOf(bitmap, side) }
+                    val mask = cutout.mask(picture = { side -> pixelsOf(bitmap, side) })
                     points += centroid(mask, at)
                     if (done in sampleAt && kept.size < 3) {
                         kept += at to bitmap

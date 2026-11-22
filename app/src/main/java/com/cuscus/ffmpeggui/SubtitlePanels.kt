@@ -92,6 +92,7 @@ import com.cuscus.ffmpeggui.translate.SubtitleTranslationUi
 import com.cuscus.ffmpeggui.translate.TranslateCard
 import com.cuscus.ffmpeggui.core.model.TextFont
 import com.cuscus.ffmpeggui.core.preview.SubtitleCue
+import com.cuscus.ffmpeggui.core.subtitles.CueWord
 import com.cuscus.ffmpeggui.core.subtitles.SpokenWord
 import com.cuscus.ffmpeggui.core.subtitles.SubtitleLayout
 import com.cuscus.ffmpeggui.core.subtitles.SubtitleLook
@@ -736,7 +737,7 @@ private fun SampleLetters(text: String, base: TextStyle, style: SubtitleStyle) {
 // -- The lines -------------------------------------------------------------------------
 
 /** A line of the transcript: the words of one block, on the clock of the file they were heard in. */
-private class TranscriptLine(val sourceId: String, val startMs: Long, val endMs: Long, val text: String, val words: List<SpokenWord> = emptyList())
+private class TranscriptLine(val sourceId: String, val startMs: Long, val endMs: Long, val text: String, val words: List<CueWord> = emptyList())
 
 @Composable
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
