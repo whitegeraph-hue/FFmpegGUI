@@ -1,10 +1,13 @@
-# On-device verification of the smart-editing UI, run by hand: real pixels of
-# the four smart tools and the transcript on a hardware-accelerated emulator
-# (KVM is available on standard GitHub-hosted Linux runners; this public fork
-# runs it free). Dispatch-only so branch pushes stay cheap.
+# On-device verification of the smart-editing UI: real pixels of the four
+# smart tools and the transcript on a hardware-accelerated emulator (KVM is
+# available on standard GitHub-hosted Linux runners; this public fork runs
+# it free). Runs on branch pushes; manual dispatch needs no setup either.
 name: Runtime verification
 
 on:
+  push:
+    branches:
+      - smart-editing-features
   workflow_dispatch:
 
 permissions:
