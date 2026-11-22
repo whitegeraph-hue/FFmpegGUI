@@ -29,8 +29,10 @@ jobs:
       # ones the media build was verified with).
       - name: Install the Android SDK packages
         run: |
-          yes | sdkmanager --licenses > /dev/null
-          sdkmanager "platforms;android-37.1" "build-tools;37.0.0"
+          SM="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          [ -x "$SM" ] || SM="$(ls -d "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager | sort -V | tail -1)"
+          yes | "$SM" --sdk_root="$ANDROID_HOME" --licenses > /dev/null
+          "$SM" --sdk_root="$ANDROID_HOME" "platforms;android-37.1" "build-tools;37.0.0"
           echo "sdk.dir=$ANDROID_HOME" > local.properties
 
       # The FFmpeg runtime AAR, pinned by URL and SHA-256 (the Gradle build
