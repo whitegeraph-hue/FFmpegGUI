@@ -280,7 +280,7 @@ fun BeatsPanel(ui: SmartEditUi) {
                         modifier = Modifier.heightIn(max = 260.dp),
                     ) {
                         itemsIndexed(status.beatsMs) { index, at ->
-                            CutRow(smartSeconds(at), index in status.chosen) { ui.onToggleBeat(index) }
+                            CutRow(smartSecondsTenths(at), index in status.chosen) { ui.onToggleBeat(index) }
                         }
                     }
                     Button(

@@ -20,3 +20,44 @@ object ShellShot {
         }
     }
 }
+
+/**
+ * Drives the real app through the accessibility tree, with no Compose idle
+ * sync: the editor never reports idle (video surface, animations), so the
+ * Compose test rule's waits time out there.
+ */
+object Ui {
+    private val ui get() = InstrumentationRegistry.getInstrumentation().uiAutomation
+
+    private fun find(text: String): android.view.accessibility.AccessibilityNodeInfo? {
+        val root = ui.rootInActiveWindow ?: return null
+        return root.findAccessibilityNodeInfosByText(text)
+            .firstOrNull { it.text?.toString() == text || it.contentDescription?.toString() == text }
+    }
+
+    fun waitFor(text: String, timeoutMs: Long): Boolean {
+        val end = System.currentTimeMillis() + timeoutMs
+        while (System.currentTimeMillis() < end) {
+            if (find(text) != null) return true
+            Thread.sleep(300)
+        }
+        return false
+    }
+
+    /** Clicks the node showing [text] (or its nearest clickable parent). */
+    fun click(text: String): Boolean {
+        var node = find(text) ?: return false
+        while (!node.isClickable) node = node.parent ?: return false
+        return node.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK)
+    }
+
+    /** Clicks [text], swiping the tool strip left a few times to bring it in view. */
+    fun clickScrolling(text: String): Boolean {
+        repeat(4) {
+            if (click(text)) return true
+            ui.executeShellCommand("input swipe 1000 2175 200 2175 250").use { it.fileDescriptor }
+            Thread.sleep(600)
+        }
+        return false
+    }
+}

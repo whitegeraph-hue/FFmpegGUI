@@ -2,47 +2,33 @@ package com.cuscus.ffmpeggui
 
 import android.content.ContentValues
 import android.content.Intent
-import android.graphics.Bitmap
 import android.net.Uri
 import android.provider.MediaStore
-import androidx.compose.ui.test.junit4.createEmptyComposeRule
-import androidx.compose.ui.test.onAllNodesWithContentDescription
-import androidx.compose.ui.test.onAllNodesWithText
-import androidx.compose.ui.test.onFirst
-import androidx.compose.ui.test.onRoot
-import androidx.compose.ui.test.printToLog
-import androidx.compose.ui.test.performClick
 import androidx.test.core.app.ActivityScenario
 import androidx.test.platform.app.InstrumentationRegistry
-import java.io.File
-import java.io.FileOutputStream
 import org.junit.Assert.assertTrue
-import org.junit.Rule
 import org.junit.Test
 
 /*
  * The real app, opened on the editor with the deterministic test video (see
  * SmartPanelsScreenshotTest for the panel pixels). The video is copied into
  * MediaStore the way the system picker would hand it over, MainActivity is
- * launched with ACTION_VIEW on it (an entry the app supports), and each
- * smart-editing tool is opened and screenshotted in place.
+ * launched with ACTION_VIEW on it (an entry the app supports), the format
+ * chooser it lands on is passed with the suggested MP4, and each smart tool
+ * is opened and screenshotted in place. Driven through the accessibility
+ * tree: the editor never reports Compose-idle, so the Compose rule's waits
+ * time out there.
  */
 class EditorOpenScreenshotTest {
-
-    @get:Rule
-    val rule = createEmptyComposeRule()
 
     private val instrumentation get() = InstrumentationRegistry.getInstrumentation()
     private val context get() = instrumentation.targetContext
 
-    private fun saveShot(name: String) {
-        // The editor never goes idle (video surface, animations): waitForIdle
-        // would time out, so give the frame a moment instead.
-        Thread.sleep(800)
+    private fun shot(name: String) {
+        Thread.sleep(900)
         ShellShot.take(name)
     }
 
-    /** The bundled deterministic video, copied into MediaStore as the app itself. */
     private fun installTestVideo(): Uri {
         val values = ContentValues().apply {
             put(MediaStore.Video.Media.DISPLAY_NAME, "ci-test-video.mp4")
@@ -58,46 +44,27 @@ class EditorOpenScreenshotTest {
         return uri
     }
 
-    private fun clickTool(label: String) {
-        val byText = rule.onAllNodesWithText(label).fetchSemanticsNodes().isNotEmpty()
-        if (byText) {
-            rule.onAllNodesWithText(label).onFirst().performClick()
-        } else {
-            val byDesc = rule.onAllNodesWithContentDescription(label).fetchSemanticsNodes().isNotEmpty()
-            assertTrue("toolbar tool not found: $label", byDesc)
-            rule.onAllNodesWithContentDescription(label).onFirst().performClick()
-        }
-    }
-
     @Test
     fun editorOpensAndSmartToolsShow() {
         val uri = installTestVideo()
         val intent = Intent(context, MainActivity::class.java)
             .setAction(Intent.ACTION_VIEW)
             .setDataAndType(uri, "video/mp4")
-            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
         ActivityScenario.launch<MainActivity>(intent).use {
-            // The editor reached the toolbar: every smart tool is there. On a
-            // timeout, keep the evidence: what the screen actually showed.
             try {
-                // An opened file lands on the format chooser first: take the
-                // suggested MP4 to reach the editor.
-                rule.waitUntil(30_000) { rule.onAllNodesWithText("Choose a format").fetchSemanticsNodes().isNotEmpty() }
-                saveShot("editor-format-chooser")
-                rule.onAllNodesWithText("MP4").onFirst().performClick()
-                rule.waitUntil(60_000) {
-                    rule.onAllNodesWithText("Scenes").fetchSemanticsNodes().isNotEmpty() ||
-                        rule.onAllNodesWithContentDescription("Scenes").fetchSemanticsNodes().isNotEmpty()
-                }
+                assertTrue("format chooser not shown", Ui.waitFor("Choose a format", 30_000))
+                shot("editor-format-chooser")
+                assertTrue("could not pick MP4", Ui.click("MP4"))
+                assertTrue("editor toolbar never showed 'Scenes'", Ui.waitFor("Scenes", 60_000))
             } catch (e: Throwable) {
-                saveShot("editor-timeout")
-                rule.onRoot(useUnmergedTree = true).printToLog("CI-EDITOR-TREE")
+                shot("editor-timeout")
                 throw e
             }
-            saveShot("editor-open")
+            shot("editor-open")
             listOf("Pause cuts", "Scenes", "Beats", "Follow crop").forEach { tool ->
-                clickTool(tool)
-                saveShot("editor-tool-" + tool.lowercase().replace(' ', '-'))
+                assertTrue("tool not clickable: $tool", Ui.clickScrolling(tool))
+                shot("editor-tool-" + tool.lowercase().replace(' ', '-'))
             }
         }
     }
