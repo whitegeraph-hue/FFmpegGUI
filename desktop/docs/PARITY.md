@@ -39,7 +39,7 @@ Mouse-driven native file choosers imported all original pinned speech files and
 U2-NetP. Actual Listen and Follow buttons then completed through isolated model
 workers. This contains an unexplained native GUI coexistence crash, it does not
 establish broad target-machine compatibility. Source-classpath GUI and a locally
-patched extracted app image were checked; fresh whole-package recheck is pending.
+patched extracted app image were checked; fresh extracted whole-.deb worker and clicked GUI checks passed. System install is still unverified.
 
 Rendered edit playback now runs inside the editor with video frames synchronized
 to played PCM sample count, pause and seek. Mouse-clicked transport was checked

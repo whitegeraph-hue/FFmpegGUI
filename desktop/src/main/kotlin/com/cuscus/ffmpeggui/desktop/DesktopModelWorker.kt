@@ -19,10 +19,11 @@ class DesktopModelWorker {
             var process:Process?=null
             try {
                 val request=File(directory,"request.json")
-                request.writeText(buildJsonObject { put("kind",kind);put("path",path);put("model",model.path);put("duration",duration);put("parent",ProcessHandle.current().pid()) }.toString())
+                request.writeText(buildJsonObject { put("kind",kind);put("path",File(path).absolutePath);put("model",model.absolutePath);put("duration",duration);put("parent",ProcessHandle.current().pid()) }.toString())
                 val launcher=System.getProperty("jpackage.app-path")?.let(::File)?.takeIf { it.isFile }
                     ?: ProcessHandle.current().info().command().orElse(null)?.let(::File)?.takeIf { it.name=="ffmpeggui-linux" && it.isFile }
-                val command=if(launcher!=null) listOf(launcher.path) else listOf(File(System.getProperty("java.home"),"bin/java").path,"-Xmx256m","-cp",System.getProperty("java.class.path"),"com.cuscus.ffmpeggui.desktop.MainKt")
+                val classpath=System.getProperty("java.class.path").split(File.pathSeparator).joinToString(File.pathSeparator) { File(it).absolutePath }
+                val command=if(launcher!=null) listOf(launcher.path) else listOf(File(System.getProperty("java.home"),"bin/java").path,"-Xmx256m","-cp",classpath,"com.cuscus.ffmpeggui.desktop.MainKt")
                 val builder=ProcessBuilder(command).directory(directory)
                     .redirectErrorStream(true).redirectOutput(File(directory,"worker.log"))
                 builder.environment().apply {
@@ -40,7 +41,7 @@ class DesktopModelWorker {
                     File(directory,"progress").takeIf { it.isFile }?.let { runCatching { it.readText() }.getOrNull()?.let(progress) }
                 }
                 currentCoroutineContext().ensureActive()
-                check(process.exitValue()==0) { "Offline model process stopped (${process.exitValue()}). " + File(directory,"launch.txt").readText()+File(directory,"worker.log").readText().take(2000) }
+                check(process.exitValue()==0) { "Offline model process stopped (${process.exitValue()}). " + File(directory,"worker.log").readText().take(2000) }
                 val resultFile=File(directory,"result.json")
                 check(resultFile.length() in 1..32_000_000) { "Invalid offline model response size" }
                 Json.parseToJsonElement(resultFile.readText()).jsonObject

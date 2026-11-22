@@ -7,7 +7,7 @@ import java.io.File
 import java.nio.file.Files
 
 /** Standalone executable checks. Pass model directory; append --speech for full Parakeet JNI inference. */
-fun main(args: Array<String>) = runModelChecks(args)
+fun main(args: Array<String>) = if("--isolated-only" in args) runIsolatedChecks(args[0]) else runModelChecks(args)
 
 fun runModelChecks(args: Array<String>) = runBlocking {
     val models = File(args[0])
@@ -58,4 +58,37 @@ fun runModelChecks(args: Array<String>) = runBlocking {
         check(cache.listFiles()!!.none { it.name.startsWith("speech-") || it.name.startsWith("subject-") || it.name.startsWith("ffmpeg-") })
         println("PASS temporary media cleanup")
     } finally { cache.deleteRecursively() }
+}
+
+fun runIsolatedChecks(path:String)=runBlocking {
+val models=File(path)
+val source=File(models,"u2netp.onnx")
+        val isolated=DesktopModelWorker()
+        check(isolated.transcribe(File(models,"en.wav").path,models){}.size>5)
+        val isolatedTrack=isolated.track(File(models,"video.mp4").path,1100,source){}
+        check(isolatedTrack.points.size==3)
+        println("PASS isolated speech and tracking workers")
+        val known=ProcessHandle.current().descendants().map { it.pid() }.toList().toSet()
+        val cancelled=launch { isolated.transcribe(File(models,"en.wav").path,models){} }
+        var child:ProcessHandle?=null
+        repeat(100) {
+            if(child==null)child=ProcessHandle.current().descendants().filter { it.pid() !in known }.findFirst().orElse(null)
+            if(child==null)delay(20)
+        }
+        check(child!=null) { "No worker launched" }
+        cancelled.cancelAndJoin()
+        delay(200)
+        check(!child!!.isAlive) { "Cancelled worker survived" }
+        println("PASS cancelled worker exits")
+        val crashed=async { runCatching { isolated.transcribe(File(models,"en.wav").path,models){} } }
+        var failedChild:ProcessHandle?=null
+        repeat(100) {
+            if(failedChild==null)failedChild=ProcessHandle.current().descendants().filter { it.pid() !in known }.findFirst().orElse(null)
+            if(failedChild==null)delay(20)
+        }
+        check(failedChild!=null)
+        failedChild!!.destroyForcibly()
+        check(crashed.await().isFailure) { "Killed worker was reported as success" }
+        check(isolated.transcribe(File(models,"en.wav").path,models){}.isNotEmpty())
+        println("PASS crashed worker reports failure and retry succeeds")
 }

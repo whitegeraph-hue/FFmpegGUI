@@ -25,6 +25,8 @@ import java.awt.Desktop
 
 fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
     runModelWorker(System.getenv("FFMPEGGUI_MODEL_WORKER"))
+} else if (System.getenv("FFMPEGGUI_ISOLATED_CHECKS") != null) {
+    runIsolatedChecks(System.getenv("FFMPEGGUI_ISOLATED_CHECKS"))
 } else if (System.getenv("FFMPEGGUI_MODEL_CHECKS") != null) {
     runModelChecks(arrayOf(System.getenv("FFMPEGGUI_MODEL_CHECKS"),"--speech-first","--speech"))
 } else application {

@@ -53,6 +53,7 @@ jobs:
           dpkg-deb -x desktop/build/compose/binaries/main/deb/*.deb /tmp/deb-check
           date -u
           FFMPEGGUI_MODEL_CHECKS=/tmp/ffmpeggui-models /tmp/deb-check/opt/ffmpeggui-linux/bin/ffmpeggui-linux
+          FFMPEGGUI_ISOLATED_CHECKS=/tmp/ffmpeggui-models /tmp/deb-check/opt/ffmpeggui-linux/bin/ffmpeggui-linux
           date -u
       - uses: actions/upload-artifact@v4
         if: always()

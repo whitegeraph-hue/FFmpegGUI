@@ -52,14 +52,14 @@ building, project model JSON and smart-detector logic come from the shared core.
 - Open video, audio and still images. Decode source frames and seek on the
   edited timeline. The source-frame view is labelled, it does not pretend to
   show effects. Render edited preview generates the actual edited output and
-  plays it through ffplay, including audio, cuts and effects.
+  plays it inside the editor with an audio-sample clock, including cuts and effects. Physical target audio remains unverified.
 - Split, remove and reorder clips. Undo (50 in-memory history entries).
 - Speed, volume, rotation, horizontal flip, brightness, contrast, saturation.
 - MP4/MKV/AVI/GIF and common audio/image output formats supported by the UI.
 - Real scene and beat analysis, selectable boundaries and application to the
   timeline; beat snapping applies to manual splits.
 - Transcript line cut/keep and word seek use original core semantics. Native
-  speech and subject inference/model setup are wired and compile; final packaged checks remain pending.
+  speech and subject inference/model setup passed mouse-clicked GUI and extracted-package worker checks. Native engines run in isolated local processes. Target Zorin installation is still pending.
 - Save/open Linux project envelope uses original Timeline/Effects JSON. This
   is not yet an Android project-import/export compatibility guarantee.
 - Export uses a temporary file then atomic move. Source overwrite is refused;

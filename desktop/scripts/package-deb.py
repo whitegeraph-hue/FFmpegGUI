@@ -19,5 +19,9 @@ with tempfile.TemporaryDirectory() as folder:
  license_path=Path(folder)/'usr/share/doc/ffmpeggui-linux/copyright'
  license_path.parent.mkdir(parents=True,exist_ok=True)
  license_path.write_text((Path(__file__).resolve().parents[2]/'LICENSE').read_text())
- subprocess.run(['dpkg-deb','--build','--root-owner-group',folder,str(path)],check=True)
+ built=path.with_name(path.name+'.repacked')
+ try:
+  subprocess.run(['dpkg-deb','--build','--root-owner-group',folder,str(built)],check=True)
+  built.replace(path)
+ finally:built.unlink(missing_ok=True)
 subprocess.run(['dpkg-deb','-f',str(path),'Package','Version','Architecture','Depends'],check=True)
