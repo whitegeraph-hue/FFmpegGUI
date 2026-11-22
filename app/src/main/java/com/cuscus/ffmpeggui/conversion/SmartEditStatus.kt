@@ -57,5 +57,8 @@ sealed interface FollowCropStatus {
     /** No cut-out model is installed (Settings > Smart features has it). */
     data object NoModel : FollowCropStatus
 
+    /** The sequence holds more than one file: the reframe is made for one. */
+    data object MultiSource : FollowCropStatus
+
     data object Failed : FollowCropStatus
 }

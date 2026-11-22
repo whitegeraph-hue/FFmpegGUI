@@ -736,9 +736,10 @@ private fun SampleLetters(text: String, base: TextStyle, style: SubtitleStyle) {
 // -- The lines -------------------------------------------------------------------------
 
 /** A line of the transcript: the words of one block, on the clock of the file they were heard in. */
-private class TranscriptLine(val sourceId: String, val startMs: Long, val endMs: Long, val text: String)
+private class TranscriptLine(val sourceId: String, val startMs: Long, val endMs: Long, val text: String, val words: List<SpokenWord> = emptyList())
 
 @Composable
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 private fun LinesPage(subtitles: SubtitleEditing, onSeekLine: (String, Long) -> Unit = { _, _ -> }) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -753,7 +754,7 @@ private fun LinesPage(subtitles: SubtitleEditing, onSeekLine: (String, Long) -> 
             subtitles.words.flatMap { (sourceId, words) ->
                 // One line per block, as the subtitles show them (the frame's shape does not matter here).
                 SubtitleLayout.ofWords(words, subtitles.style.copy(maxLines = 2), 16f / 9f).map { block ->
-                    TranscriptLine(sourceId, block.startMs, block.endMs, block.words.joinToString(" ") { it.text })
+                    TranscriptLine(sourceId, block.startMs, block.endMs, block.words.joinToString(" ") { it.text }, block.words)
                 }
             }
         }
@@ -823,7 +824,25 @@ private fun LinesPage(subtitles: SubtitleEditing, onSeekLine: (String, Long) -> 
                 }
                 Spacer(modifier = Modifier.width(10.dp))
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(line.text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+                    if (line.words.isEmpty()) {
+                        Text(line.text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+                    } else {
+                        // Every word seeks to where it is said (see ConfigScreen's seekToSaid).
+                        androidx.compose.foundation.layout.FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            line.words.forEach { word ->
+                                Text(
+                                    word.text,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.clickable(
+                                        onClickLabel = stringResource(R.string.transcript_play_from, lineTime(word.startMs)),
+                                    ) { onSeekLine(line.sourceId, word.startMs) },
+                                )
+                            }
+                        }
+                    }
                     if (showFile) {
                         Text(subtitles.sourceNames[line.sourceId] ?: "", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }

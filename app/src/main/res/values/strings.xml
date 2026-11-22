@@ -1943,7 +1943,8 @@
     <string name="subtitle_cut_line">Cut from video</string>
     <string name="subtitle_keep_line">Keep only this</string>
     <string name="smart_follow_samples">How it will look</string>
-    <string name="smart_follow_main_only">Only the main file's subject is followed; while other files play, the window keeps its nearest position.</string>
+    <string name="smart_follow_multi">Follow crop works on a video from one file; take the other clips out of the sequence first.</string>
+    <string name="smart_follow_not_applied">Not applied while the sequence holds more than one file.</string>
 
     <!-- About: what runs the smart features, and their licences -->
     <string name="about_sherpa">sherpa-onnx</string>

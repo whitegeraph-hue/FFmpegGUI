@@ -165,8 +165,10 @@ private fun ConversionSettings.toRequestOf(
     // dropped rather than misapplied when the file it was tracked in is no
     // longer the project's main file.
     followCrop = followCrop?.takeIf { track ->
-        track.sourceKey.isEmpty() ||
-            footage.mainFileIndex?.let { footage.files[it].uri.toString() } == track.sourceKey
+        // One file only (see ConversionViewModel.trackSubjectForVerticalCrop),
+        // and the one the track was made from.
+        footage.files.size == 1 &&
+            (track.sourceKey.isEmpty() || footage.mainFileIndex?.let { footage.files[it].uri.toString() } == track.sourceKey)
     },
     audioEffects = audioEffects,
     canvas = projectRatio,

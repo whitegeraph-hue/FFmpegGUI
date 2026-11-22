@@ -337,7 +337,7 @@ fun FollowCropPanel(ui: SmartEditUi) {
                     }
                     SmartNote(stringResource(R.string.smart_follow_set))
                     if (ui.followCropMultiSource) {
-                        SmartNote(stringResource(R.string.smart_follow_main_only))
+                        SmartNote(stringResource(R.string.smart_follow_not_applied))
                     }
                     OutlinedButton(onClick = ui.onTrackSubject, modifier = Modifier.fillMaxWidth()) {
                         Text(stringResource(R.string.smart_follow_retrack))
@@ -345,12 +345,17 @@ fun FollowCropPanel(ui: SmartEditUi) {
                     OutlinedButton(onClick = ui.onClearFollowCrop, modifier = Modifier.fillMaxWidth()) {
                         Text(stringResource(R.string.smart_follow_remove))
                     }
+                } else if (ui.followCropMultiSource) {
+                    SmartNote(stringResource(R.string.smart_follow_multi))
                 } else {
                     SmartNote(stringResource(R.string.smart_follow_intro))
                     Button(onClick = ui.onTrackSubject, modifier = Modifier.fillMaxWidth()) {
                         Text(stringResource(R.string.smart_follow_start))
                     }
                 }
+            }
+            FollowCropStatus.MultiSource -> PanelCard {
+                SmartNote(stringResource(R.string.smart_follow_multi))
             }
         }
     }

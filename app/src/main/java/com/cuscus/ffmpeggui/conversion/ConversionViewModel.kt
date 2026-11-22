@@ -4270,6 +4270,13 @@ class ConversionViewModel(
         val source = _settings.value.source(EditorSource.MAIN_ID) ?: return
         val info = source.info
         if (source.isStill || info == null || info.width <= 0 || info.height <= 0) return
+        // The joined video is framed to its FIRST file while the track knows the
+        // main one's size: with more than one file the window could not be placed
+        // safely, so the reframe is made for a one-file sequence only.
+        if (_settings.value.playingClips.map { it.sourceId }.distinct().size > 1) {
+            _followCropStatus.value = FollowCropStatus.MultiSource
+            return
+        }
         followCropJob = viewModelScope.launch {
             _followCropStatus.value = FollowCropStatus.Working(0f)
             try {
@@ -4318,20 +4325,24 @@ class ConversionViewModel(
     /**
      * The kept raw frames cropped as the export will crop them: at their
      * position on the edited sequence (frames the edit drops are left out),
-     * with the whole video's flips and quarter turns applied as the export
-     * applies them after the crop. A crop only picks pixels, so these are
-     * faithful stills, not an approximation; the canvas's bars are not drawn.
+     * the window read from the export's own keyframe reduction (not the
+     * smoother centerAt), with the whole video's flips and quarter turns
+     * applied as the export applies them after the crop. A crop only picks
+     * pixels, so these stills match what the filter writes; the canvas's bars
+     * are not drawn.
      */
     private fun followCropSamplesOf(
         rawSamples: List<Pair<Long, android.graphics.Bitmap>>,
         track: FollowCropTrack,
     ): List<android.graphics.Bitmap> {
         val effects = _settings.value.wholeEffects
+        val keys = track.keyframes()
         return rawSamples.mapNotNull { (fileMs, bitmap) ->
             val seqMs = filePointOntoTimeline(fileMs) ?: return@mapNotNull null
-            val (cx, cy) = track.centerAt(seqMs)
-            val x = (cx - track.outWidth / 2f).toInt().coerceIn(0, (track.inWidth - track.outWidth).coerceAtLeast(0))
-            val y = (cy - track.outHeight / 2f).toInt().coerceIn(0, (track.inHeight - track.outHeight).coerceAtLeast(0))
+            val x = track.positionAt(keys, 0, seqMs / 1000.0).toInt()
+                .coerceIn(0, (track.inWidth - track.outWidth).coerceAtLeast(0))
+            val y = track.positionAt(keys, 1, seqMs / 1000.0).toInt()
+                .coerceIn(0, (track.inHeight - track.outHeight).coerceAtLeast(0))
             var out = android.graphics.Bitmap.createBitmap(
                 bitmap, x, y,
                 track.outWidth.coerceAtMost(track.inWidth - x),
