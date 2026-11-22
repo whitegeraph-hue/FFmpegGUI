@@ -71,6 +71,7 @@ object DesktopProjects {
             source
         }
         require(sources.isNotEmpty() && sources.map {it.path}.distinct().size==sources.size){"Invalid or duplicate source list."}
+        require(sources.size==1 || sources.all {it.info.isVideo && !it.info.isStill}){"Multi-source projects currently require video clips. Mixed still/audio timeline sources are still being ported."}
         val timeline=ModelJson.timeline(read(data["timeline"]!!))
         require(timeline.clips.isNotEmpty() && timeline.clips.all { c ->
             val s=sources.firstOrNull { it.path==c.sourceId }

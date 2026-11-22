@@ -85,8 +85,8 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                         Row(Modifier.weight(1f),horizontalArrangement=Arrangement.spacedBy(20.dp)) {
                             Column(Modifier.weight(1.15f),verticalArrangement=Arrangement.spacedBy(12.dp)) {
                                 Row(verticalAlignment=Alignment.CenterVertically) {
-                                    Text(File(project.sources[0].path).name,style=MaterialTheme.typography.titleMedium,modifier=Modifier.weight(1f))
-                                    Text("${project.sources[0].info.width} × ${project.sources[0].info.height}",style=MaterialTheme.typography.labelMedium)
+                                    Text(File(project.sources[controller.selectedSource].path).name,style=MaterialTheme.typography.titleMedium,modifier=Modifier.weight(1f))
+                                    Text("${project.sources[controller.selectedSource].info.width} × ${project.sources[controller.selectedSource].info.height}",style=MaterialTheme.typography.labelMedium)
                                 }
                                 Box(Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(20.dp)).background(Color.Black),contentAlignment=Alignment.Center) {
                                     val frame=if(controller.player.playing || controller.player.frame!=null) controller.player.frame else controller.previewFrame ?: controller.sourceFrame
@@ -124,7 +124,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                                 }
                             }
                             Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(10.dp)) {
-                                val tabs=listOf("Edit","Transcript","Pause cuts","Scenes","Beats","Follow crop","Models","Subtitles","Audio","Text layers","Sound tracks","Tags","Image layers")
+                                val tabs=listOf("Edit","Clip editor","Transcript","Pause cuts","Scenes","Beats","Follow crop","Models","Subtitles","Audio","Text layers","Sound tracks","Tags","Image layers")
                                 if(project.sources.size>1)FlowRowCompat {
                                     project.sources.forEachIndexed {i,source->FilterChip(controller.selectedSource==i,{controller.selectSource(i)},label={Text("${i+1}: ${File(source.path).name.take(20)}")},enabled=!controller.busy)}
                                 }
@@ -134,6 +134,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                                 Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(12.dp)) {
                                     when(controller.tab) {
                                         "Edit" -> EditPanel(controller,project)
+                                        "Clip editor" -> ClipEditorPanel(controller,project)
                                         "Subtitles" -> SubtitlesPanel(controller,project)
                                         "Image layers" -> PictureLayersPanel(controller,project){pick()?.path}
                                         "Tags" -> TagsPanel(controller,project)
@@ -553,6 +554,54 @@ private fun EditPanel(c: EditorController,p: DesktopProject) {
                 ValueSlider("Fade out seconds",v.fadeOutSeconds,0f..3f,!c.busy){update(v.copy(fadeOutSeconds=it))}
             }
             Row {TextButton(onClick={update(v.copy(layer=v.layer+1))},enabled=!c.busy){Text("Raise (${v.layer})")};TextButton(onClick={update(v.copy(layer=v.layer-1))},enabled=!c.busy){Text("Lower")};TextButton(onClick={c.mutate(p.copy(pictures=p.pictures.filterIndexed {i,_->i!=index}))},enabled=!c.busy){Text("Remove")}}
+        }
+    }
+}
+
+@Composable private fun ClipEditorPanel(c:EditorController,p:DesktopProject) {
+    val index=(p.timeline.locate(c.position)?.index ?: 0).coerceIn(p.timeline.clips.indices)
+    val clip=p.timeline.clips[index]
+    val source=p.sources.first {it.path==clip.sourceId}
+    val f=clip.effects
+    fun change(update:(Effects)->Effects){c.mutate(p.copy(timeline=p.timeline.updateEffects(clip.id,update),followCrop=null))}
+    PanelCard {
+        Text("Clip ${index+1}: ${File(clip.sourceId).name}",style=MaterialTheme.typography.titleLarge)
+        Text("Select a clip with its timeline Seek button. Source timeline uses file time. Render edited preview for final speed, transitions and sound.")
+        FlowRowCompat {
+            OutlinedButton(onClick={c.mutate(p.copy(timeline=p.timeline.duplicate(clip.id,java.util.UUID.randomUUID().toString()),followCrop=null))},enabled=!c.busy){Text("Duplicate clip")}
+            OutlinedButton(onClick={change {Effects.NONE}},enabled=!c.busy){Text("Reset clip effects")}
+        }
+        if(!source.info.isStill) {
+            ValueSlider("Source in (seconds)",clip.startMs/1000f,0f..((clip.endMs ?: source.info.durationMs)-120).coerceAtLeast(1)/1000f,!c.busy){c.mutate(p.copy(timeline=p.timeline.trim(clip.id,(it*1000).toLong(),clip.endMs ?: source.info.durationMs,source.info.durationMs),followCrop=null))}
+            ValueSlider("Source out (seconds)",(clip.endMs ?: source.info.durationMs)/1000f,(clip.startMs+120)/1000f..source.info.durationMs/1000f,!c.busy){c.mutate(p.copy(timeline=p.timeline.trim(clip.id,clip.startMs,(it*1000).toLong(),source.info.durationMs),followCrop=null))}
+        }
+        ValueSlider("Clip speed",f.speed,.25f..4f,!c.busy){v->change {it.copy(speed=v)}}
+        Row { Switch(f.reversed,{v->change {it.copy(reversed=v)}},enabled=!c.busy);Text("Reverse");Switch(f.keepPitch,{v->change {it.copy(keepPitch=v)}},enabled=!c.busy);Text("Keep pitch") }
+        Row {Switch(f.muted,{v->change {it.copy(muted=v)}},enabled=!c.busy);Text("Mute clip")}
+        ValueSlider("Clip volume",f.volume,0f..2f,!c.busy){v->change {it.copy(volume=v)}}
+        ValueSlider("Fade in (seconds)",f.fadeInSeconds,0f..3f,!c.busy){v->change {it.copy(fadeInSeconds=v)}}
+        ValueSlider("Fade out (seconds)",f.fadeOutSeconds,0f..3f,!c.busy){v->change {it.copy(fadeOutSeconds=v)}}
+        ValueSlider("Clip zoom",f.zoom,1f..4f,!c.busy){v->change {it.copy(zoom=v)}}
+        ValueSlider("Clip pan X",f.panX,0f..1f,!c.busy){v->change {it.copy(panX=v)}}
+        ValueSlider("Clip pan Y",f.panY,0f..1f,!c.busy){v->change {it.copy(panY=v)}}
+        ValueSlider("Clip brightness",f.color.brightness,-1f..1f,!c.busy){v->change {it.copy(color=it.color.copy(brightness=v))}}
+        ValueSlider("Clip contrast",f.color.contrast,0f..2f,!c.busy){v->change {it.copy(color=it.color.copy(contrast=v))}}
+        ValueSlider("Clip saturation",f.color.saturation,0f..2f,!c.busy){v->change {it.copy(color=it.color.copy(saturation=v))}}
+        Text("Clip animation keys",style=MaterialTheme.typography.titleMedium)
+        val sourceAt=clip.startMs+(c.position-p.timeline.startOf(index)).coerceIn(0,clip.lengthMs)
+        Text("Keys use this source file's clock. Seek in the clip, set zoom, pan, colour and volume above, then capture.")
+        Button(onClick={change {it.copy(keyframes=it.keyframes.set(sourceAt,mapOf(KeyProperty.ZOOM to f.zoom,KeyProperty.PAN_X to f.panX,KeyProperty.PAN_Y to f.panY,KeyProperty.BRIGHTNESS to f.color.brightness,KeyProperty.CONTRAST to f.color.contrast,KeyProperty.SATURATION to f.color.saturation,KeyProperty.VOLUME to f.volume)))}},enabled=!c.busy){Text("Capture source key ${time(sourceAt)}")}
+        f.keyframes.sorted.forEach {key->
+            Text("Source ${time(key.atMs)}")
+            FlowRowCompat {KeyEasing.entries.filter {it!=KeyEasing.CUSTOM}.forEach {e->FilterChip(key.easing==e,{change {it.copy(keyframes=it.keyframes.withEasing(key.atMs,e))}},label={Text(e.name)},enabled=!c.busy)}}
+            TextButton(onClick={change {it.copy(keyframes=it.keyframes.remove(key.atMs))}},enabled=!c.busy){Text("Remove clip key")}
+        }
+        if(index<p.timeline.clips.lastIndex) {
+            Text("Transition into next clip",style=MaterialTheme.typography.titleMedium)
+            Text("Clips overlap by the transition length, limited to half either clip. Render preview to inspect the final cut.")
+            OutlinedButton(onClick={change {it.copy(transition=null)}},enabled=!c.busy){Text("No transition")}
+            FlowRowCompat {listOf(TransitionKind.FADE,TransitionKind.WIPE_LEFT,TransitionKind.WIPE_RIGHT,TransitionKind.SLIDE_LEFT,TransitionKind.DISSOLVE).forEach {kind->FilterChip(f.transition?.kind==kind,{change {it.copy(transition=Transition(kind,f.transition?.durationMs ?: 500L))}},label={Text(kind.name)},enabled=!c.busy)}}
+            f.transition?.let {tr->ValueSlider("Transition seconds",tr.durationMs/1000f,.1f..3f,!c.busy){v->change {it.copy(transition=tr.copy(durationMs=(v*1000).toLong()))}}}
         }
     }
 }

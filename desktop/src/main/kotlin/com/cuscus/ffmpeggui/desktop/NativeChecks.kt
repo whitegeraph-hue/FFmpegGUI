@@ -177,6 +177,30 @@ fun main(args:Array<String>)=runBlocking {
         val saved=File(folder,"multi.ffgui.json");DesktopProjects.save(project,saved);val restored=DesktopProjects.load(saved,media);check(restored.sources==project.sources && restored.wordsBySource==project.wordsBySource && restored.timeline==timeline)
         media.process.checked(listOf("ffmpeg","-v","error","-i",output.path,"-f","null","-"))
     }
+    verify("clip trim speed reverse and real transition export") {
+        val timeline=Timeline(listOf(Clip("one",video.path,endMs=4000,effects=Effects(speed=2f,reversed=true,volume=.6f,transition=Transition(TransitionKind.FADE,500))),Clip("two",video.path,startMs=4000,endMs=6000)))
+        val project=p.copy(timeline=timeline)
+        val result=exporter.export(project,File(folder,"transition.mp4"))
+        check(result.info.durationMs in 3400..3700 && result.info.hasAudio)
+        media.process.checked(listOf("ffmpeg","-v","error","-i",result.path,"-f","null","-"))
+        val first=media.frame(result.path,200)!!;val original=media.frame(video.path,200)!!
+        check(first.getRGB(100,100)!=original.getRGB(100,100))
+        val saved=File(folder,"transition.ffgui.json");DesktopProjects.save(project,saved);check(DesktopProjects.load(saved,media).timeline==timeline)
+        check(timeline.trim("one",500,3500,video.info.durationMs).clips[0].startMs==500L)
+    }
+    verify("clip volume keys actually change PCM over time") {
+        val key=Keyframes().set(0,mapOf(KeyProperty.VOLUME to 0f)).set(2500,mapOf(KeyProperty.VOLUME to 0f)).set(3500,mapOf(KeyProperty.VOLUME to 1f)).set(7000,mapOf(KeyProperty.VOLUME to 1f))
+        val project=p.copy(timeline=Timeline(listOf(Clip("keys",video.path,endMs=7000,effects=Effects(keyframes=key)))))
+        val output=exporter.export(project,File(folder,"clip-keys.mp4"));val pcm=media.samples(output.path)
+        fun power(a:Int,b:Int)=pcm.sliceArray(a*16000 until b*16000).maxOf {kotlin.math.abs(it)}
+        check(power(0,2)<.005f && power(4,6)>.02f)
+    }
+    verify("mixed saved timeline types rejected") {
+        val audio=media.probe(File(folder,"beat.wav").path)
+        val mixed=p.copy(sources=listOf(video,audio),timeline=Timeline(listOf(Clip("v",video.path,endMs=1000),Clip("a",audio.path,endMs=1000))))
+        val saved=File(folder,"mixed.ffgui.json");DesktopProjects.save(mixed,saved)
+        check(runCatching {DesktopProjects.load(saved,media)}.isFailure)
+    }
     verify("cancel real process") {
         val start=System.currentTimeMillis()
         val job=launch { media.process.run(listOf("ffmpeg","-re","-f","lavfi","-i","testsrc2=size=640x360:rate=25","-t","30","-f","null","-")) }

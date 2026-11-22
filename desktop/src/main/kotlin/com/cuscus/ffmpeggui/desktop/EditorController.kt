@@ -64,7 +64,7 @@ class EditorController(val scope: CoroutineScope) {
     }
     fun append(path:String)=work("Adding source…") {
         val p=project ?: return@work
-        require(!p.sources[selectedSource].info.isStill){"Start a video timeline to combine files."}
+        require(p.sources.all {it.info.isVideo && !it.info.isStill}){"Start a video timeline to combine files."}
         val source=media.probe(path)
         require(source.info.isVideo && !source.info.isStill){"Choose a video clip for this timeline. Still and audio-only timeline sources are still being ported."}
         val sources=if(p.sources.any {it.path==source.path})p.sources else p.sources+source

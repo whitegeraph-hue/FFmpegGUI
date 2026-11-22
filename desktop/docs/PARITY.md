@@ -6,22 +6,22 @@ Status is implementation evidence, not a promise that unchecked behavior works.
 | Area | Shared source preserved | Linux status / remaining work |
 |---|---|---|
 | Core command generation and models | All core sources | Clean CI compile and 926 tests pass. Narrow real-media integration tests added. Broad FFmpeg filter compatibility still open. |
-| Basic import/probe/export | Models and builder | Desktop adapter compiled. Real source frame/seek and timeline export tested. Still import, more formats/rotation/error cases need broader tests. |
-| Video timeline | Timeline/Clip and effects | Split, remove, reorder, undo wired. Multi-file intake, transitions, keyframes, speed curves, overlays, layer stack, text and animations still missing UI. |
+| Basic import/probe/export | Models and builder | Desktop adapter compiled. Real source frame/seek and timeline export tested. Still import/export tested. More formats/rotation/error cases need broader tests. |
+| Video timeline | Timeline/Clip and effects | Split/remove/reorder/undo and multi-video append wired. Clip trim/duplicate, speed/reverse/pitch, volume/fades/framing/colour and capture/list/easing keys exposed. Five basic transitions exposed; companion-effect transitions, speed curves, still/audio-only timeline sources and richer layer interaction remain missing. |
 | Transcript word seek and keep/cut | TranscriptEdits/wordBlocks | UI and core binding implemented. Speech inference/model setup wired and compiled; final app runtime/UI checks pending. |
 | Pause/filler cuts | PauseCuts/SilenceDetect + original panel | Wired after words exist, selectable/apply. Actual speech-derived pause/filler test pending. |
 | Scene splits | SceneDetect + original panel | Real FFmpeg scene detection passed at known 2s and 4s boundaries. Panel apply and manual UI tests pending. |
 | Beat-synced splits | BeatTrack + original panel | Real audio analysis passed 120 BPM fixture. Split/snapping wired. UI test pending. |
 | Subject-following crop | FollowCropTrack/SubjectModelIo + original panel | Synthetic moving crop export passed. Native U2-NetP inference/model import wired and compiled; final app runtime/UI checks pending. |
 | Preview | Source frame adapter | Honest labelled source-frame seek; render edited preview includes effects/audio via real export and integrated sample-clock playback. Android live-preview parity not done. |
-| Audio editor/mastering | DSP/models/builder preserved | Speed/volume, audio bitrate/bitdepth and formats exposed. Ten-band EQ, cuts, pitch, gate/compression/limiter, echo/reverb and stereo controls implemented. Actual24bit44100Hz mastered WAV tested. Waveforms, stems/tracks and modulation still missing. |
-| Photo editor | Image/vector/text-art logic preserved | Basic still export path exposed. Crop/rotation/mirror/detail, perspective/straighten, exposure/highlights/shadows/warmth/tint/hue/fade, filters/effects/corners controls and saved ImageEdit wired. Actual transformed PNG tested and clicked rendered image inspected. SVG tracing and ASCII/ANSI exports now use original core with desktop glyph atlas and format controls, tested actual files. Layers, shapes, brush, masks, HDR and live art preview still unported. |
+| Audio editor/mastering | DSP/models/builder preserved | Speed/volume, audio bitrate/bitdepth and formats exposed. Ten-band EQ, cuts, pitch, gate/compression/limiter, echo/reverb and stereo controls implemented. Actual24bit44100Hz mastered WAV tested. Placed sound tracks implemented and tested; waveforms, stems and modulation still missing. |
+| Photo editor | Image/vector/text-art logic preserved | Basic still export path exposed. Crop/rotation/mirror/detail, perspective/straighten, exposure/highlights/shadows/warmth/tint/hue/fade, filters/effects/corners controls and saved ImageEdit wired. Actual transformed PNG tested and clicked rendered image inspected. SVG tracing and ASCII/ANSI exports now use original core with desktop glyph atlas and format controls, tested actual files. Whole-output still image layers implemented. Photo-native layer interaction, shapes, brush, masks, HDR and live art preview still unported. |
 | GIF editor | GIF settings/builder preserved | Width/fps/palette/dither/loops/smaller controls with real240px10fps export test. Exact live palette preview missing. |
 | Subtitles/style/lyrics | Full core preserved | Transcript UI only initially. SRT/TXT retimed export and ASS burn-in/style controls implemented;14 native integration checks include actual burnt pixels and240p15fps. Custom fonts/colours, external subtitle import and lyrics workflows pending. |
 | Offline AI cutout/erase/translation/dub/stems | Core algorithms/model definitions preserved | Runtime adapters, model gates and integrity import, licences, speech memory limits, source separation, marking gates still need porting. No generative output exposed without required provenance marks. |
 | Project files | Original ModelJson | Linux envelope save/open implemented. Source validation; Android project envelope interoperability not yet supported. Need include all editor state once exposed. |
 | Command studio | Parser/catalog/lint/recipes preserved | Read-only generated command initially. Editable commands, lint, recipes and file aliases still missing UI. |
-| Metadata/cover/HDR/compression/stabilization | Core preserved | Not exposed or certified on Linux yet. Required adapters and filter availability checks pending. |
+| Metadata/cover/HDR/compression/stabilization | Core preserved | Metadata text tags exposed and tested. Cover/HDR/compression/stabilization adapters and filter availability checks pending. |
 | OS integration | None assumed | Debian amd64 with Java runtime and explicit apt FFmpeg/fonts dependencies. Zorin release/actual install/graphics/audio validation pending. No tag or release published. |
 
 ## Completion standard
@@ -39,7 +39,7 @@ Mouse-driven native file choosers imported all original pinned speech files and
 U2-NetP. Actual Listen and Follow buttons then completed through isolated model
 workers. This contains an unexplained native GUI coexistence crash, it does not
 establish broad target-machine compatibility. Source-classpath GUI and a locally
-patched extracted app image were checked; fresh extracted whole-.deb worker and clicked GUI checks passed. System install is still unverified.
+patched extracted app image were checked; fresh extracted whole-.deb worker and clicked GUI checks passed. Ubuntu22.04 clean CI apt dependency install, desktop-entry launch and remove/purge pass. Actual Zorin install remains unverified.
 
 Rendered edit playback now runs inside the editor with video frames synchronized
 to played PCM sample count, pause and seek. Mouse-clicked transport was checked
@@ -49,8 +49,7 @@ preview workflow, not the Android live player implementation.
 
 Follow crop is deliberately invalidated after structural timeline edits rather
 than retained with stale timestamps. This is more conservative than Android's
-remapping; rerun tracking after edits. Single-source project loading is enforced
-until multi-source word/track association is ported. Beat sample buffering is
+remapping; rerun tracking after edits. Multi-video project loading is supported with per-source words. Follow crop is explicitly blocked for multi-source projects pending coherent tracks. Beat sample buffering is
 limited to ten minutes to fit the bounded Java heap; streaming analysis remains
 work to do. ORT's shipped native x64 library sets a GLIBC 2.27 minimum.
 
@@ -107,7 +106,7 @@ colour, blend, stacking and times/fades are bound to original core.25native
 checks include actual portrait output tags and time-gated image composite,
 roundtrips and image-source overwrite protection. Easing options now wrap.
 Sound-file chooser was clicked successfully for en.wav, controls inspected.
-Image-file chooser and wrapped easing final visual verification remain pending.
+Wrapped easing inspected with all options visible. Image-file chooser remains unverified.
 
 Multi-source continuation: video append, source-selection chips, per-source
 speech words, transcript seek/cuts, pause/scene/beat mapping use source indexes.
@@ -116,3 +115,12 @@ retimed per-source SRT and project roundtrip. Multi-source subject follow is
 explicitly blocked pending coherent tracks. Still/audio-only timeline source
 intake and transition editor remain missing. Project source count no longer
 artificially limited to one. Layer sound and still image paths are independent.
+
+Clip editor continuation: source trim/duplicate, clip speed/reverse/pitch,
+volume/fades/zoom/pan/colour and source-clock animation keys capture/list/remove/
+easing are exposed. Basic fade/wipe-left/wipe-right/slide-left/dissolve selection
+and length exposed.29native assertions include actual2x/reverse transition
+export/duration/decode and a keyframed PCM volume changing from silence to sound.
+Clip controls, transition controls and clicked key capture inspected at1280px.
+Companion transitions, speed curves, custom easing and richer visual timeline
+remain unported. Mixed-type saved multi-source projects are explicitly rejected.
