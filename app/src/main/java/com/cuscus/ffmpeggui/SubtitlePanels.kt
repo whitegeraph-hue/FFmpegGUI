@@ -909,21 +909,24 @@ private fun EditLineDialog(line: TranscriptLine, onSave: (String) -> Unit, onCut
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(stringResource(R.string.subtitle_edit_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
+                // Cut/keep sit in the body: beside Cancel in the button row they squeezed it into one letter per line.
+                if (onCut != null || onKeep != null) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (onCut != null) {
+                            OutlinedButton(onClick = onCut) { Text(stringResource(R.string.subtitle_cut_line)) }
+                        }
+                        if (onKeep != null) {
+                            OutlinedButton(onClick = onKeep) { Text(stringResource(R.string.subtitle_keep_line)) }
+                        }
+                    }
+                }
             }
         },
         confirmButton = {
             Button(onClick = { onSave(text) }, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.subtitle_edit_save)) }
         },
         dismissButton = {
-            Row {
-                if (onCut != null) {
-                    TextButton(onClick = onCut) { Text(stringResource(R.string.subtitle_cut_line)) }
-                }
-                if (onKeep != null) {
-                    TextButton(onClick = onKeep) { Text(stringResource(R.string.subtitle_keep_line)) }
-                }
-                TextButton(onClick = onDismiss) { Text(stringResource(R.string.subtitle_edit_cancel)) }
-            }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.subtitle_edit_cancel)) }
         },
     )
 }

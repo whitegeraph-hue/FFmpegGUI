@@ -78,6 +78,11 @@ class EditorOpenScreenshotTest {
             // The editor reached the toolbar: every smart tool is there. On a
             // timeout, keep the evidence: what the screen actually showed.
             try {
+                // An opened file lands on the format chooser first: take the
+                // suggested MP4 to reach the editor.
+                rule.waitUntil(30_000) { rule.onAllNodesWithText("Choose a format").fetchSemanticsNodes().isNotEmpty() }
+                saveShot("editor-format-chooser")
+                rule.onAllNodesWithText("MP4").onFirst().performClick()
                 rule.waitUntil(60_000) {
                     rule.onAllNodesWithText("Scenes").fetchSemanticsNodes().isNotEmpty() ||
                         rule.onAllNodesWithContentDescription("Scenes").fetchSemanticsNodes().isNotEmpty()

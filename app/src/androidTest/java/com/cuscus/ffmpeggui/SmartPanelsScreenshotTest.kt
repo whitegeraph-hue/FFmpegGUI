@@ -114,6 +114,7 @@ class SmartPanelsScreenshotTest {
             )
         }
         rule.waitForIdle()
+        rule.onNodeWithText("Hesitations", substring = true).assertExists()
         shot("panel-pause-cuts")
     }
 
@@ -130,6 +131,7 @@ class SmartPanelsScreenshotTest {
             )
         }
         rule.waitForIdle()
+        rule.onNodeWithText("scene changes", substring = true).assertExists()
         shot("panel-scene-splits")
     }
 
@@ -147,6 +149,9 @@ class SmartPanelsScreenshotTest {
             )
         }
         rule.waitForIdle()
+        // Real content, not a blank pass: the tempo line and the ticked-beats list.
+        rule.onNodeWithText("BPM", substring = true).assertExists()
+        rule.onNodeWithText("beats ticked", substring = true).assertExists()
         shot("panel-beats")
     }
 
