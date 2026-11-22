@@ -62,6 +62,8 @@ class SmartPanelsScreenshotTest {
 
     private fun shot(name: String) {
         rule.waitForIdle()
+        // Let the first frames reach the screen before the shell captures it.
+        Thread.sleep(800)
         ShellShot.take(name)
     }
 

@@ -36,7 +36,9 @@ class EditorOpenScreenshotTest {
     private val context get() = instrumentation.targetContext
 
     private fun saveShot(name: String) {
-        rule.waitForIdle()
+        // The editor never goes idle (video surface, animations): waitForIdle
+        // would time out, so give the frame a moment instead.
+        Thread.sleep(800)
         ShellShot.take(name)
     }
 
@@ -95,7 +97,6 @@ class EditorOpenScreenshotTest {
             saveShot("editor-open")
             listOf("Pause cuts", "Scenes", "Beats", "Follow crop").forEach { tool ->
                 clickTool(tool)
-                rule.waitForIdle()
                 saveShot("editor-tool-" + tool.lowercase().replace(' ', '-'))
             }
         }
