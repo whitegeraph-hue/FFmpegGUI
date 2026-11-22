@@ -84,7 +84,7 @@ class DesktopMedia(val process: DesktopProcess = DesktopProcess()) {
         val target = File.createTempFile("ffmpeggui-audio-", ".pcm")
         return try {
             process.checked(listOf("ffmpeg", "-y", "-v", "error", "-i", path, "-vn", "-ac", "1", "-ar", "16000", "-f", "f32le", target.path))
-            require(target.length() <= 16000L * 4 * 60 * 60) { "This preview limits beat analysis to one hour." }
+            require(target.length() <= 16000L * 4 * 60 * 10) { "This preview limits beat analysis to ten minutes to keep memory bounded." }
             val bytes = target.readBytes()
             val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer()
             FloatArray(buffer.remaining()).also { buffer.get(it) }

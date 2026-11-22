@@ -23,7 +23,9 @@ import java.awt.FileDialog
 import java.io.File
 import java.awt.Desktop
 
-fun main() = if (System.getenv("FFMPEGGUI_MODEL_CHECKS") != null) {
+fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
+    runModelWorker(System.getenv("FFMPEGGUI_MODEL_WORKER"))
+} else if (System.getenv("FFMPEGGUI_MODEL_CHECKS") != null) {
     runModelChecks(arrayOf(System.getenv("FFMPEGGUI_MODEL_CHECKS"),"--speech-first","--speech"))
 } else application {
     val scope=rememberCoroutineScope()
@@ -54,7 +56,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_CHECKS") != null) {
                             Text("Linux development preview · shared Android editing core",style=MaterialTheme.typography.labelLarge,color=MaterialTheme.colorScheme.primary)
                         }
                         OutlinedButton(onClick={ pick()?.let { controller.open(it.path) } },enabled=!controller.busy) { Text("Open media") }
-                        OutlinedButton(onClick={ pick()?.let { file -> controller.work("Opening project…") { controller.project=DesktopProjects.load(file,controller.media); controller.resetAnalysis(); controller.seek(0); controller.status="Project opened." } } },enabled=!controller.busy) { Text("Open project") }
+                        OutlinedButton(onClick={ pick()?.let { file -> controller.work("Opening project…") { controller.player.stop();controller.rendered?.delete();controller.rendered=null;controller.project=DesktopProjects.load(file,controller.media); controller.resetAnalysis(); controller.seek(0); controller.status="Project opened." } } },enabled=!controller.busy) { Text("Open project") }
                         OutlinedButton(onClick={ controller.project?.let { p -> pick(true,"project.ffgui.json")?.let { file -> controller.work("Saving project…") { DesktopProjects.save(p,file); controller.status="Project saved: ${file.path}" } } } },enabled=!controller.busy && controller.project!=null) { Text("Save project") }
                         OutlinedButton(onClick={ controller.undo() },enabled=!controller.busy && controller.project!=null) { Text("Undo") }
                         Button(onClick={ controller.project?.let { p ->
@@ -83,16 +85,23 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_CHECKS") != null) {
                                     Text("${project.sources[0].info.width} × ${project.sources[0].info.height}",style=MaterialTheme.typography.labelMedium)
                                 }
                                 Box(Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(20.dp)).background(Color.Black),contentAlignment=Alignment.Center) {
-                                    val frame=controller.sourceFrame
-                                    if (frame!=null) Image(frame,"Source frame at the playhead, not an effects preview",modifier=Modifier.fillMaxSize())
+                                    val frame=if(controller.player.playing || controller.player.frame!=null) controller.player.frame else controller.sourceFrame
+                                    if (frame!=null) Image(frame,if(controller.player.frame!=null) "Rendered edit playback" else "Source frame at the playhead, not an effects preview",modifier=Modifier.fillMaxSize())
                                     else Text(if (project.sources[0].info.isVideo) "Reading frame…" else "Audio file",color=Color.White)
                                 }
-                                Text("Source frame · ${time(controller.position)} / ${time(project.timeline.durationMs)}. Use Render edited preview to inspect cuts and effects.",style=MaterialTheme.typography.bodySmall)
-                                Slider(controller.position.toFloat(),{ controller.seek(it.toLong()) },valueRange=0f..project.timeline.durationMs.coerceAtLeast(1).toFloat(),enabled=!controller.busy)
+                                Text(if(controller.player.frame!=null) "Rendered edit · ${time(controller.player.positionMs)} / ${time(controller.player.durationMs)} · synchronized audio/video" else "Source frame · ${time(controller.position)} / ${time(project.timeline.durationMs)}. Render edited preview to inspect cuts and effects.",style=MaterialTheme.typography.bodySmall)
+                                controller.player.failure?.let { Text(it,color=MaterialTheme.colorScheme.error,style=MaterialTheme.typography.bodySmall) }
+                                if(controller.player.frame!=null) {
+                                    var scrub by remember { mutableStateOf<Float?>(null) }
+                                    Slider(scrub ?: controller.player.positionMs.toFloat(),{ scrub=it },onValueChangeFinished={scrub?.let { controller.player.seek(it.toLong()) };scrub=null},valueRange=0f..controller.player.durationMs.coerceAtLeast(1).toFloat())
+                                }
+                                Slider(controller.position.toFloat(),{ controller.player.stop();controller.seek(it.toLong()) },valueRange=0f..project.timeline.durationMs.coerceAtLeast(1).toFloat(),enabled=!controller.busy)
                                 Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                                     Button(onClick={ controller.splitHere() },enabled=!controller.busy) { Text("Split here") }
                                     OutlinedButton(onClick={ controller.preview() },enabled=!controller.busy) { Text("Render edited preview") }
-                                    controller.rendered?.let { file -> OutlinedButton(onClick={ scope.launch { runCatching { controller.media.process.checked(listOf("ffplay","-autoexit","-window_title","FFmpegGUI edited preview",file.path)) }.onFailure { controller.error=it.message } } }) { Text("Play preview") } }
+                                    controller.rendered?.let { file ->
+                                        OutlinedButton(onClick={ if(controller.player.playing) controller.player.pause() else controller.player.play(file) }) { Text(if(controller.player.playing) "Pause preview" else "Play preview") }
+                                    }
                                 }
                                 Text("Timeline · ${project.timeline.clips.size} clips",style=MaterialTheme.typography.titleSmall)
                                 LazyColumn(Modifier.heightIn(max=180.dp),verticalArrangement=Arrangement.spacedBy(5.dp)) {
@@ -144,7 +153,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_CHECKS") != null) {
                     if (controller.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
                     Row(verticalAlignment=Alignment.CenterVertically) {
                         Text(controller.status,modifier=Modifier.weight(1f),style=MaterialTheme.typography.bodySmall)
-                        if (controller.busy) TextButton(onClick={ controller.status="Stopping after the current native call…";controller.job?.cancel() }) { Text("Stop") }
+                        if (controller.busy) TextButton(onClick={ controller.status="Stopping the local process…";controller.job?.cancel() }) { Text("Stop") }
                     }
                     controller.error?.let { message -> AlertDialog(onDismissRequest={ controller.error=null },title={ Text("Could not finish") },text={ Box(Modifier.heightIn(max=350.dp).verticalScroll(rememberScrollState())) { Text(message) } },confirmButton={ TextButton(onClick={ controller.error=null }) { Text("Close") } }) }
                 }
@@ -198,7 +207,7 @@ private fun EditPanel(c: EditorController,p: DesktopProject) {
         Text("Word taps seek the source on the current timeline. Line edits use the same cut/keep logic as Android.")
         if(p.words.isEmpty()) Text("No lines yet. Import the speech model in Models, then listen to this file.")
         Button(onClick={ c.listen() },enabled=!c.busy && p.sources[0].info.hasAudio) { Text(if(p.words.isEmpty()) "Listen to the video" else "Listen again") }
-        Text("Native inference runs locally. Stop may wait for the current chunk to return.",style=MaterialTheme.typography.bodySmall)
+        Text("Native inference runs in an isolated local process. Stop ends that process.",style=MaterialTheme.typography.bodySmall)
         val blocks=remember(p.words) { p.words.wordBlocks().second }
         blocks.forEach { block ->
             HorizontalDivider()

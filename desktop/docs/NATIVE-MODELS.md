@@ -92,3 +92,19 @@ Official Java sources inspected at v2.0.3:
 - https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/v2.0.3/sherpa-onnx/java-api/src/main/java/com/k2fsa/sherpa/onnx/OfflineRecognizerResult.java
 
 Original implementation and contracts inspected in the isolated linux-desktop checkout: SpeechTranscriber.kt, SpeechEngine.kt, SubjectTracker.kt, CutoutEngine.kt, SpeechModel.kt, CutoutModel.kt, SubjectModelIo.kt, SpokenWords.kt and ListenedSound.kt. No branch writes were made.
+
+## GUI native containment
+
+Actual mouse-driven GUI testing exposed a sherpa token-parser process exit while
+the identical pinned files passed in a headless JVM. The root cause is not yet
+known. The GUI had loaded Skiko/Compose and GTK; the headless run had not. This
+is a measured coexistence difference, not proof that GTK or a locale caused it.
+Both runs used the same 256 MB Java heap cap. Native inference is now isolated
+from the unsaved editor in a child process, for both speech and subject models.
+The child verifies pins again, runs no GUI and sends JSON/progress files through
+a private temporary directory. Native crashes become errors, not empty results.
+Cancellation kills the child and descendants; the child watches its parent.
+
+Packaged workers reuse the package launcher, not a nonexistent runtime/bin/java.
+The inherited _JPACKAGE_LAUNCHER restart marker must be cleared, or the launcher
+mistakes the worker for an internal re-exec and omits its configured main class.

@@ -28,13 +28,14 @@ class EditorController(val scope: CoroutineScope) {
     var followStatus by mutableStateOf<FollowCropStatus>(FollowCropStatus.Idle)
     var snap by mutableStateOf(false)
     var modelStatus by mutableStateOf(DesktopModels.present())
-    val models=DesktopSmartModels(cacheDirectory=File(System.getProperty("java.io.tmpdir"),"ffmpeggui-linux-${System.getProperty("user.name")}"))
+    val models=DesktopModelWorker()
     var rendered by mutableStateOf<File?>(null)
     var job: Job? = null
     private var frameJob: Job? = null
     private val history = ArrayDeque<DesktopProject>()
     val media = DesktopMedia()
     val exporter = DesktopExport(media)
+    val player=DesktopPlayer(scope,media)
     val id: () -> String = { UUID.randomUUID().toString() }
 
     fun work(message: String, block: suspend () -> Unit) {
@@ -49,8 +50,9 @@ class EditorController(val scope: CoroutineScope) {
     }
     fun open(path: String) = work("Reading media locally…") {
         val source=media.probe(path)
+        player.stop()
         project=DesktopProject.create(source)
-        history.clear(); resetAnalysis(); rendered=null; position=0
+        history.clear(); resetAnalysis(); rendered?.delete();rendered=null; position=0
         status="${File(path).name} · ${source.info.durationFormatted} · ${source.info.width} × ${source.info.height}"
         seek(0)
     }
@@ -58,12 +60,12 @@ class EditorController(val scope: CoroutineScope) {
     fun mutate(next: DesktopProject) {
         project?.let { history.addLast(it); if (history.size>50) history.removeFirst() }
         project=next
-        rendered?.delete(); rendered=null
+        player.stop();rendered?.delete(); rendered=null
         position=position.coerceAtMost(next.timeline.durationMs)
         pauseStatus=PauseCutsStatus.Idle; sceneStatus=SceneSplitsStatus.Idle
         seek(position)
     }
-    fun undo() { if (history.isNotEmpty()) { project=history.removeLast(); rendered?.delete(); rendered=null; resetAnalysis(); seek(position) } }
+    fun undo() { if (history.isNotEmpty()) { project=history.removeLast(); player.stop();rendered?.delete(); rendered=null; resetAnalysis(); seek(position) } }
     fun seek(at: Long) {
         val p=project ?: return
         position=at.coerceIn(0,p.timeline.durationMs)
@@ -147,22 +149,23 @@ class EditorController(val scope: CoroutineScope) {
     }
     fun preview() {
         val p=project ?: return
+        player.stop()
         val file=File.createTempFile("ffmpeggui-preview-", ".${p.format.extension}").apply { delete() }
         work("Rendering an exact edited preview. This includes cuts and effects…") {
             try {
                 exporter.export(p,file)
                 rendered?.delete(); rendered=file
                 if (p.format.hasVideo || p.format.isImage) previewFrame=media.frame(file.path,0)?.toComposeImageBitmap()
-                status="Edited preview is ready. Play rendered preview to inspect audio and motion."
+                status="Edited preview is ready. Play inside the editor to inspect audio and motion."
             } catch (e: Exception) { file.delete(); throw e }
         }
     }
     fun listen() {
         val p=project ?: return
-        work("Listening locally. Stop may wait for the current native inference chunk…") {
-            val words=models.transcribe(p.sources[0].path,DesktopModels.speechDirectory,emptyList(),{ step,fraction ->
-                status="${step.name.lowercase()} locally${fraction?.let { " · ${(it*100).toInt()}%" } ?: ""}. Stop waits for the current native call."
-            },{})
+        work("Listening locally. Stop ends the isolated model process…") {
+            val words=models.transcribe(p.sources[0].path,DesktopModels.speechDirectory) { step ->
+                scope.launch { status="$step locally. Stop ends the isolated model process." }
+            }
             check(words.isNotEmpty()) { "No speech found in this file." }
             mutate(p.copy(words=words)); tab="Transcript";status="Heard ${words.size} words locally. Tap a word to seek."
         }
@@ -171,9 +174,9 @@ class EditorController(val scope: CoroutineScope) {
         val p=project ?: return
         if(!DesktopModels.cutoutFile.isFile) { followStatus=FollowCropStatus.NoModel;return }
         followStatus=FollowCropStatus.Working(0f)
-        work("Following the subject locally. Stop waits for the current model call…") {
+        work("Following the subject locally. Stop ends the isolated model process…") {
             try {
-                val tracked=models.track(p.sources[0].path,p.sources[0].info.durationMs,DesktopModels.cutoutFile,progress={ followStatus=FollowCropStatus.Working(it) })
+                val tracked=models.track(p.sources[0].path,p.sources[0].info.durationMs,DesktopModels.cutoutFile,progress={ value -> scope.launch { followStatus=FollowCropStatus.Working(value) } })
                 val mapped=tracked.points.flatMap { point -> mapToTimeline(point.atMs,point.atMs+1,p.request().segments,0).map { point.copy(atMs=it.first) } }
                 check(mapped.isNotEmpty()) { "No track points on the current timeline." }
                 val size=FollowCropTrack.windowSize(tracked.frameWidth,tracked.frameHeight,9,16)
@@ -201,7 +204,7 @@ class EditorController(val scope: CoroutineScope) {
         onStopFollowCrop={ job?.cancel(); followStatus=FollowCropStatus.Idle },
         onClearFollowCrop={ project?.let { mutate(it.copy(followCrop=null)) } }, onOpenCutoutModel={ tab="Models" }
     )
-    fun close() { job?.cancel(); frameJob?.cancel(); rendered?.delete() }
+    fun close() { player.stop(); job?.cancel(); frameJob?.cancel(); rendered?.delete() }
 }
 private fun toggle(set: Set<Int>, index: Int) = if (index in set) set-index else set+index
 fun time(ms: Long) = java.lang.String.format(java.util.Locale.US,"%d:%02d.%01d",ms/60000,(ms/1000)%60,(ms/100)%10)

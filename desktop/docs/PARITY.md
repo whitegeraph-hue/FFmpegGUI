@@ -32,3 +32,24 @@ Mohamed explicitly accepts a documented scope change. No such scope change has
 been requested or granted. Master must remain untouched unless separately asked.
 
 Only three production UI files are currently shared in the desktop build, out of roughly 102k lines of Android app code. Most screens remain unported. The newly written desktop shell is not the original Android EditorScreen.
+
+## Later execution evidence
+
+Mouse-driven native file choosers imported all original pinned speech files and
+U2-NetP. Actual Listen and Follow buttons then completed through isolated model
+workers. This contains an unexplained native GUI coexistence crash, it does not
+establish broad target-machine compatibility. Source-classpath GUI and a locally
+patched extracted app image were checked; fresh whole-package recheck is pending.
+
+Rendered edit playback now runs inside the editor with video frames synchronized
+to played PCM sample count, pause and seek. Mouse-clicked transport was checked
+with a timed PulseAudio virtual sink. Physical speakers, target audio drivers and
+live unrendered effects remain unverified. This replaces external ffplay for the
+preview workflow, not the Android live player implementation.
+
+Follow crop is deliberately invalidated after structural timeline edits rather
+than retained with stale timestamps. This is more conservative than Android's
+remapping; rerun tracking after edits. Single-source project loading is enforced
+until multi-source word/track association is ported. Beat sample buffering is
+limited to ten minutes to fit the bounded Java heap; streaming analysis remains
+work to do. ORT's shipped native x64 library sets a GLIBC 2.27 minimum.

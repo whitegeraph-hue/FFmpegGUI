@@ -45,7 +45,7 @@ object DesktopProjects {
             require(File(source.path).length()==value["size"]!!.jsonPrimitive.long && source.info.durationMs==value["durationMs"]!!.jsonPrimitive.long) { "A source file changed. Open it as a new project instead." }
             source
         }
-        require(sources.isNotEmpty())
+        require(sources.size==1) { "This preview accepts one source per project. Multi-source analysis is not ready yet." }
         val timeline=ModelJson.timeline(read(data["timeline"]!!))
         require(timeline.clips.isNotEmpty() && timeline.clips.all { c ->
             val s=sources.firstOrNull { it.path==c.sourceId }
