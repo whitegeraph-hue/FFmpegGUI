@@ -218,3 +218,14 @@ Full generated-content adapters still need original provenance gates.
 Current package remains4dcfd2a (cutout changes newer); clean CI4dcfd2a green.
 Package workers fresh at00:46:37 passed but deterministic3line log lacks header;
 future logs include command/timestamp/source and package identity. No release.
+
+Manual mask checkpoint 2026-11-23 01:03 Cairo: keep/remove brush uses the
+original MaskEditing.paint on upright source pixels, each correction writes a
+new mask so Undo retains previous states.39native checks pass, including actual
+keep/remove alpha geometry, exported transparent stripe with kept centre,
+embedded roundtrip and mask-overwrite rejection. Actual remove stroke dragged
+on original-frame canvas, then rendered result inspected: transparent vertical
+stripe visible at chosen position. Canvas intentionally stays the original
+picture; final alpha requires Render, stated in panel. No final parity claim.
+Studio additionally rejects a current mask as output target. Cutout CI8c1e461
+still running at01:02:38, run45080710715. Last full package4dcfd2a remains stale.

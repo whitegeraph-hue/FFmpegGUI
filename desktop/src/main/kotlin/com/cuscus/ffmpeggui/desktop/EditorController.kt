@@ -211,6 +211,23 @@ class EditorController(val scope: CoroutineScope) {
             catch(e:Exception) { followStatus=FollowCropStatus.Failed;throw e }
         }
     }
+    fun refineSubject(points:List<Float>,radius:Float,keep:Boolean)=work("Updating subject mask…") {
+        val p=project ?: return@work
+        require(points.size>=2 && points.size%2==0 && points.all {it.isFinite()})
+        val key=p.image.key ?: error("Cut out a subject first.")
+        val file=File(key.mask ?: error("Cut out a subject first."))
+        val bitmap=javax.imageio.ImageIO.read(file) ?: error("Cannot read subject mask")
+        val target=File(file.parentFile,"${UUID.randomUUID()}.png")
+        try {
+            val w=bitmap.width;val h=bitmap.height
+            val mask=IntArray(w*h) {i->bitmap.getRGB(i%w,i/w) ushr 24}
+            com.cuscus.ffmpeggui.core.cutout.MaskEditing.paint(mask,w,h,points.mapIndexed {i,v->v.coerceIn(0f,1f)*if(i%2==0)w else h}.toFloatArray(),radius.coerceIn(.002f,.25f)*w,keep)
+            bitmap.setRGB(0,0,w,h,IntArray(w*h) {(mask[it] shl 24) or 0xffffff},0,w)
+            check(javax.imageio.ImageIO.write(bitmap,"png",target))
+            mutate(p.copy(image=p.image.copy(key=key.copy(mask=target.absolutePath))))
+            status="Subject mask refined. Render to inspect. Undo restores the previous mask."
+        } catch(e:Throwable) {target.delete();throw e} finally {bitmap.flush()}
+    }
     fun cutoutPicture()=work("Finding picture subject offline…") {
         val p=project ?: return@work
         require(p.sources.first().info.isStill) {"Subject cutout currently needs a still picture."}

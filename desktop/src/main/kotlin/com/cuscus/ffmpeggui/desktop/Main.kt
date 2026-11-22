@@ -137,14 +137,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                                 Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(12.dp)) {
                                     when(controller.tab) {
                                         "Edit" -> EditPanel(controller,project)
-                                        "Subject cutout" -> PanelCard {
-                                            Text("Still subject cutout",style=MaterialTheme.typography.titleLarge)
-                                            Text("Uses the imported subject model offline. PNG preserves transparent background. Render the result to inspect edges. The saved project embeds its mask. This is segmentation, not image generation.")
-                                            OutlinedButton(onClick={controller.cutoutPicture()},enabled=!controller.busy && project.sources.first().info.isStill){Text("Cut out subject")}
-                                            if(project.image.key!=null)OutlinedButton(onClick={controller.mutate(project.copy(image=project.image.copy(key=null)))},enabled=!controller.busy){Text("Remove cutout")}
-                                            Text(if(project.image.key?.cutsSubject==true) "Subject mask applied." else "No subject mask applied.")
-                                            Text("Manual mask refinement and magic eraser are still being ported.")
-                                        }
+                                        "Subject cutout" -> SubjectPanel(controller,project)
                                         "Drawing" -> DrawingPanel(controller,project)
                                         "Command studio" -> StudioPanel(controller,project){name->pick(true,name)}
                                         "Clip editor" -> ClipEditorPanel(controller,project)

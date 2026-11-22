@@ -343,6 +343,25 @@ fun main(args:Array<String>)=runBlocking {
         check((0 until 300).any {x->(0 until 300).any {y->(shapes.getRGB(x,y) ushr 24)>0}})
         val saved=File(folder,"drawing.ffgui.json");DesktopProjects.save(project,saved);check(DesktopProjects.load(saved,media).image==project.image)
     }
+    verify("manual mask keep remove geometry portable export") {
+        val source=media.probe(File(folder,"sticker.png").path)
+        val w=source.info.width;val h=source.info.height
+        val mask=IntArray(w*h) {255}
+        com.cuscus.ffmpeggui.core.cutout.MaskEditing.paint(mask,w,h,floatArrayOf(w*.5f,h*.1f,w*.5f,h*.9f),w*.15f,false)
+        check(mask[(h/2)*w+w/2]==0 && mask[(h/2)*w+w/10]==255)
+        com.cuscus.ffmpeggui.core.cutout.MaskEditing.paint(mask,w,h,floatArrayOf(w*.5f,h*.5f),w*.04f,true)
+        check(mask[(h/2)*w+w/2]==255)
+        val image=java.awt.image.BufferedImage(w,h,java.awt.image.BufferedImage.TYPE_INT_ARGB)
+        image.setRGB(0,0,w,h,IntArray(w*h) {(mask[it] shl 24) or 0xffffff},0,w)
+        val maskFile=File(folder,"manual-mask.png");javax.imageio.ImageIO.write(image,"png",maskFile)
+        val project=DesktopProject.create(source).copy(image=ImageEdit(key=ColorKey(mode=KeyMode.SUBJECT,mask=maskFile.path)))
+        val target=File(folder,"manual-mask-proof.png");exporter.export(project,target)
+        val result=javax.imageio.ImageIO.read(target)
+        check((result.getRGB(w/2,h/4) ushr 24)<10 && (result.getRGB(w/2,h/2) ushr 24)>245)
+        val saved=File(folder,"manual-mask.ffgui.json");DesktopProjects.save(project,saved);maskFile.delete()
+        val loaded=DesktopProjects.load(saved,media);check(File(loaded.image.key!!.mask!!).isFile)
+        check(runCatching {exporter.export(loaded,File(loaded.image.key!!.mask!!))}.isFailure)
+    }
     verify("cancel real process") {
         val start=System.currentTimeMillis()
         val job=launch { media.process.run(listOf("ffmpeg","-re","-f","lavfi","-i","testsrc2=size=640x360:rate=25","-t","30","-f","null","-")) }
