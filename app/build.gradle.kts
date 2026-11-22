@@ -42,6 +42,8 @@ android {
         ndk {
             abiFilters += listOf("arm64-v8a", "x86_64")
         }
+
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
@@ -82,6 +84,13 @@ dependencies {
     implementation(project(":media"))
     // The SVG editor draws what its own drawing does not (a use, a text placed piece by piece) with it.
     implementation(libs.androidsvg)
+
+    // The on-device checks of the smart-editing tools (see verify-runtime.yml).
+    androidTestImplementation(platform(libs.androidx.compose.bom))
+    androidTestImplementation(libs.androidx.compose.ui.test.junit4)
+    androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.junit)
 
     implementation(libs.kotlinx.coroutines.android)
 
