@@ -104,6 +104,20 @@ fun main(args:Array<String>)=runBlocking {
         check(ansi.readText().contains("\u001B["))
         val project=File(folder,"art.ffgui.json");DesktopProjects.save(photo,project);check(DesktopProjects.load(project,media).image==photo.image)
     }
+    verify("timed caption real pixels hidden state and persistence") {
+        val text=TextOverlay(text="Desktop text",x=.2f,y=.4f,size=.12f,startMs=2000,endMs=4000,color=0xFFFFFF00L,look=TextLook(outline=.1f))
+        val project=p.copy(captions=listOf(text))
+        val result=exporter.export(project,File(folder,"text-layer.mp4"))
+        fun difference(a:java.awt.image.BufferedImage,b:java.awt.image.BufferedImage):Int {
+            var n=0;for(y in 100 until 240)for(x in 40 until 580)if(a.getRGB(x,y)!=b.getRGB(x,y))n++;return n
+        }
+        val before=difference(media.frame(video.path,1000)!!,media.frame(result.path,1000)!!)
+        val during=difference(media.frame(video.path,3000)!!,media.frame(result.path,3000)!!)
+        check(during>before+500)
+        val saved=File(folder,"text.ffgui.json");DesktopProjects.save(project,saved);check(DesktopProjects.load(saved,media).captions==listOf(text))
+        val hidden=project.copy(captions=listOf(text.copy(hidden=true)))
+        check(!exporter.command(hidden,"output.mp4").arguments.joinToString(" ").contains("Desktop text"))
+    }
     verify("cancel real process") {
         val start=System.currentTimeMillis()
         val job=launch { media.process.run(listOf("ffmpeg","-re","-f","lavfi","-i","testsrc2=size=640x360:rate=25","-t","30","-f","null","-")) }

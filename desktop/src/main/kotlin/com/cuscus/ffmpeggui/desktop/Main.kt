@@ -120,7 +120,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                                 }
                             }
                             Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(10.dp)) {
-                                val tabs=listOf("Edit","Transcript","Pause cuts","Scenes","Beats","Follow crop","Models","Subtitles","Audio")
+                                val tabs=listOf("Edit","Transcript","Pause cuts","Scenes","Beats","Follow crop","Models","Subtitles","Audio","Text layers")
                                 FlowRowCompat {
                                     tabs.forEach { title -> FilterChip(selected=controller.tab==title,onClick={ controller.tab=title },label={ Text(title) }) }
                                 }
@@ -129,6 +129,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                                         "Edit" -> EditPanel(controller,project)
                                         "Subtitles" -> SubtitlesPanel(controller,project)
                                         "Audio" -> AudioMasterPanel(controller,project)
+                                        "Text layers" -> TextLayersPanel(controller,project)
                                         "Pause cuts" -> PauseCutsPanel(controller.smartUi())
                                         "Scenes" -> SceneSplitsPanel(controller.smartUi())
                                         "Beats" -> BeatsPanel(controller.smartUi())
@@ -398,6 +399,41 @@ private fun EditPanel(c: EditorController,p: DesktopProject) {
             if(p.format==OutputFormat.ANSI)Row(Modifier.horizontalScroll(rememberScrollState())) {com.cuscus.ffmpeggui.core.textart.ArtColor.entries.forEach {v->FilterChip(t.palette.depth==v,{change(t.copy(palette=t.palette.copy(depth=v)))},label={Text(v.name)},enabled=!c.busy)}}
             Text("Dither")
             Row(Modifier.horizontalScroll(rememberScrollState())) {com.cuscus.ffmpeggui.core.textart.Dither.entries.forEach {v->FilterChip(t.dither==v,{change(t.copy(dither=v))},label={Text(v.name)},enabled=!c.busy)}}
+        }
+    }
+}
+
+@Composable private fun TextLayersPanel(c:EditorController,p:DesktopProject) {
+    if(!p.sources[0].info.isVideo && !p.sources[0].info.isStill){Text("Text layers need a picture or video.");return}
+    PanelCard {
+        Text("Text layers",style=MaterialTheme.typography.titleMedium)
+        Text("Whole-output layers. Render to inspect placement. Higher layer number is on top. Clip binding and animation keys remain in progress.",style=MaterialTheme.typography.bodySmall)
+        Button(onClick={c.mutate(p.copy(captions=p.captions+TextOverlay(text="Your text",layer=p.captions.size)))},enabled=!c.busy){Text("Add text layer")}
+    }
+    p.captions.forEachIndexed {index,t->
+        fun update(v:TextOverlay)=c.mutate(p.copy(captions=p.captions.mapIndexed {i,old->if(i==index)v else old}))
+        PanelCard {
+            Text("Layer ${index+1}",style=MaterialTheme.typography.titleMedium)
+            OutlinedTextField(t.text,{update(t.copy(text=it))},label={Text("Text")},enabled=!c.busy,modifier=Modifier.fillMaxWidth())
+            ValueSlider("X",t.x,0f..1f,!c.busy){update(t.copy(x=it))}
+            ValueSlider("Y",t.y,0f..1f,!c.busy){update(t.copy(y=it))}
+            ValueSlider("Size",t.size,.01f.. .3f,!c.busy){update(t.copy(size=it))}
+            ValueSlider("Opacity",t.opacity,0f..1f,!c.busy){update(t.copy(opacity=it))}
+            Row {Checkbox(t.isBold,{update(t.copy(isBold=it))},enabled=!c.busy);Text("Bold");Checkbox(t.hidden,{update(t.copy(hidden=it))},enabled=!c.busy);Text("Hidden");Checkbox(t.look.box,{update(t.copy(look=t.look.copy(box=it)))},enabled=!c.busy);Text("Box")}
+            ValueSlider("Outline",t.look.outline,0f.. .3f,!c.busy){update(t.copy(look=t.look.copy(outline=it)))}
+            Row {listOf(0xFFFFFFFFL,0xFF000000L,0xFFFFCC00L,0xFFFF4040L,0xFF40CCFFL).forEach {color-> TextButton(onClick={update(t.copy(color=color))},enabled=!c.busy){Text("■",color=Color(color.toInt()))}}}
+            if(!p.sources[0].info.isStill) {
+                val duration=p.timeline.durationMs/1000f
+                ValueSlider("Start seconds",t.startMs/1000f,0f..duration,!c.busy){update(t.copy(startMs=(it*1000).toLong().coerceAtMost((t.endMs ?: p.timeline.durationMs)-1)))}
+                ValueSlider("End seconds",(t.endMs ?: p.timeline.durationMs)/1000f,0f..duration,!c.busy){update(t.copy(endMs=(it*1000).toLong().coerceAtLeast(t.startMs+1)))}
+                ValueSlider("Fade in seconds",t.fadeInSeconds,0f..3f,!c.busy){update(t.copy(fadeInSeconds=it))}
+                ValueSlider("Fade out seconds",t.fadeOutSeconds,0f..3f,!c.busy){update(t.copy(fadeOutSeconds=it))}
+            }
+            Row {
+                TextButton(onClick={update(t.copy(layer=t.layer+1))},enabled=!c.busy){Text("Raise (${t.layer})")}
+                TextButton(onClick={update(t.copy(layer=t.layer-1))},enabled=!c.busy){Text("Lower")}
+                TextButton(onClick={c.mutate(p.copy(captions=p.captions.filterIndexed {i,_->i!=index}))},enabled=!c.busy){Text("Remove")}
+            }
         }
     }
 }

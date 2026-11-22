@@ -80,3 +80,10 @@ Real SVG parses with paths, ASCII has expected columns, ANSI contains colour
 codes; project settings roundtrip tested (19native assertions). Actual SVG and
 ASCII previews were rendered and inspected separately. The editor honestly
 blocks live art preview until a renderer is ported. WEBP still unported.
+
+Text layers: whole-output TextOverlay add/edit/remove, X/Y/size/opacity, colour
+swatches, bold/outline/box, hidden, stack order, start/end and fades are exposed
+and persisted. Hidden/obsolete clip captions are filtered in request mapping,
+as Android does.20native checks include real time-gated caption pixels and
+roundtrip. UI add-layer click and rendered caption pixels inspected. Clip
+binding, rotation/blend/stretch and keyframe UI remain missing.
