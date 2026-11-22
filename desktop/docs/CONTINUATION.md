@@ -229,3 +229,18 @@ stripe visible at chosen position. Canvas intentionally stays the original
 picture; final alpha requires Render, stated in panel. No final parity claim.
 Studio additionally rejects a current mask as output target. Cutout CI8c1e461
 still running at01:02:38, run45080710715. Last full package4dcfd2a remains stale.
+
+Custom ramp checkpoint 2026-11-23 01:10 Cairo: chart draws original logarithmic
+SpeedCurve. Tap adds up to12nodes, drag changes time/speed, ends stay fixed,
+interior node can be removed. Add/drag actual mouse screenshot inspected,
+selected56%,1.94x with4nodes.40native tests pass including4node ramp saved
+roundtrip, actual duration and full A/V decode. Compile local incremental.
+
+NEXT PRIORITY from review: EXIF orientation is a confirmed real gap. Pillow
+created /tmp/ffmpeggui-models/orientation6.jpg (stored240x120, tag274=6), but
+host FFmpeg emits240x120 instead of upright120x240. Need normalized ingress
+consistent across preview/probe/export/cutout, preserve original source and
+saved reload semantics. Do not claim real-photo geometry until fixed. Mask
+cleanup also pending; retain Undo and saved embedded mask recovery. Packaged
+U2-Net licence verified inside4dcJAR matches sources.json SHA c71d239d... .
+Cutout9ed/8c CI were pending last checked. No final package since4dcfd2a.

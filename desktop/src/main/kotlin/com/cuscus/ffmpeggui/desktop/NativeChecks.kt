@@ -362,6 +362,15 @@ fun main(args:Array<String>)=runBlocking {
         val loaded=DesktopProjects.load(saved,media);check(File(loaded.image.key!!.mask!!).isFile)
         check(runCatching {exporter.export(loaded,File(loaded.image.key!!.mask!!))}.isFailure)
     }
+    verify("custom four-node ramp saved real export duration") {
+        val curve=SpeedCurve(listOf(SpeedPoint(0f,.5f),SpeedPoint(.26f,.67f),SpeedPoint(.56f,1.94f),SpeedPoint(1f,.5f)))
+        val edited=p.copy(timeline=Timeline(listOf(Clip("custom-ramp",video.path,endMs=4000,effects=Effects(speedCurve=curve)))))
+        val saved=File(folder,"custom-ramp.ffgui.json");DesktopProjects.save(edited,saved)
+        val restored=DesktopProjects.load(saved,media);check(restored.timeline==edited.timeline)
+        val result=exporter.export(restored,File(folder,"custom-ramp.mp4"))
+        check(kotlin.math.abs(result.info.durationMs-edited.outputDurationMs)<180)
+        media.process.checked(listOf("ffmpeg","-v","error","-i",result.path,"-f","null","-"))
+    }
     verify("cancel real process") {
         val start=System.currentTimeMillis()
         val job=launch { media.process.run(listOf("ffmpeg","-re","-f","lavfi","-i","testsrc2=size=640x360:rate=25","-t","30","-f","null","-")) }

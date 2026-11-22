@@ -621,6 +621,7 @@ private fun EditPanel(c: EditorController,p: DesktopProject) {
         Row {Switch(f.speedCurve!=null,{v->change {it.copy(speedCurve=if(v)SpeedCurve(listOf(SpeedPoint(0f,1f),SpeedPoint(.5f,2f),SpeedPoint(1f,1f))) else null)}},enabled=!c.busy);Text("Vary clip speed")}
         f.speedCurve?.let {curve->
             Text("Positions are fractions of the footage in playing order. The constant-speed slider is ignored while the ramp is on.")
+            RampCanvas(curve,!c.busy){updated->change {it.copy(speedCurve=updated)}}
             curve.nodes.forEachIndexed {i,node->ValueSlider("Ramp ${i+1} at ${(node.at*100).toInt()}%",node.speed,.25f..4f,!c.busy){v->change {it.copy(speedCurve=SpeedCurve(curve.nodes.mapIndexed {j,n->if(i==j)n.copy(speed=v)else n}))}}}
             FlowRowCompat {
                 OutlinedButton(onClick={change {it.copy(speedCurve=SpeedCurve(listOf(SpeedPoint(0f,.5f),SpeedPoint(.5f,2f),SpeedPoint(1f,.5f))))}},enabled=!c.busy){Text("Slow-fast-slow")}
