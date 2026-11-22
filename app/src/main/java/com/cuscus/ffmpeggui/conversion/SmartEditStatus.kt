@@ -33,11 +33,15 @@ sealed interface BeatsStatus {
     data object Idle : BeatsStatus
     data object Working : BeatsStatus
 
-    /** The beats (and the onsets they came from), on the timeline clock. */
+    /**
+     * The beats (and the onsets they came from), on the timeline clock;
+     * [chosen] are ticked for cutting (snapping uses every beat regardless).
+     */
     data class Ready(
         val onsetsMs: List<Long>,
         val beatsMs: List<Long>,
         val tempoBpm: Double?,
+        val chosen: Set<Int> = beatsMs.indices.toSet(),
     ) : BeatsStatus
 
     data object Failed : BeatsStatus

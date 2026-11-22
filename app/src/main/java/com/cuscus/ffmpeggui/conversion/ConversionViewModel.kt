@@ -4215,6 +4215,29 @@ class ConversionViewModel(
         _snapToBeats.value = enabled
     }
 
+    fun toggleBeat(index: Int) {
+        val ready = _beats.value as? BeatsStatus.Ready ?: return
+        _beats.value = ready.copy(chosen = if (index in ready.chosen) ready.chosen - index else ready.chosen + index)
+    }
+
+    /**
+     * Splits the clips at the chosen beats: the cuts, and with them every
+     * transition sitting on a cut, land on the beat. The track stays loaded,
+     * so snapping new splits to it still works afterwards.
+     */
+    fun applyBeatCuts() {
+        val ready = _beats.value as? BeatsStatus.Ready ?: return
+        val at = ready.chosen.sorted().map(ready.beatsMs::get).filter(_settings.value.timeline::canSplitAt)
+        if (at.isEmpty()) return
+        editTimeline { timeline -> timeline.splitAtAll(at) { newId() } }
+    }
+
+    fun dismissBeats() {
+        beatsJob?.cancel()
+        _beats.value = BeatsStatus.Idle
+        _snapToBeats.value = false
+    }
+
     /** The beat nearest to [timelineMs] at most [maxDistanceMs] away, or null. */
     fun nearestBeat(timelineMs: Long, maxDistanceMs: Long = 150L): Long? =
         (_beats.value as? BeatsStatus.Ready)?.beatsMs?.let { BeatTrack.nearest(it, timelineMs, maxDistanceMs) }
