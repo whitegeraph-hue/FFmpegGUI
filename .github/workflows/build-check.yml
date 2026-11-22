@@ -1,0 +1,42 @@
+# Builds the app and runs the core tests on every push to the feature branch.
+# The sandbox that writes this code cannot finish the full Android build, so
+# this job is the check that a revision compiles whole. Standard GitHub-hosted
+# runner on a public repository: free, no paid resources.
+name: Build check
+
+on:
+  push:
+    branches:
+      - smart-editing-features
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+
+      # The same SDK packages the media build was verified with.
+      - name: Install the Android SDK packages
+        run: |
+          yes | sdkmanager --licenses > /dev/null
+          sdkmanager "platforms;android-37.1" "build-tools;37.0.0"
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+
+      # The FFmpeg runtime AAR, pinned by URL and SHA-256 (the Gradle build
+      # checks the same hash).
+      - name: Fetch the pinned FFmpeg runtime
+        run: bash scripts/fetch-ffmpeg-kit-next.sh
+
+      - name: Core tests and app build
+        run: ./gradlew :core:test :app:assembleDebug --stacktrace
