@@ -352,6 +352,11 @@ class MainActivity : ComponentActivity() {
                     val reversingProgress by vm.reversing.collectAsState()
                     val stemPremixFiles by vm.stemPremixes.collectAsState()
                     val stemRejoining by vm.stemRejoining.collectAsState()
+                    val pauseCutsStatus by vm.pauseCuts.collectAsState()
+                    val sceneSplitsStatus by vm.sceneSplits.collectAsState()
+                    val beatsStatus by vm.beats.collectAsState()
+                    val snapToBeats by vm.snapToBeats.collectAsState()
+                    val followCropStatus by vm.followCropStatus.collectAsState()
                     val voiceEditing = VoiceEditing(
                         modelReady = voiceModel is SpeechModelStore.State.Ready,
                         status = voiceStatus,
@@ -371,6 +376,32 @@ class MainActivity : ComponentActivity() {
                         laid = remember(s.audioClips, s.timeline) { laidStems(s.audioClips, s.timeline.clips.map { it.id }.toSet()) },
                         rejoining = stemRejoining,
                         onRejoin = vm::rejoinStems,
+                    )
+                    val smartEdit = SmartEditUi(
+                        pauseCuts = pauseCutsStatus,
+                        sceneSplits = sceneSplitsStatus,
+                        beats = beatsStatus,
+                        snapToBeats = snapToBeats,
+                        followCrop = followCropStatus,
+                        followCropSet = s.followCrop != null,
+                        onFindPauseCuts = { vm.findPauseCuts() },
+                        onTogglePauseCut = vm::togglePauseCut,
+                        onApplyPauseCuts = vm::applyPauseCuts,
+                        onDismissPauseCuts = vm::dismissPauseCuts,
+                        onListen = { vm.generateSubtitles() },
+                        onFindSceneSplits = { vm.findSceneSplits() },
+                        onToggleSceneSplit = vm::toggleSceneSplit,
+                        onApplySceneSplits = vm::applySceneSplits,
+                        onDismissSceneSplits = vm::dismissSceneSplits,
+                        onFindBeats = vm::findBeats,
+                        onToggleBeat = vm::toggleBeat,
+                        onSnapToBeats = vm::setSnapToBeats,
+                        onApplyBeatCuts = vm::applyBeatCuts,
+                        onDismissBeats = vm::dismissBeats,
+                        onTrackSubject = { vm.trackSubjectForVerticalCrop() },
+                        onStopFollowCrop = vm::stopFollowCrop,
+                        onClearFollowCrop = vm::clearFollowCrop,
+                        onOpenCutoutModel = { com.cuscus.ffmpeggui.settings.SmartPageRequest.next = com.cuscus.ffmpeggui.settings.SmartPage.CUTOUT; navController.navigate(Screen.settingsCategory(SettingsCategory.SMART)) },
                     )
 
                     LaunchedEffect(Unit) {
@@ -1121,6 +1152,7 @@ class MainActivity : ComponentActivity() {
                                         ),
                                     ),
                                     voice = voiceEditing,
+                                    smartEdit = smartEdit,
                                     reversedSounds = ReversedSounds(
                                         files = reversedSoundFiles,
                                         progress = reversingProgress,

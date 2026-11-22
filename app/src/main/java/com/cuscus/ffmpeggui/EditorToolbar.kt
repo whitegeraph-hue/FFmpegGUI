@@ -64,6 +64,9 @@ import androidx.compose.material.icons.rounded.Crop
 import androidx.compose.material.icons.rounded.Sell
 import androidx.compose.material.icons.rounded.Album
 import androidx.compose.material.icons.rounded.ContentCut
+import androidx.compose.material.icons.rounded.Face
+import androidx.compose.material.icons.rounded.MusicNote
+import androidx.compose.material.icons.rounded.Splitscreen
 import androidx.compose.material.icons.rounded.Headphones
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.AutoAwesomeMotion
@@ -224,6 +227,14 @@ enum class EditorTool(@StringRes val labelRes: Int, val icon: ImageVector, val f
     REMUX(R.string.tool_remux, Icons.Rounded.Sync, ToolFamily.OUTPUT),
     COMMAND(R.string.tool_command, Icons.Rounded.Terminal, ToolFamily.OUTPUT),
     GIF(R.string.tool_gif, Icons.Rounded.Gif, ToolFamily.OUTPUT),
+    // Smart editing: the pauses and hesitations found in the video, ticked away.
+    SMART_CUTS(R.string.tool_smart_cuts, Icons.Rounded.ContentCut, ToolFamily.PICTURE),
+    // Smart editing: the video split into scenes where the picture changes completely.
+    SMART_SCENES(R.string.tool_smart_scenes, Icons.Rounded.Splitscreen, ToolFamily.PICTURE),
+    // Smart editing: cuts and snapping on the music's beat.
+    SMART_BEATS(R.string.tool_smart_beats, Icons.Rounded.MusicNote, ToolFamily.PICTURE),
+    // Smart editing: a vertical cut-out that follows the video's subject.
+    SMART_FOLLOW_CROP(R.string.tool_smart_follow_crop, Icons.Rounded.Face, ToolFamily.PICTURE),
     // A part of the selected clip opened in the editor made for it, on top of this one (see core.stack).
     OPEN_IN(R.string.stack_open, Icons.Rounded.OpenInNew, ToolFamily.PICTURE),
 }

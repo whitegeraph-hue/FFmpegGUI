@@ -317,6 +317,8 @@ fun ConfigScreen(
     subtitles: SubtitleEditing = SubtitleEditing(),
     // The voice set apart from the rest of the sound
     voice: VoiceEditing = VoiceEditing(),
+    /** The smart-editing tools (pause cuts, scene splits, beats, follow crop). */
+    smartEdit: SmartEditUi = SmartEditUi(),
     // The sound of clips played backwards, reversed by FFmpeg for the preview
     reversedSounds: ReversedSounds = ReversedSounds(),
     // The dub in one go: listen, translate, set the voice apart, dub
@@ -1097,6 +1099,10 @@ fun ConfigScreen(
         splitHere,
         freezeHere,
         item(EditorTool.TRIM_ALL, null),
+        item(EditorTool.SMART_CUTS, null),
+        item(EditorTool.SMART_SCENES, null),
+        item(EditorTool.SMART_BEATS, null),
+        item(EditorTool.SMART_FOLLOW_CROP, null),
         if (gifMode) item(EditorTool.GIF, null) else null,
         if (gifMode) {
             null
@@ -1774,6 +1780,10 @@ fun ConfigScreen(
                         durationMs = clock.outputDurationMs,
                     )
                 }
+                EditorTool.SMART_CUTS -> PauseCutsPanel(smartEdit)
+                EditorTool.SMART_SCENES -> SceneSplitsPanel(smartEdit)
+                EditorTool.SMART_BEATS -> BeatsPanel(smartEdit)
+                EditorTool.SMART_FOLLOW_CROP -> FollowCropPanel(smartEdit)
                 EditorTool.AUDIO_PITCH -> AudioPitchContent(audioEffects, onAudioEffects)
                 EditorTool.AUDIO_EQ -> AudioEqualizerContent(fxEffects, fxChange)
                 EditorTool.AUDIO_DENOISE -> {
