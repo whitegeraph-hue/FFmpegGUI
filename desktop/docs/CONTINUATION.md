@@ -190,3 +190,14 @@ confirmation in Main.kt. Both filter whitelist and deny check retained.
 Chooser proof actual second sticker.png entry now inspected, sent to parent.
 Next: check settled clean CI and current package; broader original tools still
 not done. No delivery, tag/release or master changes. Token deleted after push.
+
+Still drawing checkpoint 2026-11-23 00:41 Cairo:38 real native assertions pass,
+including exported red line pixels, source-preserving eraser gap, alpha, shapes
+and saved stroke roundtrip. Java2D adapter follows original StrokePainter path
+smoothing, arrow and clear semantics. Drawing tab supports free/line/arrow/box/
+oval, width/opacity/colour, eraser, undo/clear. Same renderer powers panel preview.
+Actual mouse drag and edited-preview click produced the yellow diagonal in
+/tmp/drawing-rendered-ui.png, inspected alongside the red line and erased gap.
+Refresh drawing background explicitly after other edits; no live total-effects
+preview claim. Masks, HDR and AI photo adapters remain. CI d1f7747 and8e342b5
+are green. No current package rebuild since f617df8. Master unchanged.

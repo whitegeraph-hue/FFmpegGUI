@@ -326,6 +326,23 @@ fun main(args:Array<String>)=runBlocking {
         delay(400);job.cancelAndJoin();check(!target.exists())
         check(folder.listFiles()!!.none {it.name.startsWith(".studio-")})
     }
+    verify("drawing shapes alpha eraser pixel export and save") {
+        val source=media.probe(File(folder,"sticker.png").path)
+        val base=DesktopProject.create(source).copy(format=OutputFormat.PNG)
+        val line=Stroke(listOf(.1f,.5f,.9f,.5f),0xffff0000L,.1f,shape=StrokeShape.LINE)
+        val erase=Stroke(listOf(.5f,.25f,.5f,.75f),width=.15f,eraser=true)
+        val project=base.copy(image=base.image.copy(strokes=listOf(line,erase)))
+        val target=File(folder,"drawing-proof.png");exporter.export(project,target)
+        val before=media.frame(source.path,0)!!;val after=media.frame(target.path,0)!!
+        val w=after.width;val h=after.height
+        val red=after.getRGB(w/4,h/2);check(((red shr 16) and 255)>245 && ((red shr 8) and 255)<8 && (red and 255)<8)
+        check(after.getRGB(w/2,h/2)==before.getRGB(w/2,h/2))
+        val alpha=DesktopDrawing.render(listOf(line.copy(opacity=.5f)),200,200)
+        check((alpha.getRGB(50,100) ushr 24) in 125..130)
+        val shapes=DesktopDrawing.render(StrokeShape.entries.mapIndexed {i,v->Stroke(listOf(.1f,.1f+i*.15f,.8f,.2f+i*.15f),shape=v)},300,300)
+        check((0 until 300).any {x->(0 until 300).any {y->(shapes.getRGB(x,y) ushr 24)>0}})
+        val saved=File(folder,"drawing.ffgui.json");DesktopProjects.save(project,saved);check(DesktopProjects.load(saved,media).image==project.image)
+    }
     verify("cancel real process") {
         val start=System.currentTimeMillis()
         val job=launch { media.process.run(listOf("ffmpeg","-re","-f","lavfi","-i","testsrc2=size=640x360:rate=25","-t","30","-f","null","-")) }

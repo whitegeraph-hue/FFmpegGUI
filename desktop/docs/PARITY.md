@@ -177,3 +177,14 @@ encoding was cancelled and left no target or temporary file. An earlier copy
 loop completed the30minute cap before cancellation, so that was not counted as
 a cancellation pass. Existing output prompts confirmation before studio run.
 Ramp+fade+timed picture regression checks predicted duration and actual pixels.
+
+Still drawing checkpoint 2026-11-23 00:41 Cairo:38 real native assertions pass,
+including exported red line pixels, source-preserving eraser gap, alpha, shapes
+and saved stroke roundtrip. Java2D adapter follows original StrokePainter path
+smoothing, arrow and clear semantics. Drawing tab supports free/line/arrow/box/
+oval, width/opacity/colour, eraser, undo/clear. Same renderer powers panel preview.
+Actual mouse drag and edited-preview click produced the yellow diagonal in
+/tmp/drawing-rendered-ui.png, inspected alongside the red line and erased gap.
+Refresh drawing background explicitly after other edits; no live total-effects
+preview claim. Masks, HDR and AI photo adapters remain. CI d1f7747 and8e342b5
+are green. No current package rebuild since f617df8. Master unchanged.

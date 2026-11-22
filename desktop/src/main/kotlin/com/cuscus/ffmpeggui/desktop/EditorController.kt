@@ -18,6 +18,7 @@ class EditorController(val scope: CoroutineScope) {
     var project by mutableStateOf<DesktopProject?>(null)
     var sourceFrame by mutableStateOf<ImageBitmap?>(null)
     var previewFrame by mutableStateOf<ImageBitmap?>(null)
+    var drawingFrame by mutableStateOf<ImageBitmap?>(null)
     var position by mutableStateOf(0L)
     var busy by mutableStateOf(false)
     var status by mutableStateOf("Open a video, audio file or picture to begin.")
@@ -55,7 +56,7 @@ class EditorController(val scope: CoroutineScope) {
     fun open(path: String) = work("Reading media locally…") {
         val source=media.probe(path)
         player.stop()
-        selectedSource=0;project=DesktopProject.create(source)
+        selectedSource=0;drawingFrame=null;project=DesktopProject.create(source)
         history.clear(); resetAnalysis(); rendered?.delete();rendered=null;previewFrame=null; position=0
         status="${File(path).name} · ${source.info.durationFormatted} · ${source.info.width} × ${source.info.height}"
         seek(0)
@@ -209,6 +210,11 @@ class EditorController(val scope: CoroutineScope) {
             } catch(e:CancellationException) { followStatus=FollowCropStatus.Idle;throw e }
             catch(e:Exception) { followStatus=FollowCropStatus.Failed;throw e }
         }
+    }
+    fun drawingBackground()=work("Rendering drawing background…") {
+        val p=project ?: return@work
+        val file=File.createTempFile("ffmpeggui-drawing-",".png")
+        try {exporter.export(p.copy(format=OutputFormat.PNG,image=p.image.copy(strokes=emptyList(),border=null,corners=0f,output=ImageOutput())),file);drawingFrame=media.frame(file.path,0)?.toComposeImageBitmap();status="Drawing background ready. Render the finished picture to verify."} finally {file.delete()}
     }
     fun smartUi() = com.cuscus.ffmpeggui.SmartEditUi(
         pauseCuts=pauseStatus, sceneSplits=sceneStatus, beats=beatStatus, snapToBeats=snap,

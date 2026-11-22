@@ -194,7 +194,17 @@ class DesktopExport(private val media: DesktopMedia = DesktopMedia()) {
                 Files.move(temporary.toPath(),output.toPath(),StandardCopyOption.REPLACE_EXISTING)
                 return DesktopSource(output.canonicalPath,project.sources[0].info)
             }
-            val request=project.request()
+            var request=project.request()
+            val drawing=if(project.format.isImage && project.image.strokes.isNotEmpty()) {
+                val source=project.sources.first().info
+                val (w,h)=com.cuscus.ffmpeggui.core.image.editedSize(project.image,project.effects,source.width,source.height)
+                val scale=minOf(1f,4096f/maxOf(w,h))
+                File(auxiliaries,"drawing.png").also { file ->
+                    val bitmap=DesktopDrawing.render(project.image.strokes,(w*scale).toInt().coerceAtLeast(1),(h*scale).toInt().coerceAtLeast(1))
+                    try {check(ImageIO.write(bitmap,"png",file))} finally {bitmap.flush()}
+                }
+            } else null
+            if(drawing!=null)request=request.copy(imageOverlays=request.imageOverlays+ImagePlacement(x=0f,y=0f,widthFraction=1f))
             val words=request.timedWords()
             val style=project.subtitleStyle
             val subtitles=if(request.hasSpokenSubtitles && words.isNotEmpty() && style!=null) {
@@ -204,7 +214,7 @@ class DesktopExport(private val media: DesktopMedia = DesktopMedia()) {
                     writeText(AssSubtitles.write(SubtitleLayout.ofWords(words,style,request.subtitleFrameRatio,facts),style,request.subtitleFrameRatio,facts?.family ?: "DejaVu Sans"))
                 }
             } else null
-            val paths=MediaPaths(project.sources.map { it.path },temporary.path,imageOverlays=project.pictures.filter {it.activeOn(project.timeline)}.map {it.source.path},sounds=project.sounds.filter {!it.muted}.map {it.source.path},subtitles=subtitles?.path,subtitleFonts=subtitles?.let { File(fonts.fontPath(style?.bold ?: false)).parent })
+            val paths=MediaPaths(project.sources.map { it.path },temporary.path,imageOverlays=project.pictures.filter {it.activeOn(project.timeline)}.map {it.source.path}+listOfNotNull(drawing?.path),sounds=project.sounds.filter {!it.muted}.map {it.source.path},subtitles=subtitles?.path,subtitleFonts=subtitles?.let { File(fonts.fontPath(style?.bold ?: false)).parent })
             media.process.checked(listOf("ffmpeg", "-nostdin") + CommandBuilder(fonts).build(request,paths).arguments)
             val result = media.probe(temporary.path)
             require(result.info.isStill || result.info.durationMs > 0) { "Export verification failed." }

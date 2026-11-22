@@ -60,7 +60,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                             Text("Linux development preview · shared Android editing core",style=MaterialTheme.typography.labelLarge,color=MaterialTheme.colorScheme.primary)
                         }
                         OutlinedButton(onClick={ pick()?.let { controller.open(it.path) } },enabled=!controller.busy) { Text("Open media") }
-                        OutlinedButton(onClick={ pick()?.let { file -> controller.work("Opening project…") { controller.player.stop();controller.rendered?.delete();controller.rendered=null;controller.previewFrame=null;controller.project=DesktopProjects.load(file,controller.media);controller.selectedSource=0; controller.resetAnalysis(); controller.seek(0); controller.status="Project opened." } } },enabled=!controller.busy) { Text("Open project") }
+                        OutlinedButton(onClick={ pick()?.let { file -> controller.work("Opening project…") { controller.player.stop();controller.rendered?.delete();controller.rendered=null;controller.previewFrame=null;controller.drawingFrame=null;controller.project=DesktopProjects.load(file,controller.media);controller.selectedSource=0; controller.resetAnalysis(); controller.seek(0); controller.status="Project opened." } } },enabled=!controller.busy) { Text("Open project") }
                         OutlinedButton(onClick={ controller.project?.let { p -> pick(true,"project.ffgui.json")?.let { file -> controller.work("Saving project…") { DesktopProjects.save(p,file); controller.status="Project saved: ${file.path}" } } } },enabled=!controller.busy && controller.project!=null) { Text("Save project") }
                         OutlinedButton(onClick={ controller.undo() },enabled=!controller.busy && controller.project!=null) { Text("Undo") }
                         Button(onClick={ controller.project?.let { p ->
@@ -127,7 +127,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                                 }
                             }
                             Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(10.dp)) {
-                                val tabs=listOf("Edit","Clip editor","Transcript","Pause cuts","Scenes","Beats","Follow crop","Models","Subtitles","Audio","Text layers","Sound tracks","Tags","Image layers","Command studio")
+                                val tabs=listOf("Edit","Clip editor","Transcript","Pause cuts","Scenes","Beats","Follow crop","Models","Subtitles","Audio","Text layers","Sound tracks","Tags","Image layers","Drawing","Command studio")
                                 if(project.sources.size>1)FlowRowCompat {
                                     project.sources.forEachIndexed {i,source->FilterChip(controller.selectedSource==i,{controller.selectSource(i)},label={Text("${i+1}: ${File(source.path).name.take(20)}")},enabled=!controller.busy)}
                                 }
@@ -137,6 +137,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                                 Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(12.dp)) {
                                     when(controller.tab) {
                                         "Edit" -> EditPanel(controller,project)
+                                        "Drawing" -> DrawingPanel(controller,project)
                                         "Command studio" -> StudioPanel(controller,project){name->pick(true,name)}
                                         "Clip editor" -> ClipEditorPanel(controller,project)
                                         "Subtitles" -> SubtitlesPanel(controller,project)
@@ -393,7 +394,7 @@ private fun EditPanel(c: EditorController,p: DesktopProject) {
         ValueSlider("Photo quality",e.output.quality,0f..1f,!c.busy){edit(e.copy(output=e.output.copy(quality=it)))}
         ValueSlider("Round corners",e.corners,0f..1f,!c.busy){edit(e.copy(corners=it))}
         OutlinedButton(onClick={edit(ImageEdit())},enabled=!c.busy){Text("Reset photo settings")}
-        Text("Drawing, masks, layer canvas and HDR output remain in progress.",style=MaterialTheme.typography.bodySmall)
+        Text("Use the Drawing tab for brush and shapes. Masks, layer canvas and HDR output remain in progress.",style=MaterialTheme.typography.bodySmall)
     }
 }
 
