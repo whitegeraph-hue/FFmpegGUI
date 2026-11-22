@@ -44,6 +44,10 @@ object DesktopProjects {
             }) }})
             put("captions",buildJsonArray { project.captions.forEach {add(core(ModelJson.write(it)))} })
             put("image",core(ModelJson.write(project.image)))
+            project.image.key?.takeIf {it.cutsSubject}?.mask?.let {path->
+                val file=File(path);require(file.length() in 1..24_000_000) {"Subject mask is missing or too large"}
+                put("subjectMask",java.util.Base64.getEncoder().encodeToString(file.readBytes()))
+            }
             put("audioEffects",core(ModelJson.write(project.audioEffects)))
             put("gif",buildJsonObject { val g=project.encoding.gif;put("width",g.width);put("fps",g.fps);put("colors",g.colors);put("dither",g.dither.name);put("loops",g.loops);put("smaller",g.smaller) })
             project.followCrop?.let { put("followCrop",core(ModelJson.writeFollowCrop(it))) }
@@ -58,6 +62,7 @@ object DesktopProjects {
             put("words",buildJsonArray { project.words.forEach { w -> add(buildJsonObject { put("startMs",w.startMs);put("endMs",w.endMs);put("text",w.text) }) } })
         }
         require((project.sources+project.sounds.map {it.source}+project.pictures.map {it.source}).none { File(it.path).canonicalFile==target.canonicalFile }) { "Cannot replace a source with a project." }
+        require(project.image.key?.mask?.let {File(it).canonicalFile!=target.canonicalFile} ?: true) {"Cannot replace a subject mask with a project."}
         val temporary=File(target.parentFile,".${target.name}-${UUID.randomUUID()}.tmp")
         try {
             temporary.writeText(Json { prettyPrint=true }.encodeToString(JsonObject.serializer(),data))
@@ -110,12 +115,35 @@ object DesktopProjects {
         val words=data["words"]!!.jsonArray.map { w -> w.jsonObject.let { SpokenWord(it["startMs"]!!.jsonPrimitive.long,it["endMs"]!!.jsonPrimitive.long,it["text"]!!.jsonPrimitive.content) } }
         val perSource=data["wordsBySource"]?.jsonObject?.mapValues {(_,v)->v.jsonArray.map {w->w.jsonObject.let {SpokenWord(it["startMs"]!!.jsonPrimitive.long,it["endMs"]!!.jsonPrimitive.long,it["text"]!!.jsonPrimitive.content)}}} ?: emptyMap()
         require(perSource.keys.all {key->sources.any {it.path==key}}){"Words refer to missing source."}
+        var image=data["image"]?.let {ModelJson.imageEdit(read(it))} ?: ImageEdit()
+        if(image.key?.cutsSubject==true) {
+            val encoded=data["subjectMask"]?.jsonPrimitive?.content ?: error("Saved subject mask is missing")
+            require(encoded.length<=32_000_000) {"Subject mask is too large"}
+            val bytes=java.util.Base64.getDecoder().decode(encoded)
+            val input=javax.imageio.ImageIO.createImageInputStream(java.io.ByteArrayInputStream(bytes))
+            input.use {stream->
+                val readers=javax.imageio.ImageIO.getImageReaders(stream)
+                require(readers.hasNext()) {"Invalid subject mask"}
+                val reader=readers.next()
+                try {reader.input=stream;require(reader.getWidth(0).toLong()*reader.getHeight(0)<=32_000_000) {"Subject mask is too large"}} finally {reader.dispose()}
+            }
+            val mask=javax.imageio.ImageIO.read(java.io.ByteArrayInputStream(bytes)) ?: error("Invalid subject mask")
+            try {require(mask.width==sources.first().info.width && mask.height==sources.first().info.height) {"Subject mask geometry does not match source"}} finally {mask.flush()}
+            val hash=java.security.MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") {"%02x".format(it)}
+            val directory=File(DesktopModels.root.parentFile,"masks").apply {mkdirs()}
+            val target=File(directory,"$hash.png")
+            if(!target.isFile || !target.readBytes().contentEquals(bytes)) {
+                val tmp=File.createTempFile("subject-",".png",directory)
+                try {tmp.writeBytes(bytes);Files.move(tmp.toPath(),target.toPath(),StandardCopyOption.REPLACE_EXISTING)} finally {tmp.delete()}
+            }
+            image=image.copy(key=image.key!!.copy(mask=target.absolutePath))
+        }
         return DesktopProject(sources,timeline,OutputFormat.valueOf(data["format"]!!.jsonPrimitive.content),effects=effects,words=words,
             encoding=EncodingSettings(resolution=data["resolution"]?.jsonPrimitive?.content?.let { Resolution.valueOf(it) } ?: Resolution.ORIGINAL, quality=data["quality"]?.jsonPrimitive?.float ?: .7f,
                 framerate=data["framerate"]?.jsonPrimitive?.content?.let { Framerate.valueOf(it) } ?: Framerate.ORIGINAL,
                 cpuSpeed=data["cpuSpeed"]?.jsonPrimitive?.content?.let { CpuEncoderSpeed.valueOf(it) } ?: CpuEncoderSpeed.BALANCED,
                 keepHdr=data["keepHdr"]?.jsonPrimitive?.boolean ?: true,gif=gifSettings,
                 audio=AudioEncoding(data["audioBitrate"]?.jsonPrimitive?.int ?: 192,data["audioSampleRate"]?.jsonPrimitive?.int ?: 0,data["audioDepth"]?.jsonPrimitive?.int ?: 16)),
-            followCrop=data["followCrop"]?.let { ModelJson.followCrop(read(it)) },subtitleStyle=data["subtitleStyle"]?.let { ModelJson.subtitleStyle(read(it)) },wordsBySource=perSource,pictures=pictures,tags=data["tags"]?.let {ModelJson.metadataTags(read(it))} ?: MetadataTags(),canvas=data["canvas"]?.jsonPrimitive?.content?.let {CanvasRatio.valueOf(it)} ?: CanvasRatio.FIT,canvasFit=data["canvasFit"]?.jsonPrimitive?.content?.let {CanvasFit.valueOf(it)} ?: CanvasFit.FIT,normalize=data["normalize"]?.jsonPrimitive?.boolean ?: false,sounds=sounds,captions=data["captions"]?.jsonArray?.map { ModelJson.textOverlay(read(it)) ?: error("Invalid caption") } ?: emptyList(),image=data["image"]?.let {ModelJson.imageEdit(read(it))} ?: ImageEdit(),audioEffects=data["audioEffects"]?.let {ModelJson.audioEffects(read(it))} ?: AudioEffects.NONE)
+            followCrop=data["followCrop"]?.let { ModelJson.followCrop(read(it)) },subtitleStyle=data["subtitleStyle"]?.let { ModelJson.subtitleStyle(read(it)) },wordsBySource=perSource,pictures=pictures,tags=data["tags"]?.let {ModelJson.metadataTags(read(it))} ?: MetadataTags(),canvas=data["canvas"]?.jsonPrimitive?.content?.let {CanvasRatio.valueOf(it)} ?: CanvasRatio.FIT,canvasFit=data["canvasFit"]?.jsonPrimitive?.content?.let {CanvasFit.valueOf(it)} ?: CanvasFit.FIT,normalize=data["normalize"]?.jsonPrimitive?.boolean ?: false,sounds=sounds,captions=data["captions"]?.jsonArray?.map { ModelJson.textOverlay(read(it)) ?: error("Invalid caption") } ?: emptyList(),image=image,audioEffects=data["audioEffects"]?.let {ModelJson.audioEffects(read(it))} ?: AudioEffects.NONE)
     }
 }

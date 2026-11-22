@@ -231,6 +231,46 @@ class DesktopSmartModels(
         }
     }
 
+    /** Still-picture subject alpha in original upright pixel geometry, not a generated picture. */
+    suspend fun cutout(path:String,modelFile:File):BufferedImage = withContext(Dispatchers.IO) {
+        desktopNativeModelGate.withLock {
+            val contract=DesktopModelFiles.cutout(modelFile)
+            DesktopModelFiles.verify(modelFile,contract.sha256,contract.bytes)
+            checkAvailableMemory(contract.minFreeBytes)
+            val picture=frame(path,0)
+            try {
+                require(picture.width.toLong()*picture.height<=32_000_000) {"Cutout supports pictures up to 32 megapixels."}
+                val side=contract.net.side
+                val scaled=BufferedImage(side,side,BufferedImage.TYPE_INT_RGB)
+                val g=scaled.createGraphics()
+                try {g.setRenderingHint(RenderingHints.KEY_INTERPOLATION,RenderingHints.VALUE_INTERPOLATION_BILINEAR);g.drawImage(picture,0,0,side,side,null)} finally {g.dispose()}
+                val input=SubjectModelIo.input(scaled.getRGB(0,0,side,side,null,0,side),contract.net);scaled.flush()
+                val options=OrtSession.SessionOptions()
+                try {
+                    options.setIntraOpNumThreads(threads);options.setOptimizationLevel(OrtSession.SessionOptions.OptLevel.ALL_OPT)
+                    if(contract.lean)options.setCPUArenaAllocator(false)
+                    val env=OrtEnvironment.getEnvironment()
+                    val mask=env.createSession(modelFile.absolutePath,options).use {session->
+                        OnnxTensor.createTensor(env,FloatBuffer.wrap(input),longArrayOf(1,3,side.toLong(),side.toLong())).use {tensor->
+                            session.run(mapOf(session.inputNames.first() to tensor)).use {result->
+                                val values=(result.get(0) as OnnxTensor).floatBuffer
+                                require(values.remaining()==side*side) {"Unexpected subject output shape"}
+                                SubjectModelIo.mask(FloatArray(values.remaining()).also {values.get(it)},contract.net)
+                            }
+                        }
+                    }
+                    currentCoroutineContext().ensureActive()
+                    val small=BufferedImage(side,side,BufferedImage.TYPE_INT_ARGB)
+                    small.setRGB(0,0,side,side,IntArray(mask.size) {(mask[it] shl 24) or 0xffffff},0,side)
+                    val output=BufferedImage(picture.width,picture.height,BufferedImage.TYPE_INT_ARGB)
+                    val graphics=output.createGraphics()
+                    try {graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION,RenderingHints.VALUE_INTERPOLATION_BILINEAR);graphics.drawImage(small,0,0,output.width,output.height,null)} finally {graphics.dispose();small.flush()}
+                    output
+                } finally {options.close()}
+            } finally {picture.flush()}
+        }
+    }
+
     private suspend fun frame(path: String, atMs: Long): BufferedImage {
         cacheDirectory.mkdirs()
         val image = Files.createTempFile(cacheDirectory.toPath(), "subject-", ".png").toFile()

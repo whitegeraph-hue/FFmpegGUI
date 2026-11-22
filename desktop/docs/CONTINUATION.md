@@ -201,3 +201,20 @@ Actual mouse drag and edited-preview click produced the yellow diagonal in
 Refresh drawing background explicitly after other edits; no live total-effects
 preview claim. Masks, HDR and AI photo adapters remain. CI d1f7747 and8e342b5
 are green. No current package rebuild since f617df8. Master unchanged.
+
+Still subject cutout checkpoint 2026-11-23 00:59 Cairo: pinned U2-NetP mask
+inference runs in the existing isolated worker, original upright source geometry.
+Subject-cutout tab and photo button apply original SUBJECT key. PNG export
+shows actual model alpha, mask PNG is embedded into project JSON and restored
+into content-hashed durable mask storage. Reopening after original mask deletion
+and exporting succeeds. Mask/source overwrite guards and decode geometry/size
+checks added.38native checks still pass; isolated suite now also checks real
+cutout inference, mixed alpha, export and portable roundtrip. Actual cutout and
+render buttons clicked on synthetic test pattern; screenshot inspected. This
+is not real-person edge-quality evidence. Attempts to download NASA portrait
+from Commons returned403, no portrait claim. Subject cutout is segmentation,
+not magic-eraser/inpainting, so no generated-inpainting disclosure is applied.
+Full generated-content adapters still need original provenance gates.
+Current package remains4dcfd2a (cutout changes newer); clean CI4dcfd2a green.
+Package workers fresh at00:46:37 passed but deterministic3line log lacks header;
+future logs include command/timestamp/source and package identity. No release.

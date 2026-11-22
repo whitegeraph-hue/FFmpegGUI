@@ -59,6 +59,11 @@ class DesktopModelWorker {
     }
     suspend fun transcribe(path:String,model:File,progress:(String)->Unit):List<SpokenWord> =
         run("speech",path,model,progress=progress)["words"]!!.jsonArray.map { it.jsonObject.let { w -> SpokenWord(w["start"]!!.jsonPrimitive.long,w["end"]!!.jsonPrimitive.long,w["text"]!!.jsonPrimitive.content) } }
+    suspend fun cutout(path:String,model:File):java.awt.image.BufferedImage {
+        val result=run("cutout",path,model,progress={})
+        val bytes=java.util.Base64.getDecoder().decode(result["png"]!!.jsonPrimitive.content)
+        return javax.imageio.ImageIO.read(java.io.ByteArrayInputStream(bytes)) ?: error("Invalid subject mask")
+    }
     suspend fun track(path:String,duration:Long,model:File,progress:(Float)->Unit):DesktopSmartModels.SubjectTrack {
         val result=run("subject",path,model,duration) { it.toFloatOrNull()?.let(progress) }
         return DesktopSmartModels.SubjectTrack(result["points"]!!.jsonArray.map { it.jsonObject.let { p -> SubjectPoint(p["at"]!!.jsonPrimitive.long,p["x"]!!.jsonPrimitive.float,p["y"]!!.jsonPrimitive.float,p["confidence"]!!.jsonPrimitive.float) } },result["width"]!!.jsonPrimitive.int,result["height"]!!.jsonPrimitive.int)
@@ -83,6 +88,14 @@ fun runModelWorker(folder:String)=runBlocking {
         "speech" -> {
             val words=runtime.transcribe(path,model,emptyList(),{ step,fraction -> progress("${step.name.lowercase()} ${fraction?.let { "${(it*100).toInt()}%" } ?: ""}") },{})
             buildJsonObject { put("words",buildJsonArray { words.forEach { w -> add(buildJsonObject { put("start",w.startMs);put("end",w.endMs);put("text",w.text) }) } }) }
+        }
+        "cutout" -> {
+            val image=runtime.cutout(path,model)
+            try {
+                val bytes=java.io.ByteArrayOutputStream()
+                check(javax.imageio.ImageIO.write(image,"png",bytes))
+                buildJsonObject {put("png",java.util.Base64.getEncoder().encodeToString(bytes.toByteArray()))}
+            } finally {image.flush()}
         }
         "subject" -> {
             val track=runtime.track(path,request["duration"]!!.jsonPrimitive.long,model,progress={ progress(it.toString()) })

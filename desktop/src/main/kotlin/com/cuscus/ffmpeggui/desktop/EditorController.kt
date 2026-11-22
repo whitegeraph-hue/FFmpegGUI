@@ -211,6 +211,19 @@ class EditorController(val scope: CoroutineScope) {
             catch(e:Exception) { followStatus=FollowCropStatus.Failed;throw e }
         }
     }
+    fun cutoutPicture()=work("Finding picture subject offline…") {
+        val p=project ?: return@work
+        require(p.sources.first().info.isStill) {"Subject cutout currently needs a still picture."}
+        val image=models.cutout(p.sources.first().path,DesktopModels.cutoutFile)
+        val directory=File(DesktopModels.root.parentFile,"masks").apply {mkdirs()}
+        val file=File(directory,"${UUID.randomUUID()}.png")
+        try {
+            check(javax.imageio.ImageIO.write(image,"png",file))
+            mutate(p.copy(image=p.image.copy(key=ColorKey(mode=KeyMode.SUBJECT,mask=file.absolutePath))))
+            drawingFrame=null
+            status="Subject mask ready. Render to inspect its edges. You can undo the cutout."
+        } catch(e:Throwable) {file.delete();throw e} finally {image.flush()}
+    }
     fun drawingBackground()=work("Rendering drawing background…") {
         val p=project ?: return@work
         val file=File.createTempFile("ffmpeggui-drawing-",".png")

@@ -68,6 +68,26 @@ val source=File(models,"u2netp.onnx")
         val isolatedTrack=isolated.track(File(models,"video.mp4").path,1100,source){}
         check(isolatedTrack.points.size==3)
         println("PASS isolated speech and tracking workers")
+        val image=DesktopMedia().frame(File(models,"video.mp4").path,0)!!
+        val expectedWidth=image.width;val expectedHeight=image.height
+        val photo=File(models,"cutout-test-input.png")
+        javax.imageio.ImageIO.write(image,"png",photo);image.flush()
+        val mask=isolated.cutout(photo.path,source)
+        check(mask.width==expectedWidth && mask.height==expectedHeight)
+        val alpha=IntArray(mask.width*mask.height) {i->mask.getRGB(i%mask.width,i/mask.width) ushr 24}
+        check(alpha.max()>220 && alpha.min()<30) {"Model returned a flat mask"}
+        val maskFile=File(models,"cutout-test-mask.png");javax.imageio.ImageIO.write(mask,"png",maskFile);mask.flush()
+        val media=DesktopMedia();val project=DesktopProject.create(media.probe(photo.path)).copy(image=com.cuscus.ffmpeggui.core.model.ImageEdit(key=com.cuscus.ffmpeggui.core.model.ColorKey(mode=com.cuscus.ffmpeggui.core.model.KeyMode.SUBJECT,mask=maskFile.path)))
+        val target=File(models,"cutout-test-output.png");DesktopExport(media).export(project,target)
+        val output=javax.imageio.ImageIO.read(target)
+        check(output.colorModel.hasAlpha())
+        val values=IntArray(output.width*output.height) {i->output.getRGB(i%output.width,i/output.width) ushr 24}
+        check(values.min()<30 && values.max()>220)
+        val saved=File(models,"cutout.ffgui.json");DesktopProjects.save(project,saved);maskFile.delete()
+        val restored=DesktopProjects.load(saved,media)
+        check(File(restored.image.key!!.mask!!).isFile)
+        DesktopExport(media).export(restored,File(models,"cutout-restored.png"))
+        println("PASS isolated real subject cutout alpha export and portable mask roundtrip")
         val known=ProcessHandle.current().descendants().map { it.pid() }.toList().toSet()
         val cancelled=launch { isolated.transcribe(File(models,"en.wav").path,models){} }
         var child:ProcessHandle?=null

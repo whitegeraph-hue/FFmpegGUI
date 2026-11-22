@@ -127,7 +127,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                                 }
                             }
                             Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(10.dp)) {
-                                val tabs=listOf("Edit","Clip editor","Transcript","Pause cuts","Scenes","Beats","Follow crop","Models","Subtitles","Audio","Text layers","Sound tracks","Tags","Image layers","Drawing","Command studio")
+                                val tabs=listOf("Edit","Clip editor","Transcript","Pause cuts","Scenes","Beats","Follow crop","Models","Subtitles","Audio","Text layers","Sound tracks","Tags","Image layers","Drawing","Subject cutout","Command studio")
                                 if(project.sources.size>1)FlowRowCompat {
                                     project.sources.forEachIndexed {i,source->FilterChip(controller.selectedSource==i,{controller.selectSource(i)},label={Text("${i+1}: ${File(source.path).name.take(20)}")},enabled=!controller.busy)}
                                 }
@@ -137,6 +137,14 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                                 Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(12.dp)) {
                                     when(controller.tab) {
                                         "Edit" -> EditPanel(controller,project)
+                                        "Subject cutout" -> PanelCard {
+                                            Text("Still subject cutout",style=MaterialTheme.typography.titleLarge)
+                                            Text("Uses the imported subject model offline. PNG preserves transparent background. Render the result to inspect edges. The saved project embeds its mask. This is segmentation, not image generation.")
+                                            OutlinedButton(onClick={controller.cutoutPicture()},enabled=!controller.busy && project.sources.first().info.isStill){Text("Cut out subject")}
+                                            if(project.image.key!=null)OutlinedButton(onClick={controller.mutate(project.copy(image=project.image.copy(key=null)))},enabled=!controller.busy){Text("Remove cutout")}
+                                            Text(if(project.image.key?.cutsSubject==true) "Subject mask applied." else "No subject mask applied.")
+                                            Text("Manual mask refinement and magic eraser are still being ported.")
+                                        }
                                         "Drawing" -> DrawingPanel(controller,project)
                                         "Command studio" -> StudioPanel(controller,project){name->pick(true,name)}
                                         "Clip editor" -> ClipEditorPanel(controller,project)
@@ -384,6 +392,9 @@ private fun EditPanel(c: EditorController,p: DesktopProject) {
         ValueSlider("Tint",t.tint,-1f..1f,!c.busy){edit(e.copy(tone=t.copy(tint=it)))}
         ValueSlider("Hue",t.hue,-180f..180f,!c.busy){edit(e.copy(tone=t.copy(hue=it)))}
         ValueSlider("Fade",t.fade,0f..1f,!c.busy){edit(e.copy(tone=t.copy(fade=it)))}
+        Text("Subject cutout runs offline with the imported subject model. PNG keeps removed background transparent; other formats may flatten it.")
+        OutlinedButton(onClick={c.cutoutPicture()},enabled=!c.busy){Text("Cut out subject")}
+        if(e.key!=null)OutlinedButton(onClick={edit(e.copy(key=null))},enabled=!c.busy){Text("Remove cutout")}
         Text("Photo filter")
         Row(Modifier.horizontalScroll(rememberScrollState())) {ImageFilter.entries.forEach {f->FilterChip(e.filter==f,{edit(e.copy(filter=f))},label={Text(f.name)},enabled=!c.busy)}}
         ValueSlider("Filter strength",e.filterAmount,0f..1f,!c.busy){edit(e.copy(filterAmount=it))}
