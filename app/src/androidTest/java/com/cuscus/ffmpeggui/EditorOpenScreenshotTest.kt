@@ -58,6 +58,7 @@ class EditorOpenScreenshotTest {
                 assertTrue("could not pick MP4", Ui.click("MP4"))
                 assertTrue("editor toolbar never showed 'Scenes'", Ui.waitFor("Scenes", 60_000))
             } catch (e: Throwable) {
+                Ui.dump()
                 shot("editor-timeout")
                 throw e
             }

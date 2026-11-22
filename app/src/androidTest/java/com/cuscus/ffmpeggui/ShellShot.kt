@@ -29,11 +29,39 @@ object ShellShot {
 object Ui {
     private val ui get() = InstrumentationRegistry.getInstrumentation().uiAutomation
 
-    private fun find(text: String): android.view.accessibility.AccessibilityNodeInfo? {
-        val root = ui.rootInActiveWindow ?: return null
-        return root.findAccessibilityNodeInfosByText(text)
-            .firstOrNull { it.text?.toString() == text || it.contentDescription?.toString() == text }
+    private fun flags() {
+        ui.serviceInfo = ui.serviceInfo.apply {
+            flags = flags or android.accessibilityservice.AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
+        }
     }
+
+    private fun walk(node: android.view.accessibility.AccessibilityNodeInfo?, out: MutableList<android.view.accessibility.AccessibilityNodeInfo>) {
+        node ?: return
+        out += node
+        for (i in 0 until node.childCount) walk(node.getChild(i), out)
+    }
+
+    private fun all(): List<android.view.accessibility.AccessibilityNodeInfo> {
+        flags()
+        val out = mutableListOf<android.view.accessibility.AccessibilityNodeInfo>()
+        // Every window, not only the active one: the app window may not be reported as active.
+        ui.windows.forEach { walk(it.root, out) }
+        walk(ui.rootInActiveWindow, out)
+        return out
+    }
+
+    private fun label(n: android.view.accessibility.AccessibilityNodeInfo): String =
+        listOfNotNull(n.text?.toString(), n.contentDescription?.toString()).joinToString(" | ")
+
+    /** What the accessibility tree holds, for the CI log when a lookup fails. */
+    fun dump() {
+        val nodes = all()
+        android.util.Log.i("CI-A11Y", "nodes=${nodes.size}")
+        nodes.forEach { android.util.Log.i("CI-A11Y", "${it.className} click=${it.isClickable} '${label(it)}'") }
+    }
+
+    private fun find(text: String): android.view.accessibility.AccessibilityNodeInfo? =
+        all().firstOrNull { label(it).contains(text, ignoreCase = true) }
 
     fun waitFor(text: String, timeoutMs: Long): Boolean {
         val end = System.currentTimeMillis() + timeoutMs
