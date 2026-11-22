@@ -229,6 +229,22 @@ fun main(args:Array<String>)=runBlocking {
         val split=project.splitFootageAt(listOf(1000,3000));check(split.clips.take(3).map {it.startMs}==listOf(3000L,1000L,0L))
         val slower=project.copy(effects=Effects(speed=.5f));check(slower.outputDurationMs==7000L && slower.outputAt(2000)==2000L)
     }
+    verify("retimed reverse follow crop uses joined clock actual pixels") {
+        val file=File(folder,"follow-clock-source.mp4")
+        media.process.checked(listOf("ffmpeg","-v","error","-y","-f","lavfi","-i","color=black:s=640x360:r=25:d=4","-vf","drawbox=x=100:y=150:w=40:h=60:color=white:t=fill:enable='lt(t,2)',drawbox=x=500:y=150:w=40:h=60:color=white:t=fill:enable='gte(t,2)'","-c:v","libx264","-pix_fmt","yuv420p",file.path))
+        val source=media.probe(file.path)
+        val project=DesktopProject.create(source).copy(timeline=Timeline(listOf(Clip("follow",source.path,endMs=4000,effects=Effects(speed=2f,reversed=true)))))
+        val original=listOf(SubjectPoint(0,120f/640,.5f,1f),SubjectPoint(1800,120f/640,.5f,1f),SubjectPoint(2200,520f/640,.5f,1f),SubjectPoint(3960,520f/640,.5f,1f))
+        val mapped=original.flatMap {point->com.cuscus.ffmpeggui.core.preview.mapToTimeline(point.atMs,point.atMs+1,project.request().segments,0).map {point.copy(atMs=it.first)}}
+        val track=FollowCropTrack(mapped,640,360,202,360,source.path)
+        val output=exporter.export(project.copy(followCrop=track),File(folder,"follow-clock.mp4"))
+        check(output.info.durationMs in 1900..2200)
+        for(at in listOf(200L,1600L)) {
+            val image=media.frame(output.path,at)!!
+            val center=image.getRGB(image.width/2,image.height/2) and 0xffffff
+            check(center>0xdddddd){"Subject not centered at $at: $center"}
+        }
+    }
     verify("cancel real process") {
         val start=System.currentTimeMillis()
         val job=launch { media.process.run(listOf("ffmpeg","-re","-f","lavfi","-i","testsrc2=size=640x360:rate=25","-t","30","-f","null","-")) }

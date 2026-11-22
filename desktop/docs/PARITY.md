@@ -135,3 +135,8 @@ include combined2x+reverse+fade timed picture, caption pixels, PCM pulse timing,
 SRT times, reversed-word removal, slow whole speed, reverse split source order.
 New text clip binding/rotation/stretch/blend, image clip binding/animation and
 sound volume animation compile; broad clicked interaction remains unverified.
+
+Follow clock correction: only subject track points map with real segment effects
+onto joined played time. Source edit actions stay on footage clock.31native
+assertions pass, including actual2x/reversed synthetic left/right subject crop
+with centred white pixels at0.2s and1.6s. This checks timing, not person quality.

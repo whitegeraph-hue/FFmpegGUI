@@ -162,3 +162,8 @@ revision before eventual delivery. No full parity or target-machine claim.
 New layer binding/keys compile but interaction/render coverage still owed.
 Next: latest CI, regression suite, pushed exact package, then remaining original
 editor work per PARITY. Image native chooser still unverified. No release/tag.
+
+## Checkpoint 2026-11-22 23:59 Cairo
+Follow points corrected separately to real-effects joined clock.31native checks
+pass actual2x/reversed synthetic subject centre at0.2/1.6s. Final adapter changes
+in23d passed30checks before that. Build a current committed package next.

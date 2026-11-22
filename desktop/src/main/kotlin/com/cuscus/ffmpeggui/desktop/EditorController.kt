@@ -198,7 +198,7 @@ class EditorController(val scope: CoroutineScope) {
         work("Following the subject locally. Stop ends the isolated model process…") {
             try {
                 val tracked=models.track(p.sources[selectedSource].path,p.sources[selectedSource].info.durationMs,DesktopModels.cutoutFile,progress={ value -> scope.launch { followStatus=FollowCropStatus.Working(value) } })
-                val mapped=tracked.points.flatMap { point -> p.footageRanges(point.atMs,point.atMs+1,0).map { point.copy(atMs=it.first) } }
+                val mapped=tracked.points.flatMap { point -> mapToTimeline(point.atMs,point.atMs+1,p.request().segments,0).map { point.copy(atMs=it.first) } }
                 check(mapped.isNotEmpty()) { "No track points on the current timeline." }
                 val size=FollowCropTrack.windowSize(tracked.frameWidth,tracked.frameHeight,9,16)
                 mutate(p.copy(followCrop=FollowCropTrack(mapped,tracked.frameWidth,tracked.frameHeight,size.first,size.second,p.sources[selectedSource].path)))
