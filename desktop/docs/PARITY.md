@@ -14,9 +14,9 @@ Status is implementation evidence, not a promise that unchecked behavior works.
 | Beat-synced splits | BeatTrack + original panel | Real audio analysis passed 120 BPM fixture. Split/snapping wired. UI test pending. |
 | Subject-following crop | FollowCropTrack/SubjectModelIo + original panel | Synthetic moving crop export passed. Native U2-NetP inference/model import wired and compiled; final app runtime/UI checks pending. |
 | Preview | Source frame adapter | Honest labelled source-frame seek; render edited preview includes effects/audio via real export and integrated sample-clock playback. Android live-preview parity not done. |
-| Audio editor/mastering | DSP/models/builder preserved | Speed/volume, audio bitrate/bitdepth and formats exposed. Waveforms, ten-band EQ, compressor, reverb, stems/tracks still need UI/adapters and tests. |
-| Photo editor | Image/vector/text-art logic preserved | Basic still export path exposed. Detailed crop/perspective, layers, shapes, brush, masks, HDR, SVG editor, ASCII/ANSI tools still need porting. |
-| GIF editor | GIF settings/builder preserved | Basic output only. Palette/dither/frame controls and exact preview missing. |
+| Audio editor/mastering | DSP/models/builder preserved | Speed/volume, audio bitrate/bitdepth and formats exposed. Ten-band EQ, cuts, pitch, gate/compression/limiter, echo/reverb and stereo controls implemented. Actual24bit44100Hz mastered WAV tested. Waveforms, stems/tracks and modulation still missing. |
+| Photo editor | Image/vector/text-art logic preserved | Basic still export path exposed. Crop/rotation/mirror/detail, perspective/straighten, exposure/highlights/shadows/warmth/tint/hue/fade, filters/effects/corners controls and saved ImageEdit wired. Actual transformed PNG tested and clicked rendered image inspected. Layers, shapes, brush, masks, HDR, SVG, ASCII/ANSI still unported. |
+| GIF editor | GIF settings/builder preserved | Width/fps/palette/dither/loops/smaller controls with real240px10fps export test. Exact live palette preview missing. |
 | Subtitles/style/lyrics | Full core preserved | Transcript UI only initially. SRT/TXT retimed export and ASS burn-in/style controls implemented;14 native integration checks include actual burnt pixels and240p15fps. Custom fonts/colours, external subtitle import and lyrics workflows pending. |
 | Offline AI cutout/erase/translation/dub/stems | Core algorithms/model definitions preserved | Runtime adapters, model gates and integrity import, licences, speech memory limits, source separation, marking gates still need porting. No generative output exposed without required provenance marks. |
 | Project files | Original ModelJson | Linux envelope save/open implemented. Source validation; Android project envelope interoperability not yet supported. Need include all editor state once exposed. |
@@ -66,3 +66,9 @@ to shared AudioEffects and persisted with ModelJson. The16native checks verify
 actual mastered PCM differs and output is pcm_s24le/44100Hz. GIF palette size,
 width, fps, dither, loop and smaller options are exposed and persisted; real
 240px10fps GIF checked. Waveforms, live DSP, modulation and stems remain gaps.
+
+Photo continuation:18native assertions now include original-preserving still
+crop/rotation, perspective/straightening/tone/filter/effect/corners and ImageEdit
+save/load. Actual rendered PNG and clicked horizontal-perspective preview were
+inspected. Preview now displays the rendered frame rather than leaving it
+unused, clears on change and has a separate still-image label.

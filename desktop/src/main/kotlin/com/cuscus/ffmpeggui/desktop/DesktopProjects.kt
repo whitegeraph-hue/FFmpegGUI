@@ -22,6 +22,7 @@ object DesktopProjects {
             put("sources",buildJsonArray { project.sources.forEach { add(buildJsonObject { put("path",it.path); put("size",File(it.path).length()); put("durationMs",it.info.durationMs) }) } })
             put("format",project.format.name)
             put("effects",core(ModelJson.write(project.effects)))
+            put("image",core(ModelJson.write(project.image)))
             put("audioEffects",core(ModelJson.write(project.audioEffects)))
             put("gif",buildJsonObject { val g=project.encoding.gif;put("width",g.width);put("fps",g.fps);put("colors",g.colors);put("dither",g.dither.name);put("loops",g.loops);put("smaller",g.smaller) })
             project.followCrop?.let { put("followCrop",core(ModelJson.writeFollowCrop(it))) }
@@ -67,6 +68,6 @@ object DesktopProjects {
                 cpuSpeed=data["cpuSpeed"]?.jsonPrimitive?.content?.let { CpuEncoderSpeed.valueOf(it) } ?: CpuEncoderSpeed.BALANCED,
                 keepHdr=data["keepHdr"]?.jsonPrimitive?.boolean ?: true,gif=gifSettings,
                 audio=AudioEncoding(data["audioBitrate"]?.jsonPrimitive?.int ?: 192,data["audioSampleRate"]?.jsonPrimitive?.int ?: 0,data["audioDepth"]?.jsonPrimitive?.int ?: 16)),
-            followCrop=data["followCrop"]?.let { ModelJson.followCrop(read(it)) },subtitleStyle=data["subtitleStyle"]?.let { ModelJson.subtitleStyle(read(it)) },audioEffects=data["audioEffects"]?.let {ModelJson.audioEffects(read(it))} ?: AudioEffects.NONE)
+            followCrop=data["followCrop"]?.let { ModelJson.followCrop(read(it)) },subtitleStyle=data["subtitleStyle"]?.let { ModelJson.subtitleStyle(read(it)) },image=data["image"]?.let {ModelJson.imageEdit(read(it))} ?: ImageEdit(),audioEffects=data["audioEffects"]?.let {ModelJson.audioEffects(read(it))} ?: AudioEffects.NONE)
     }
 }

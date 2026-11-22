@@ -59,7 +59,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                             Text("Linux development preview · shared Android editing core",style=MaterialTheme.typography.labelLarge,color=MaterialTheme.colorScheme.primary)
                         }
                         OutlinedButton(onClick={ pick()?.let { controller.open(it.path) } },enabled=!controller.busy) { Text("Open media") }
-                        OutlinedButton(onClick={ pick()?.let { file -> controller.work("Opening project…") { controller.player.stop();controller.rendered?.delete();controller.rendered=null;controller.project=DesktopProjects.load(file,controller.media); controller.resetAnalysis(); controller.seek(0); controller.status="Project opened." } } },enabled=!controller.busy) { Text("Open project") }
+                        OutlinedButton(onClick={ pick()?.let { file -> controller.work("Opening project…") { controller.player.stop();controller.rendered?.delete();controller.rendered=null;controller.previewFrame=null;controller.project=DesktopProjects.load(file,controller.media); controller.resetAnalysis(); controller.seek(0); controller.status="Project opened." } } },enabled=!controller.busy) { Text("Open project") }
                         OutlinedButton(onClick={ controller.project?.let { p -> pick(true,"project.ffgui.json")?.let { file -> controller.work("Saving project…") { DesktopProjects.save(p,file); controller.status="Project saved: ${file.path}" } } } },enabled=!controller.busy && controller.project!=null) { Text("Save project") }
                         OutlinedButton(onClick={ controller.undo() },enabled=!controller.busy && controller.project!=null) { Text("Undo") }
                         Button(onClick={ controller.project?.let { p ->
@@ -88,11 +88,11 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                                     Text("${project.sources[0].info.width} × ${project.sources[0].info.height}",style=MaterialTheme.typography.labelMedium)
                                 }
                                 Box(Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(20.dp)).background(Color.Black),contentAlignment=Alignment.Center) {
-                                    val frame=if(controller.player.playing || controller.player.frame!=null) controller.player.frame else controller.sourceFrame
-                                    if (frame!=null) Image(frame,if(controller.player.frame!=null) "Rendered edit playback" else "Source frame at the playhead, not an effects preview",modifier=Modifier.fillMaxSize())
+                                    val frame=if(controller.player.playing || controller.player.frame!=null) controller.player.frame else controller.previewFrame ?: controller.sourceFrame
+                                    if (frame!=null) Image(frame,if(controller.player.frame!=null || controller.previewFrame!=null) "Rendered edit playback" else "Source frame at the playhead, not an effects preview",modifier=Modifier.fillMaxSize())
                                     else Text(if (project.sources[0].info.isVideo) "Reading frame…" else "Audio file",color=Color.White)
                                 }
-                                Text(if(controller.player.frame!=null) "Rendered edit · ${time(controller.player.positionMs)} / ${time(controller.player.durationMs)} · synchronized audio/video" else "Source frame · ${time(controller.position)} / ${time(project.timeline.durationMs)}. Render edited preview to inspect cuts and effects.",style=MaterialTheme.typography.bodySmall)
+                                Text(if(controller.previewFrame!=null && project.sources[0].info.isStill) "Rendered edited picture. Source file is unchanged." else if(controller.player.frame!=null) "Rendered edit · ${time(controller.player.positionMs)} / ${time(controller.player.durationMs)} · synchronized audio/video" else "Source frame · ${time(controller.position)} / ${time(project.timeline.durationMs)}. Render edited preview to inspect cuts and effects.",style=MaterialTheme.typography.bodySmall)
                                 controller.player.failure?.let { Text(it,color=MaterialTheme.colorScheme.error,style=MaterialTheme.typography.bodySmall) }
                                 if(controller.player.frame!=null) {
                                     var scrub by remember { mutableStateOf<Float?>(null) }
@@ -102,7 +102,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                                 Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                                     Button(onClick={ controller.splitHere() },enabled=!controller.busy) { Text("Split here") }
                                     OutlinedButton(onClick={ controller.preview() },enabled=!controller.busy) { Text("Render edited preview") }
-                                    controller.rendered?.let { file ->
+                                    controller.rendered?.takeIf { !project.sources[0].info.isStill }?.let { file ->
                                         OutlinedButton(onClick={ if(controller.player.playing) controller.player.pause() else controller.player.play(file) }) { Text(if(controller.player.playing) "Pause preview" else "Play preview") }
                                     }
                                 }
@@ -183,7 +183,7 @@ private fun EditPanel(c: EditorController,p: DesktopProject) {
         Text("Picture and sound",style=MaterialTheme.typography.titleMedium)
         ValueSlider("Speed",p.effects.speed,.25f..4f,!c.busy) { c.mutate(p.copy(effects=p.effects.copy(speed=it))) }
         ValueSlider("Volume",p.effects.volume,0f..2f,!c.busy) { c.mutate(p.copy(effects=p.effects.copy(volume=it))) }
-        if (p.sources[0].info.isVideo) {
+        if (p.sources[0].info.isVideo || p.sources[0].info.isStill) {
             ValueSlider("Brightness",p.effects.color.brightness,-1f..1f,!c.busy) { c.mutate(p.copy(effects=p.effects.copy(color=p.effects.color.copy(brightness=it)))) }
             ValueSlider("Contrast",p.effects.color.contrast,0f..2f,!c.busy) { c.mutate(p.copy(effects=p.effects.copy(color=p.effects.color.copy(contrast=it)))) }
             ValueSlider("Saturation",p.effects.color.saturation,0f..2f,!c.busy) { c.mutate(p.copy(effects=p.effects.copy(color=p.effects.color.copy(saturation=it)))) }
@@ -193,6 +193,8 @@ private fun EditPanel(c: EditorController,p: DesktopProject) {
             }
         }
     }
+    GeometryPanel(c,p)
+    PhotoPanel(c,p)
     PanelCard {
         Text("Command preview",style=MaterialTheme.typography.titleMedium)
         Text("Generated by the unchanged Kotlin CommandBuilder used on Android.",style=MaterialTheme.typography.bodySmall)
@@ -309,5 +311,64 @@ private fun EditPanel(c: EditorController,p: DesktopProject) {
         ValueSlider("Stereo width",a.stereo.width,0f..2f,!c.busy) {change(a.copy(stereo=a.stereo.copy(width=it)))}
         ValueSlider("Stereo balance",a.stereo.balance,-1f..1f,!c.busy) {change(a.copy(stereo=a.stereo.copy(balance=it)))}
         Row(verticalAlignment=Alignment.CenterVertically) {Checkbox(a.stereo.mono,{change(a.copy(stereo=a.stereo.copy(mono=it)))},enabled=!c.busy);Text("Mono");Checkbox(a.stereo.swapSides,{change(a.copy(stereo=a.stereo.copy(swapSides=it)))},enabled=!c.busy);Text("Swap sides")}
+    }
+}
+
+@Composable private fun GeometryPanel(c:EditorController,p:DesktopProject) {
+    if(!p.sources[0].info.isVideo && !p.sources[0].info.isStill)return
+    PanelCard {
+        Text("Framing and detail",style=MaterialTheme.typography.titleMedium)
+        Text("These apply to the rendered output. The source-frame view stays unedited.",style=MaterialTheme.typography.bodySmall)
+        val crop=p.effects.crop ?: CropRect()
+        Row(verticalAlignment=Alignment.CenterVertically) {Switch(p.effects.crop!=null,{c.mutate(p.copy(effects=p.effects.copy(crop=if(it)CropRect(.1f,.1f,.8f,.8f) else null),followCrop=null))},enabled=!c.busy);Text("Crop")}
+        if(p.effects.crop!=null) {
+            ValueSlider("Crop left",crop.left,0f..0.9f,!c.busy) {val left=it;c.mutate(p.copy(effects=p.effects.copy(crop=crop.copy(left=left,width=crop.width.coerceAtMost(1-left))),followCrop=null))}
+            ValueSlider("Crop top",crop.top,0f..0.9f,!c.busy) {val top=it;c.mutate(p.copy(effects=p.effects.copy(crop=crop.copy(top=top,height=crop.height.coerceAtMost(1-top))),followCrop=null))}
+            ValueSlider("Crop width",crop.width,.1f..(1-crop.left).coerceAtLeast(.1f),!c.busy) {c.mutate(p.copy(effects=p.effects.copy(crop=crop.copy(width=it)),followCrop=null))}
+            ValueSlider("Crop height",crop.height,.1f..(1-crop.top).coerceAtLeast(.1f),!c.busy) {c.mutate(p.copy(effects=p.effects.copy(crop=crop.copy(height=it)),followCrop=null))}
+        }
+        Row(verticalAlignment=Alignment.CenterVertically) {Checkbox(p.effects.flipVertical,{c.mutate(p.copy(effects=p.effects.copy(flipVertical=it)))},enabled=!c.busy);Text("Flip vertical");Checkbox(p.effects.reversed,{c.mutate(p.copy(effects=p.effects.copy(reversed=it),followCrop=null))},enabled=!c.busy && !p.sources[0].info.isStill);Text("Reverse")}
+        val color=p.effects.color
+        ValueSlider("Sharpness",color.sharpness,-1f..1f,!c.busy) {c.mutate(p.copy(effects=p.effects.copy(color=color.copy(sharpness=it))))}
+        ValueSlider("Gaussian blur",color.gaussianBlur,0f..ColorSettings.BLUR_MAX,!c.busy) {c.mutate(p.copy(effects=p.effects.copy(color=color.copy(gaussianBlur=it))))}
+        ValueSlider("Vignette",color.vignette,0f..1f,!c.busy) {c.mutate(p.copy(effects=p.effects.copy(color=color.copy(vignette=it))))}
+        ValueSlider("Film grain",color.filmGrain,0f..ColorSettings.GRAIN_MAX,!c.busy) {c.mutate(p.copy(effects=p.effects.copy(color=color.copy(filmGrain=it))))}
+        ValueSlider("Denoise",color.denoise,0f..ColorSettings.DENOISE_MAX,!c.busy) {c.mutate(p.copy(effects=p.effects.copy(color=color.copy(denoise=it))))}
+        if(!p.sources[0].info.isStill) {
+            ValueSlider("Fade in seconds",p.effects.fadeInSeconds,0f..5f,!c.busy) {c.mutate(p.copy(effects=p.effects.copy(fadeInSeconds=it)))}
+            ValueSlider("Fade out seconds",p.effects.fadeOutSeconds,0f..5f,!c.busy) {c.mutate(p.copy(effects=p.effects.copy(fadeOutSeconds=it)))}
+            Row(verticalAlignment=Alignment.CenterVertically) {Checkbox(p.effects.muted,{c.mutate(p.copy(effects=p.effects.copy(muted=it)))},enabled=!c.busy);Text("Mute source");Checkbox(p.effects.keepPitch,{c.mutate(p.copy(effects=p.effects.copy(keepPitch=it)))},enabled=!c.busy);Text("Keep pitch")}
+        }
+        Text("Layers, brushes, masks, HDR painting and keyframes are still being ported.",style=MaterialTheme.typography.bodySmall)
+    }
+}
+
+@Composable private fun PhotoPanel(c:EditorController,p:DesktopProject) {
+    if(!p.sources[0].info.isStill)return
+    val e=p.image
+    fun edit(v:ImageEdit)=c.mutate(p.copy(image=v))
+    PanelCard {
+        Text("Photo geometry and tone",style=MaterialTheme.typography.titleMedium)
+        Text("Render or export to see the edited picture. Source view is unchanged.",style=MaterialTheme.typography.bodySmall)
+        ValueSlider("Horizontal perspective",e.perspectiveH,-1f..1f,!c.busy){edit(e.copy(perspectiveH=it))}
+        ValueSlider("Vertical perspective",e.perspectiveV,-1f..1f,!c.busy){edit(e.copy(perspectiveV=it))}
+        ValueSlider("Straighten degrees",e.straightenDegrees,-30f..30f,!c.busy){edit(e.copy(straightenDegrees=it))}
+        val t=e.tone
+        ValueSlider("Exposure stops",t.exposure,-2f..2f,!c.busy){edit(e.copy(tone=t.copy(exposure=it)))}
+        ValueSlider("Highlights",t.highlights,-1f..1f,!c.busy){edit(e.copy(tone=t.copy(highlights=it)))}
+        ValueSlider("Shadows",t.shadows,-1f..1f,!c.busy){edit(e.copy(tone=t.copy(shadows=it)))}
+        ValueSlider("Warmth",t.warmth,-1f..1f,!c.busy){edit(e.copy(tone=t.copy(warmth=it)))}
+        ValueSlider("Tint",t.tint,-1f..1f,!c.busy){edit(e.copy(tone=t.copy(tint=it)))}
+        ValueSlider("Hue",t.hue,-180f..180f,!c.busy){edit(e.copy(tone=t.copy(hue=it)))}
+        ValueSlider("Fade",t.fade,0f..1f,!c.busy){edit(e.copy(tone=t.copy(fade=it)))}
+        Text("Photo filter")
+        Row(Modifier.horizontalScroll(rememberScrollState())) {ImageFilter.entries.forEach {f->FilterChip(e.filter==f,{edit(e.copy(filter=f))},label={Text(f.name)},enabled=!c.busy)}}
+        ValueSlider("Filter strength",e.filterAmount,0f..1f,!c.busy){edit(e.copy(filterAmount=it))}
+        Text("Photo effect")
+        Row(Modifier.horizontalScroll(rememberScrollState())) {ImageEffect.entries.forEach {f->FilterChip(e.effect==f,{edit(e.copy(effect=f))},label={Text(f.name)},enabled=!c.busy)}}
+        ValueSlider("Effect strength",e.effectAmount,0f..1f,!c.busy){edit(e.copy(effectAmount=it))}
+        ValueSlider("Round corners",e.corners,0f..1f,!c.busy){edit(e.copy(corners=it))}
+        OutlinedButton(onClick={edit(ImageEdit())},enabled=!c.busy){Text("Reset photo settings")}
+        Text("Drawing, masks, layer canvas and HDR output remain in progress.",style=MaterialTheme.typography.bodySmall)
     }
 }

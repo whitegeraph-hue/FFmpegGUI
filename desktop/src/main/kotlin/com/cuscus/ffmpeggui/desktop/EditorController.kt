@@ -52,7 +52,7 @@ class EditorController(val scope: CoroutineScope) {
         val source=media.probe(path)
         player.stop()
         project=DesktopProject.create(source)
-        history.clear(); resetAnalysis(); rendered?.delete();rendered=null; position=0
+        history.clear(); resetAnalysis(); rendered?.delete();rendered=null;previewFrame=null; position=0
         status="${File(path).name} · ${source.info.durationFormatted} · ${source.info.width} × ${source.info.height}"
         seek(0)
     }
@@ -60,12 +60,12 @@ class EditorController(val scope: CoroutineScope) {
     fun mutate(next: DesktopProject) {
         project?.let { history.addLast(it); if (history.size>50) history.removeFirst() }
         project=next
-        player.stop();rendered?.delete(); rendered=null
+        player.stop();rendered?.delete(); rendered=null;previewFrame=null
         position=position.coerceAtMost(next.timeline.durationMs)
         pauseStatus=PauseCutsStatus.Idle; sceneStatus=SceneSplitsStatus.Idle
         seek(position)
     }
-    fun undo() { if (history.isNotEmpty()) { project=history.removeLast(); player.stop();rendered?.delete(); rendered=null; resetAnalysis(); seek(position) } }
+    fun undo() { if (history.isNotEmpty()) { project=history.removeLast(); player.stop();rendered?.delete(); rendered=null;previewFrame=null; resetAnalysis(); seek(position) } }
     fun seek(at: Long) {
         val p=project ?: return
         position=at.coerceIn(0,p.timeline.durationMs)
@@ -157,7 +157,7 @@ class EditorController(val scope: CoroutineScope) {
                 exporter.export(p,file)
                 rendered?.delete(); rendered=file
                 if (p.format.hasVideo || p.format.isImage) previewFrame=media.frame(file.path,0)?.toComposeImageBitmap()
-                status="Edited preview is ready. Play inside the editor to inspect audio and motion."
+                status=if(p.sources[0].info.isStill) "Edited picture is ready. Source file is unchanged." else "Edited preview is ready. Play inside the editor to inspect audio and motion."
             } catch (e: Exception) { file.delete(); throw e }
         }
     }

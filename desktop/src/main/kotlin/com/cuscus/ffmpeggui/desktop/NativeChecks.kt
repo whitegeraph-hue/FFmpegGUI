@@ -72,6 +72,26 @@ fun main(args:Array<String>)=runBlocking {
         val output=exporter.export(edited,File(folder,"palette.gif"));check(output.info.width==240 && kotlin.math.abs(output.info.frameRate-10f)<.1f)
         val file=File(folder,"gif.ffgui.json");DesktopProjects.save(edited,file);check(DesktopProjects.load(file,media).encoding.gif==edited.encoding.gif)
     }
+    verify("still image crop rotation detail and unchanged source") {
+        val file=File(folder,"photo.png")
+        media.process.checked(listOf("ffmpeg","-v","error","-y","-i",video.path,"-frames:v","1",file.path))
+        val original=file.readBytes();val source=media.probe(file.path)
+        val edited=DesktopProject.create(source).copy(format=OutputFormat.PNG,effects=Effects(rotation=Rotation.DEG_90,crop=CropRect(.1f,.2f,.8f,.6f),color=ColorSettings(brightness=.1f,contrast=1.2f,sharpness=.3f)))
+        val output=exporter.export(edited,File(folder,"photo-edited.png"))
+        check(output.info.width in 286..288 && output.info.height in 382..384 && output.info.isStill)
+        check(original.contentEquals(file.readBytes()))
+    }
+    verify("photo tone perspective corners shared model persistence") {
+        val source=media.probe(File(folder,"photo.png").path)
+        val edit=ImageEdit(perspectiveH=.12f,straightenDegrees=4f,tone=ImageTone(exposure=.3f,warmth=.2f,shadows=.2f),filter=ImageFilter.VINTAGE,effect=ImageEffect.POSTERIZE,effectAmount=.25f,corners=.15f)
+        val photo=DesktopProject.create(source).copy(image=edit)
+        val output=exporter.export(photo,File(folder,"photo-tone.png"))
+        check(output.info.isStill && output.info.width in 560..640 && output.info.height in 310..360)
+        val image=javax.imageio.ImageIO.read(File(output.path));check((image.getRGB(0,0) ushr 24)==0)
+        val file=File(folder,"photo.ffgui.json");DesktopProjects.save(photo,file)
+        check(DesktopProjects.load(file,media).image==edit)
+        check(image.getRGB(320,180)!=javax.imageio.ImageIO.read(File(source.path)).getRGB(320,180))
+    }
     verify("cancel real process") {
         val start=System.currentTimeMillis()
         val job=launch { media.process.run(listOf("ffmpeg","-re","-f","lavfi","-i","testsrc2=size=640x360:rate=25","-t","30","-f","null","-")) }
