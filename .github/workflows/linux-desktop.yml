@@ -32,8 +32,16 @@ jobs:
           gradle -p desktop smokeExport -Pinput=/tmp/linux-input.mp4 -Poutput=/tmp/linux-output.mp4 --console=plain
           ffprobe -v error -show_entries format=duration -of json /tmp/linux-output.mp4
           ffmpeg -v error -i /tmp/linux-output.mp4 -f null -
+      - name: Test native media workflows
+        run: |
+          python3 desktop/scripts/make-fixtures.py /tmp/ffmpeggui-fixtures
+          gradle -p desktop nativeChecks -PfixtureDir=/tmp/ffmpeggui-fixtures --console=plain
+      - name: Inspect native GUI
+        run: FFMPEGGUI_OPEN=/tmp/ffmpeggui-fixtures/video.mp4 FFMPEGGUI_SCREENSHOT=/tmp/linux-editor.png xvfb-run -a -s "-screen 0 1440x1000x24" gradle -p desktop run --console=plain
       - name: Package native app with Java runtime
-        run: gradle -p desktop packageDeb createDistributable --console=plain
+        run: |
+          gradle -p desktop packageDeb createDistributable --console=plain
+          python3 desktop/scripts/package-deb.py desktop/build/compose/binaries/main/deb/*.deb
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -44,3 +52,4 @@ jobs:
             desktop/shared-core/build/reports/tests/**
             desktop/shared-core/build/test-results/**
             /tmp/linux-output.mp4
+            /tmp/linux-editor.png

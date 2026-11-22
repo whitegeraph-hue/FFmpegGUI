@@ -23,7 +23,7 @@ compose.desktop {
             description = "FFmpegGUI native Linux port (development preview)"
             vendor = "FFmpegGUI contributors"
             modules("java.desktop", "java.logging", "java.net.http", "jdk.unsupported")
-            linux { menuGroup = "AudioVideo"; appCategory = "AudioVideo"; debMaintainer = "FFmpegGUI contributors" }
+            linux { menuGroup = "AudioVideo"; appCategory = "AudioVideo"; debMaintainer = "noreply@localhost" }
         }
     }
 }
@@ -31,4 +31,37 @@ tasks.register<JavaExec>("smokeExport") {
     classpath = sourceSets.main.get().runtimeClasspath
     mainClass.set("com.cuscus.ffmpeggui.desktop.SmokeKt")
     args = listOf(project.findProperty("input")?.toString() ?: "", project.findProperty("output")?.toString() ?: "")
+}
+
+// Compile the real Android smart panels on Desktop, changing only resource lookup.
+// The originals remain the single source; Android files are never edited here.
+val prepareSharedUi by tasks.registering {
+    val source = file("../app/src/main/java/com/cuscus/ffmpeggui")
+    val strings = file("../app/src/main/res/values/strings.xml")
+    val out = layout.buildDirectory.dir("generated/sharedUi")
+    inputs.files(source.resolve("SmartEditPanels.kt"), source.resolve("conversion/SmartEditStatus.kt"), source.resolve("ui/theme/Color.kt"), strings)
+    outputs.dir(out)
+    doLast {
+        val folder = out.get().asFile.apply { mkdirs() }
+        val panels = source.resolve("SmartEditPanels.kt").readText()
+        folder.resolve("SmartEditPanels.kt").writeText(panels.replace("import androidx.compose.ui.res.stringResource", "import com.cuscus.ffmpeggui.desktop.stringResource") + "\ninternal fun decimal(value: Float, places: Int): String = java.lang.String.format(java.util.Locale.US, \"%.\${places}f\", value)\n")
+        source.resolve("conversion/SmartEditStatus.kt").copyTo(folder.resolve("SmartEditStatus.kt"), overwrite = true)
+        source.resolve("ui/theme/Color.kt").copyTo(folder.resolve("Color.kt"), overwrite = true)
+        val document = javax.xml.parsers.DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(strings)
+        val nodes = document.getElementsByTagName("string")
+        val values = (0 until nodes.length).associate { i ->
+            val node = nodes.item(i) as org.w3c.dom.Element
+            node.getAttribute("name") to node.textContent.replace("\\'", "'").replace("\\n", "\n")
+        }
+        val used = Regex("R\\.string\\.([a-zA-Z0-9_]+)").findAll(panels).map { it.groupValues[1] }.toSet()
+        fun quoted(s: String) = "\"" + s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("$", "\\$") + "\""
+        folder.resolve("R.kt").writeText("package com.cuscus.ffmpeggui\nobject R { object string {\n" + used.joinToString("\n") { "const val $it = ${quoted(values[it] ?: error("Missing string $it"))}" } + "\n}}\n")
+    }
+}
+sourceSets.main { kotlin.srcDir(layout.buildDirectory.dir("generated/sharedUi")) }
+tasks.named("compileKotlin") { dependsOn(prepareSharedUi) }
+tasks.register<JavaExec>("nativeChecks") {
+    classpath = sourceSets.main.get().runtimeClasspath
+    mainClass.set("com.cuscus.ffmpeggui.desktop.NativeChecksKt")
+    args = listOf(project.findProperty("fixtureDir")?.toString() ?: "/tmp/ffmpeggui-fixtures")
 }
