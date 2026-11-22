@@ -93,13 +93,16 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                                     if (frame!=null) Image(frame,if(controller.player.frame!=null || controller.previewFrame!=null) "Rendered edit playback" else "Source frame at the playhead, not an effects preview",modifier=Modifier.fillMaxSize())
                                     else Text(if (project.sources[0].info.isVideo) "Reading frame…" else "Audio file",color=Color.White)
                                 }
-                                Text(if(controller.previewFrame!=null && project.sources[0].info.isStill) "Rendered edited picture. Source file is unchanged." else if(controller.previewFrame!=null && controller.player.frame==null) "Rendered edited frame. Play preview to inspect motion and sound." else if(controller.player.frame!=null) "Rendered edit · ${time(controller.player.positionMs)} / ${time(controller.player.durationMs)} · synchronized audio/video" else "Source frame · ${time(controller.position)} / ${time(project.timeline.durationMs)}. Render edited preview to inspect cuts and effects.",style=MaterialTheme.typography.bodySmall)
+                                Text(if(controller.previewFrame!=null && project.sources[0].info.isStill) "Rendered edited picture. Source file is unchanged." else if(controller.previewFrame!=null && controller.player.frame==null) "Rendered edited frame. Play preview to inspect motion and sound." else if(controller.player.frame!=null) "Rendered edit · ${time(controller.player.positionMs)} / ${time(controller.player.durationMs)} · synchronized audio/video" else "Footage/source · ${time(controller.position)} / ${time(project.timeline.durationMs)}. Output about ${time(project.outputDurationMs)}.",style=MaterialTheme.typography.bodySmall)
                                 controller.player.failure?.let { Text(it,color=MaterialTheme.colorScheme.error,style=MaterialTheme.typography.bodySmall) }
                                 if(controller.player.frame!=null) {
                                     var scrub by remember { mutableStateOf<Float?>(null) }
                                     Slider(scrub ?: controller.player.positionMs.toFloat(),{ scrub=it },onValueChangeFinished={scrub?.let { controller.player.seek(it.toLong()) };scrub=null},valueRange=0f..controller.player.durationMs.coerceAtLeast(1).toFloat())
                                 }
                                 Slider(controller.position.toFloat(),{ controller.player.stop();controller.seek(it.toLong()) },valueRange=0f..project.timeline.durationMs.coerceAtLeast(1).toFloat(),enabled=!controller.busy)
+                                Text("Output position ${time(project.outputAt(controller.position))} / ${time(project.outputDurationMs)}. Layer capture uses this clock.",style=MaterialTheme.typography.bodySmall)
+                                Slider(project.outputAt(controller.position).toFloat(),{controller.player.stop();controller.seek(project.clock().mediaMsForOutput(it.toLong()))},valueRange=0f..project.outputDurationMs.coerceAtLeast(1).toFloat(),enabled=!controller.busy)
+
                                 Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                                     Button(onClick={ controller.splitHere() },enabled=!controller.busy && !project.sources[0].info.isStill) { Text("Split here") }
                                     OutlinedButton(onClick={ controller.preview() },enabled=!controller.busy) { Text("Render edited preview") }
@@ -425,7 +428,7 @@ private fun EditPanel(c: EditorController,p: DesktopProject) {
     if(!p.sources[0].info.isVideo && !p.sources[0].info.isStill){Text("Text layers need a picture or video.");return}
     PanelCard {
         Text("Text layers",style=MaterialTheme.typography.titleMedium)
-        Text("Whole-output layers. Render to inspect placement. Higher layer number is on top. Clip binding and custom animation curves remain in progress.",style=MaterialTheme.typography.bodySmall)
+        Text("Whole-output or clip-bound layers. Render to inspect placement. Higher layer number is on top. Custom curves and direct dragging remain in progress.",style=MaterialTheme.typography.bodySmall)
         Button(onClick={c.mutate(p.copy(captions=p.captions+TextOverlay(text="Your text",layer=p.captions.size)))},enabled=!c.busy){Text("Add text layer")}
     }
     p.captions.forEachIndexed {index,t->
@@ -437,13 +440,19 @@ private fun EditPanel(c: EditorController,p: DesktopProject) {
             ValueSlider("Y",t.y,0f..1f,!c.busy){update(t.copy(y=it))}
             ValueSlider("Size",t.size,.01f.. .3f,!c.busy){update(t.copy(size=it))}
             ValueSlider("Opacity",t.opacity,0f..1f,!c.busy){update(t.copy(opacity=it))}
+            ValueSlider("Rotation",t.rotationDegrees,-180f..180f,!c.busy){update(t.copy(rotationDegrees=it))}
+            ValueSlider("Stretch",t.stretch,.25f..4f,!c.busy){update(t.copy(stretch=it))}
+            Text("Blend")
+            FlowRowCompat {LayerBlend.entries.forEach {b->FilterChip(t.blend==b,{update(t.copy(blend=b))},label={Text(b.name)},enabled=!c.busy)}}
+            LayerBinding(c,p,t.clipId){update(t.copy(clipId=it,keyframes=Keyframes.NONE))}
+
             Row {Checkbox(t.isBold,{update(t.copy(isBold=it))},enabled=!c.busy);Text("Bold");Checkbox(t.hidden,{update(t.copy(hidden=it))},enabled=!c.busy);Text("Hidden");Checkbox(t.look.box,{update(t.copy(look=t.look.copy(box=it)))},enabled=!c.busy);Text("Box")}
             ValueSlider("Outline",t.look.outline,0f.. .3f,!c.busy){update(t.copy(look=t.look.copy(outline=it)))}
             Row {listOf(0xFFFFFFFFL,0xFF000000L,0xFFFFCC00L,0xFFFF4040L,0xFF40CCFFL).forEach {color-> TextButton(onClick={update(t.copy(color=color))},enabled=!c.busy){Text("■",color=Color(color.toInt()))}}}
-            if(!p.sources[0].info.isStill) {
-                val duration=p.timeline.durationMs/1000f
-                ValueSlider("Start seconds",t.startMs/1000f,0f..duration,!c.busy){update(t.copy(startMs=(it*1000).toLong().coerceAtMost((t.endMs ?: p.timeline.durationMs)-1)))}
-                ValueSlider("End seconds",(t.endMs ?: p.timeline.durationMs)/1000f,0f..duration,!c.busy){update(t.copy(endMs=(it*1000).toLong().coerceAtLeast(t.startMs+1)))}
+            if(!p.sources[0].info.isStill && t.clipId==null) {
+                val duration=p.outputDurationMs/1000f
+                ValueSlider("Start seconds",t.startMs/1000f,0f..duration,!c.busy){update(t.copy(startMs=(it*1000).toLong().coerceAtMost((t.endMs ?: p.outputDurationMs)-1)))}
+                ValueSlider("End seconds",(t.endMs ?: p.outputDurationMs)/1000f,0f..duration,!c.busy){update(t.copy(endMs=(it*1000).toLong().coerceAtLeast(t.startMs+1)))}
                 ValueSlider("Fade in seconds",t.fadeInSeconds,0f..3f,!c.busy){update(t.copy(fadeInSeconds=it))}
                 ValueSlider("Fade out seconds",t.fadeOutSeconds,0f..3f,!c.busy){update(t.copy(fadeOutSeconds=it))}
             }
@@ -458,10 +467,14 @@ private fun EditPanel(c: EditorController,p: DesktopProject) {
 }
 
 @Composable private fun CaptionKeys(c:EditorController,p:DesktopProject,t:TextOverlay,update:(TextOverlay)->Unit) {
-    val at=(c.position-t.startMs).coerceAtLeast(0)
+    val clipIndex=p.timeline.clips.indexOfFirst {it.id==t.clipId}
+    val start=if(clipIndex>=0)p.clock().joinedStartMs(clipIndex) else t.startMs
+    val finish=if(clipIndex>=0)start+p.timeline.clips[clipIndex].effects.playedMs(p.timeline.clips[clipIndex].lengthMs) else t.endMs ?: p.outputDurationMs
+    val cursor=if(clipIndex>=0)start+p.clock().clipPosition(c.position).playedOffsetMs else p.outputAt(c.position)
+    val at=(cursor-start).coerceAtLeast(0)
     Text("Animation keys",style=MaterialTheme.typography.titleSmall)
     Text("Seek on the output timeline, set the controls above, then capture. Times below are relative to this text's start.",style=MaterialTheme.typography.bodySmall)
-    Button(onClick={update(t.copy(keyframes=t.keyframes.set(at,mapOf(KeyProperty.X to t.x,KeyProperty.Y to t.y,KeyProperty.SIZE to t.size,KeyProperty.OPACITY to t.opacity))))},enabled=!c.busy && c.position>=t.startMs && c.position<=(t.endMs ?: p.timeline.durationMs)){Text("Capture at ${time(at)}")}
+    Button(onClick={update(t.copy(keyframes=t.keyframes.set(at,mapOf(KeyProperty.X to t.x,KeyProperty.Y to t.y,KeyProperty.SIZE to t.size,KeyProperty.OPACITY to t.opacity))))},enabled=!c.busy && cursor>=start && cursor<=finish){Text("Capture at ${time(at)}")}
     t.keyframes.sorted.forEach {key->
         Column {
             Text("${time(key.atMs)} · X ${key.values[KeyProperty.X]} · Y ${key.values[KeyProperty.Y]}",style=MaterialTheme.typography.bodySmall)
@@ -484,7 +497,7 @@ private fun EditPanel(c: EditorController,p: DesktopProject) {
         PanelCard {
             Text("${index+1}. ${File(sound.source.path).name}",style=MaterialTheme.typography.titleSmall)
             Row {Checkbox(sound.muted,{mute->c.mutate(p.copy(sounds=p.sounds.mapIndexed {i,old->if(i==index)old.copy(muted=mute)else old}))},enabled=!c.busy);Text("Muted")}
-            ValueSlider("Start on output, seconds",s.startMs/1000f,0f..p.timeline.durationMs/1000f,!c.busy){update(s.copy(startMs=(it*1000).toLong()))}
+            ValueSlider("Start on output, seconds",s.startMs/1000f,0f..p.outputDurationMs/1000f,!c.busy){update(s.copy(startMs=(it*1000).toLong()))}
             ValueSlider("Trim start, seconds",s.trimStartMs/1000f,0f..sound.source.info.durationMs/1000f,!c.busy){update(s.copy(trimStartMs=(it*1000).toLong().coerceAtMost((s.trimEndMs ?: sound.source.info.durationMs)-1)))}
             ValueSlider("Trim end, seconds",(s.trimEndMs ?: sound.source.info.durationMs)/1000f,0f..sound.source.info.durationMs/1000f,!c.busy){update(s.copy(trimEndMs=(it*1000).toLong().coerceAtLeast(s.trimStartMs+1)))}
             ValueSlider("Volume",s.volume,0f..2f,!c.busy){update(s.copy(volume=it))}
@@ -497,6 +510,9 @@ private fun EditPanel(c: EditorController,p: DesktopProject) {
             ValueSlider("Mid dB",s.midDb,-12f..12f,!c.busy){update(s.copy(midDb=it))}
             ValueSlider("Treble dB",s.trebleDb,-12f..12f,!c.busy){update(s.copy(trebleDb=it))}
             Row {Checkbox(s.keepPitch,{update(s.copy(keepPitch=it))},enabled=!c.busy);Text("Keep pitch");Checkbox(s.normalize,{update(s.copy(normalize=it))},enabled=!c.busy);Text("Normalize")}
+            val cursor=p.outputAt(c.position)
+            val at=(cursor-s.startMs).coerceAtLeast(0)
+            LayerKeys(c,s.keyframes,at,cursor>=s.startMs && cursor<=s.startMs+(s.lengthMs ?: p.outputDurationMs),mapOf(KeyProperty.VOLUME to s.volume)){update(s.copy(keyframes=it))}
             TextButton(onClick={c.mutate(p.copy(sounds=p.sounds.filterIndexed {i,_->i!=index}))},enabled=!c.busy){Text("Remove track")}
         }
     }
@@ -545,13 +561,21 @@ private fun EditPanel(c: EditorController,p: DesktopProject) {
             ValueSlider("Brightness",v.brightness,-1f..1f,!c.busy){update(v.copy(brightness=it))}
             ValueSlider("Contrast",v.contrast,0f..2f,!c.busy){update(v.copy(contrast=it))}
             ValueSlider("Saturation",v.saturation,0f..2f,!c.busy){update(v.copy(saturation=it))}
+            LayerBinding(c,p,v.clipId){update(v.copy(clipId=it,keyframes=Keyframes.NONE))}
             Text("Blend")
             FlowRowCompat {LayerBlend.entries.forEach {b->FilterChip(v.blend==b,{update(v.copy(blend=b))},label={Text(b.name)},enabled=!c.busy)}}
-            if(!p.sources[0].info.isStill){
-                ValueSlider("Start seconds",v.startMs/1000f,0f..p.timeline.durationMs/1000f,!c.busy){update(v.copy(startMs=(it*1000).toLong().coerceAtMost((v.endMs ?: p.timeline.durationMs)-1)))}
-                ValueSlider("End seconds",(v.endMs ?: p.timeline.durationMs)/1000f,0f..p.timeline.durationMs/1000f,!c.busy){update(v.copy(endMs=(it*1000).toLong().coerceAtLeast(v.startMs+1)))}
+            if(!p.sources[0].info.isStill && v.clipId==null){
+                ValueSlider("Start seconds",v.startMs/1000f,0f..p.outputDurationMs/1000f,!c.busy){update(v.copy(startMs=(it*1000).toLong().coerceAtMost((v.endMs ?: p.outputDurationMs)-1)))}
+                ValueSlider("End seconds",(v.endMs ?: p.outputDurationMs)/1000f,0f..p.outputDurationMs/1000f,!c.busy){update(v.copy(endMs=(it*1000).toLong().coerceAtLeast(v.startMs+1)))}
                 ValueSlider("Fade in seconds",v.fadeInSeconds,0f..3f,!c.busy){update(v.copy(fadeInSeconds=it))}
                 ValueSlider("Fade out seconds",v.fadeOutSeconds,0f..3f,!c.busy){update(v.copy(fadeOutSeconds=it))}
+            }
+            if(!p.sources[0].info.isStill) {
+                val ci=p.timeline.clips.indexOfFirst {it.id==v.clipId}
+                val start=if(ci>=0)p.clock().joinedStartMs(ci) else v.startMs
+                val end=if(ci>=0)start+p.timeline.clips[ci].effects.playedMs(p.timeline.clips[ci].lengthMs) else v.endMs ?: p.outputDurationMs
+                val cursor=if(ci>=0)start+p.clock().clipPosition(c.position).playedOffsetMs else p.outputAt(c.position)
+                LayerKeys(c,v.keyframes,(cursor-start).coerceAtLeast(0),cursor>=start && cursor<=end,mapOf(KeyProperty.X to v.x,KeyProperty.Y to v.y,KeyProperty.SIZE to v.widthFraction,KeyProperty.OPACITY to v.opacity,KeyProperty.ROTATION to v.rotationDegrees)){update(v.copy(keyframes=it))}
             }
             Row {TextButton(onClick={update(v.copy(layer=v.layer+1))},enabled=!c.busy){Text("Raise (${v.layer})")};TextButton(onClick={update(v.copy(layer=v.layer-1))},enabled=!c.busy){Text("Lower")};TextButton(onClick={c.mutate(p.copy(pictures=p.pictures.filterIndexed {i,_->i!=index}))},enabled=!c.busy){Text("Remove")}}
         }
@@ -603,5 +627,24 @@ private fun EditPanel(c: EditorController,p: DesktopProject) {
             FlowRowCompat {listOf(TransitionKind.FADE,TransitionKind.WIPE_LEFT,TransitionKind.WIPE_RIGHT,TransitionKind.SLIDE_LEFT,TransitionKind.DISSOLVE).forEach {kind->FilterChip(f.transition?.kind==kind,{change {it.copy(transition=Transition(kind,f.transition?.durationMs ?: 500L))}},label={Text(kind.name)},enabled=!c.busy)}}
             f.transition?.let {tr->ValueSlider("Transition seconds",tr.durationMs/1000f,.1f..3f,!c.busy){v->change {it.copy(transition=tr.copy(durationMs=(v*1000).toLong()))}}}
         }
+    }
+}
+
+@Composable private fun LayerBinding(c:EditorController,p:DesktopProject,bound:String?,update:(String?)->Unit) {
+    Text("Layer clock. Changing binding clears animation keys.")
+    FlowRowCompat {
+        FilterChip(bound==null,{update(null)},label={Text("Whole output")},enabled=!c.busy)
+        p.timeline.clips.forEachIndexed {i,clip->FilterChip(bound==clip.id,{update(clip.id)},label={Text("Clip ${i+1}")},enabled=!c.busy)}
+    }
+    if(bound!=null)Text("Clip-bound layers show for that clip. Whole-output time and fade controls do not apply.")
+}
+@Composable private fun LayerKeys(c:EditorController,keys:Keyframes,at:Long,inRange:Boolean,values:Map<KeyProperty,Float>,update:(Keyframes)->Unit) {
+    Text("Animation keys",style=MaterialTheme.typography.titleSmall)
+    Text("Seek, set layer controls, then capture. Key times are relative to the layer or bound clip start.")
+    Button(onClick={update(keys.set(at,values))},enabled=!c.busy && inRange){Text("Capture layer key ${time(at)}")}
+    keys.sorted.forEach {key->
+        Text("Key ${time(key.atMs)}")
+        FlowRowCompat {KeyEasing.entries.filter {it!=KeyEasing.CUSTOM}.forEach {e->FilterChip(key.easing==e,{update(keys.withEasing(key.atMs,e))},label={Text(e.name)},enabled=!c.busy)}}
+        TextButton(onClick={update(keys.remove(key.atMs))},enabled=!c.busy){Text("Remove layer key")}
     }
 }

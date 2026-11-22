@@ -150,3 +150,15 @@ Still/audio-only timeline append remains absent. Source-selection/transcript
 UI inspected for both sources. Subtitle count corrected for per-source words.
 735 CI passed45072389399; fd CI45072878124 running at23:40.
 Current package still predates recent source. No delivery or completion.
+
+## Checkpoint 2026-11-22 23:54 Cairo
+
+Current work fixes output vs footage clocks after reviewer found real defect.
+30native checks pass combined speed/reverse/transitions with timed caption,
+picture, PCM, SRT and reverse-safe cuts. Last fade/transition playback-order
+adapter correction needs compile+suite rerun. Current build source archive still
+from1f36033 until commit. Existing74package stale, must rebuild exact committed
+revision before eventual delivery. No full parity or target-machine claim.
+New layer binding/keys compile but interaction/render coverage still owed.
+Next: latest CI, regression suite, pushed exact package, then remaining original
+editor work per PARITY. Image native chooser still unverified. No release/tag.

@@ -201,6 +201,34 @@ fun main(args:Array<String>)=runBlocking {
         val saved=File(folder,"mixed.ffgui.json");DesktopProjects.save(mixed,saved)
         check(runCatching {DesktopProjects.load(saved,media)}.isFailure)
     }
+    verify("output clock combined speed reverse transition timed content") {
+        val timeline=Timeline(listOf(Clip("fast",video.path,endMs=4000,effects=Effects(speed=2f,reversed=true,muted=true,transition=Transition(TransitionKind.FADE,500))),Clip("last",video.path,startMs=4000,endMs=6000,effects=Effects(muted=true))))
+        val sticker=media.probe(File(folder,"sticker.png").path)
+        val tone=media.probe(File(folder,"beat.wav").path)
+        val project=p.copy(timeline=timeline,wordsBySource=mapOf(video.path to listOf(SpokenWord(2000,3000,"Reverse word"),SpokenWord(5000,5500,"Last word"))),captions=listOf(TextOverlay(text="CLOCK",x=.5f,y=.8f,startMs=2700,endMs=3300,size=.12f)),pictures=listOf(DesktopPicture(sticker,ImagePlacement(x=.5f,y=.5f,widthFraction=.3f,startMs=2700,endMs=3300,aspect=1f))),sounds=listOf(DesktopSound(tone,PlacedSound(startMs=2700,trimEndMs=500))))
+        check(project.outputDurationMs==3500L && project.outputAt(2000)==1000L)
+        check(project.footageRanges(2000,3000,0).first()==(2000L to 3000L))
+        val cut=project.copy(timeline=project.withoutFootageRanges(project.footageRanges(2000,3000,0).map {CutRange(it.first,it.second)}))
+        check(!exporter.transcript(cut,OutputFormat.SRT).contains("Reverse word"))
+        val srt=exporter.transcript(project,OutputFormat.SRT)
+        check("00:00:00,500" in srt && "00:00:02,500" in srt)
+        val result=exporter.export(project,File(folder,"output-clock.mp4"));check(result.info.durationMs in 3400..3700)
+        val before=media.frame(result.path,1000)!!;val during=media.frame(result.path,3000)!!
+        check((during.getRGB(during.width/2,during.height/2) and 0xffffff)>0xeeeeee)
+        check(before.getRGB(before.width/2,before.height/2)!=during.getRGB(during.width/2,during.height/2))
+        val clean=exporter.export(project.copy(captions=emptyList()),File(folder,"output-clock-no-caption.mp4"))
+        val plain=media.frame(clean.path,3000)!!
+        var captionPixels=0
+        for(y in 250 until 350)for(x in 100 until 540)if(during.getRGB(x,y)!=plain.getRGB(x,y))captionPixels++
+        check(captionPixels>500)
+        javax.imageio.ImageIO.write(during,"png",File(folder,"output-clock-during.png"))
+        val pcm=media.samples(result.path)
+        fun peak(a:Int,b:Int)=pcm.sliceArray(a until b).maxOf {kotlin.math.abs(it)}
+        check(peak(0,24000)<.005f && peak(43200,51000)>.02f)
+        DesktopProjects.save(project,File(folder,"output-clock.ffgui.json"))
+        val split=project.splitFootageAt(listOf(1000,3000));check(split.clips.take(3).map {it.startMs}==listOf(3000L,1000L,0L))
+        val slower=project.copy(effects=Effects(speed=.5f));check(slower.outputDurationMs==7000L && slower.outputAt(2000)==2000L)
+    }
     verify("cancel real process") {
         val start=System.currentTimeMillis()
         val job=launch { media.process.run(listOf("ffmpeg","-re","-f","lavfi","-i","testsrc2=size=640x360:rate=25","-t","30","-f","null","-")) }

@@ -1,6 +1,8 @@
 package com.cuscus.ffmpeggui.desktop
 
 import com.cuscus.ffmpeggui.core.command.*
+import com.cuscus.ffmpeggui.core.preview.PreviewTimeline
+import com.cuscus.ffmpeggui.core.time.expectedOutputDurationMs
 import com.cuscus.ffmpeggui.core.engine.*
 import com.cuscus.ffmpeggui.core.model.*
 import com.cuscus.ffmpeggui.core.editing.*
@@ -110,6 +112,35 @@ class DesktopProject(val sources: List<DesktopSource>, val timeline: Timeline,
         segments = timeline.clips.map { c -> Segment(sources.indexOfFirst { it.path == c.sourceId }, c.startMs, c.endMs, c.effects, c.id) },
         effects = effects, encoding = encoding, audioEffects=audioEffects,image=image,metadata=tags,canvas=canvas,canvasFit=canvasFit,normalizeAudio=normalize,imageOverlays=pictures.filter {!it.hidden}.map {it.placement},sounds=sounds.filter {!it.muted}.map {it.placed},textOverlays=captions.filter { !it.hidden && (it.clipId==null || timeline.clips.any {c->c.id==it.clipId}) }, followCrop = followCrop, subtitleStyle = subtitleStyle,
         spokenWords = sources.mapIndexedNotNull {i,_->sourceWords(i).takeIf {it.isNotEmpty()}?.let {SourceWords(i,it)} })
+    fun clock()=PreviewTimeline(timeline.clips.map {PreviewTimeline.SegmentTiming(it.lengthMs,it.effects.speed,it.effects.reversed,it.effects.curve,it.effects.keepPitch,it.effects.transition)},effects.speed,effects.reversed,effects.keepPitch)
+    val outputDurationMs:Long get()=request().expectedOutputDurationMs() ?: timeline.durationMs
+    fun outputAt(mediaMs:Long)=clock().outputMs(mediaMs).coerceIn(0,outputDurationMs)
+    fun footageRanges(from:Long,to:Long,sourceIndex:Int)=com.cuscus.ffmpeggui.core.preview.mapToTimeline(from,to,request().segments.map {it.copy(effects=Effects.NONE)},sourceIndex)
+    fun splitFootageAt(points:List<Long>):Timeline {
+        var offset=0L
+        return Timeline(timeline.clips.flatMap {clip->
+            val bounds=listOf(0L)+points.map {it-offset}.filter {it>=120 && it<=clip.lengthMs-120}.distinct().sorted()+listOf(clip.lengthMs)
+            offset+=clip.lengthMs
+            val parts=bounds.zipWithNext().mapIndexed {i,(a,b)->clip.copy(id=if(i==0)clip.id else UUID.randomUUID().toString(),startMs=clip.startMs+a,endMs=clip.startMs+b,effects=clip.effects.windowed(a.toDouble()/clip.lengthMs,b.toDouble()/clip.lengthMs).copy(fadeInSeconds=if(a==0L)clip.effects.fadeInSeconds else 0f,fadeOutSeconds=if(b==clip.lengthMs)clip.effects.fadeOutSeconds else 0f,transition=if(b==clip.lengthMs)clip.effects.transition else null))}
+            val ordered=if(clip.effects.reversed)parts.reversed() else parts
+            ordered.mapIndexed {i,part->part.copy(effects=part.effects.copy(fadeInSeconds=if(i==0)clip.effects.fadeInSeconds else 0f,fadeOutSeconds=if(i==ordered.lastIndex)clip.effects.fadeOutSeconds else 0f,transition=if(i==ordered.lastIndex)clip.effects.transition else null))}
+        })
+    }
+    fun withoutFootageRanges(cuts:List<CutRange>):Timeline {
+        var offset=0L
+        val clips=timeline.clips.flatMap {clip->
+            var spans=listOf(0L to clip.lengthMs)
+            cuts.forEach {cut->val a=(cut.startMs-offset).coerceIn(0,clip.lengthMs);val b=(cut.endMs-offset).coerceIn(0,clip.lengthMs)
+                if(b>a)spans=spans.flatMap {(x,y)->if(b<=x || a>=y)listOf(x to y) else listOf(x to minOf(a,y),maxOf(b,x) to y).filter {it.second-it.first>=120}}
+            }
+            offset+=clip.lengthMs
+            val parts=spans.mapIndexed {i,(a,b)->clip.copy(id=if(i==0)clip.id else UUID.randomUUID().toString(),startMs=clip.startMs+a,endMs=clip.startMs+b,effects=clip.effects.windowed(a.toDouble()/clip.lengthMs,b.toDouble()/clip.lengthMs))}
+            val ordered=if(clip.effects.reversed)parts.reversed() else parts
+            ordered.mapIndexed {i,part->part.copy(effects=part.effects.copy(fadeInSeconds=if(i==0)clip.effects.fadeInSeconds else 0f,fadeOutSeconds=if(i==ordered.lastIndex)clip.effects.fadeOutSeconds else 0f,transition=if(i==ordered.lastIndex)clip.effects.transition else null))}
+        }
+        return if(clips.isEmpty())timeline else Timeline(clips)
+    }
+
     fun sourceWords(index:Int):List<SpokenWord> = sources.getOrNull(index)?.path?.let {wordsBySource[it]} ?: if(index==0)words else emptyList()
     companion object {
         fun create(source: DesktopSource) = DesktopProject(listOf(source), Timeline(listOf(Clip(UUID.randomUUID().toString(), source.path, endMs = if (source.info.isStill) 5000 else source.info.durationMs))),

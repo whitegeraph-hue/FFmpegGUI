@@ -124,3 +124,14 @@ export/duration/decode and a keyframed PCM volume changing from silence to sound
 Clip controls, transition controls and clicked key capture inspected at1280px.
 Companion transitions, speed curves, custom easing and richer visual timeline
 remain unported. Mixed-type saved multi-source projects are explicitly rejected.
+
+Clock correction: desktop now distinguishes footage/source position from output
+position using original PreviewTimeline and expectedOutputDurationMs. Output
+layer times/default ends/ranges and captures use output time. Source transcript
+seek/cut and pause/scene/beat use footage mapping rather than joined played time.
+Desktop reverse-safe cut/split adapters preserve source ranges, effects and
+playback-order fades/transitions without editing original core.30native checks
+include combined2x+reverse+fade timed picture, caption pixels, PCM pulse timing,
+SRT times, reversed-word removal, slow whole speed, reverse split source order.
+New text clip binding/rotation/stretch/blend, image clip binding/animation and
+sound volume animation compile; broad clicked interaction remains unverified.
