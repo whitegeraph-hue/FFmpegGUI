@@ -126,6 +126,29 @@ fun main(args:Array<String>)=runBlocking {
         media.process.checked(listOf("ffmpeg","-v","error","-y","-i",result.path,"-frames:v","1",File(folder,"webp-decoded.png").path))
         val image=javax.imageio.ImageIO.read(File(folder,"webp-decoded.png"));check(image.getRGB(0,0) ushr 24==0)
     }
+    verify("animated caption original keyframe expression rendered") {
+        val keys=Keyframes(listOf(Keyframe(0,mapOf(KeyProperty.X to .1f),KeyEasing.LINEAR),Keyframe(4000,mapOf(KeyProperty.X to .8f))))
+        val text=TextOverlay(text="MOVE",y=.7f,size=.14f,color=0xFFFFFFFFL,keyframes=keys)
+        val result=exporter.export(p.copy(captions=listOf(text)),File(folder,"animated-text.mp4"))
+        suspend fun whiteCenter(at:Long):Double {
+            val image=media.frame(result.path,at)!!;var sum=0L;var n=0
+            for(y in image.height/2 until image.height-20)for(x in 0 until image.width){val rgb=image.getRGB(x,y);if((rgb shr 16 and 255)>225 && (rgb shr 8 and 255)>225 && (rgb and 255)>225){sum+=x;n++}}
+            check(n>50);return sum.toDouble()/n
+        }
+        check(whiteCenter(3500)>whiteCenter(500)+150)
+        val file=File(folder,"keys.ffgui.json");DesktopProjects.save(p.copy(captions=listOf(text)),file);check(DesktopProjects.load(file,media).captions[0].keyframes==keys)
+    }
+    verify("placed sound actual delayed mix trim repeats and project") {
+        val source=media.probe(File(folder,"beat.wav").path)
+        val track=DesktopSound(source,PlacedSound(startMs=2000,trimEndMs=2000,repeats=2,volume=.7f,fadeInSeconds=.1f,bassDb=2f))
+        val project=p.copy(effects=p.effects.copy(muted=true),sounds=listOf(track))
+        val result=exporter.export(project,File(folder,"sound-mix.mp4"));check(result.info.hasAudio && result.info.durationMs in 7900..8200)
+        val samples=media.samples(result.path)
+        fun peak(a:Int,b:Int)=samples.sliceArray(a*16000 until b*16000).maxOf {kotlin.math.abs(it)}
+        check(peak(0,1)<.005f && peak(2,5)>.05f && peak(7,8)<.005f)
+        val file=File(folder,"sounds.ffgui.json");DesktopProjects.save(project,file);check(DesktopProjects.load(file,media).sounds==listOf(track))
+        check(runCatching {exporter.export(project,File(source.path))}.isFailure)
+    }
     verify("cancel real process") {
         val start=System.currentTimeMillis()
         val job=launch { media.process.run(listOf("ffmpeg","-re","-f","lavfi","-i","testsrc2=size=640x360:rate=25","-t","30","-f","null","-")) }

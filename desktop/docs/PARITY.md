@@ -92,3 +92,11 @@ WebP continuation: FFmpeg PNG render plus Linux libwebp encode, quality and
 max-side controls.21native assertions include decoded WebP dimensions and
 transparent corners. This deliberately uses distro FFmpeg capability, failing
 if libwebp is unavailable rather than silently changing output format.
+
+Caption animation: capture X/Y/size/opacity at the output playhead, list/remove
+keys and select original easing modes.23native checks include actual changing
+caption position over rendered time, persistence, plus placed sound mix.
+Sound tracks: multiple local files, output placement, trim, repeats, speed,
+pitch, EQ, fades, normalize, mute, remove, project save/load and overwrite
+protection. Actual delayed/repeated mix is silent before/after its range.
+Waveform and sound keyframes, clip-bound text, custom curves remain missing.

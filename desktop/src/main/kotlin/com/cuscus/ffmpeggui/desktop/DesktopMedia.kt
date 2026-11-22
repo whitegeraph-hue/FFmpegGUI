@@ -53,6 +53,7 @@ class DesktopFfmpegExecutor(private val process: DesktopProcess = DesktopProcess
 }
 
 data class DesktopSource(val path: String, val info: MediaInfo)
+data class DesktopSound(val source:DesktopSource,val placed:PlacedSound=PlacedSound(),val muted:Boolean=false)
 
 class DesktopMedia(val process: DesktopProcess = DesktopProcess()) {
     suspend fun probe(path: String): DesktopSource {
@@ -98,15 +99,15 @@ class DesktopMedia(val process: DesktopProcess = DesktopProcess()) {
 class DesktopProject(val sources: List<DesktopSource>, val timeline: Timeline,
     val format: OutputFormat = OutputFormat.MP4, val effects: Effects = Effects(),
     val encoding: EncodingSettings = EncodingSettings(), val words: List<SpokenWord> = emptyList(),
-    val followCrop: FollowCropTrack? = null, val subtitleStyle: SubtitleStyle? = null, val audioEffects:AudioEffects=AudioEffects.NONE,val image:ImageEdit=ImageEdit(),val captions:List<TextOverlay> = emptyList()) {
+    val followCrop: FollowCropTrack? = null, val subtitleStyle: SubtitleStyle? = null, val audioEffects:AudioEffects=AudioEffects.NONE,val image:ImageEdit=ImageEdit(),val captions:List<TextOverlay> = emptyList(),val sounds:List<DesktopSound> = emptyList()) {
     fun copy(timeline: Timeline = this.timeline, format: OutputFormat = this.format,
         effects: Effects = this.effects, encoding: EncodingSettings = this.encoding,
         words: List<SpokenWord> = this.words, followCrop: FollowCropTrack? = this.followCrop,
-        subtitleStyle: SubtitleStyle? = this.subtitleStyle,audioEffects:AudioEffects=this.audioEffects,image:ImageEdit=this.image,captions:List<TextOverlay> = this.captions) = DesktopProject(sources, timeline, format, effects, encoding, words, followCrop, subtitleStyle,audioEffects,image,captions)
+        subtitleStyle: SubtitleStyle? = this.subtitleStyle,audioEffects:AudioEffects=this.audioEffects,image:ImageEdit=this.image,captions:List<TextOverlay> = this.captions,sounds:List<DesktopSound> = this.sounds) = DesktopProject(sources, timeline, format, effects, encoding, words, followCrop, subtitleStyle,audioEffects,image,captions,sounds)
     fun request(): ConversionRequest = ConversionRequest(format, File(sources.first().path).name,
         sources = sources.map { s -> s.info.let { SourceInfo(it.durationMs, it.width, it.height, it.hasAudio, it.isStill, it.hdr, it.frameRate, it.hasAlpha) } },
         segments = timeline.clips.map { c -> Segment(sources.indexOfFirst { it.path == c.sourceId }, c.startMs, c.endMs, c.effects, c.id) },
-        effects = effects, encoding = encoding, audioEffects=audioEffects,image=image,textOverlays=captions.filter { !it.hidden && (it.clipId==null || timeline.clips.any {c->c.id==it.clipId}) }, followCrop = followCrop, subtitleStyle = subtitleStyle,
+        effects = effects, encoding = encoding, audioEffects=audioEffects,image=image,sounds=sounds.filter {!it.muted}.map {it.placed},textOverlays=captions.filter { !it.hidden && (it.clipId==null || timeline.clips.any {c->c.id==it.clipId}) }, followCrop = followCrop, subtitleStyle = subtitleStyle,
         spokenWords = if (words.isNotEmpty()) listOf(SourceWords(0, words)) else emptyList())
     companion object {
         fun create(source: DesktopSource) = DesktopProject(listOf(source), Timeline(listOf(Clip(UUID.randomUUID().toString(), source.path, endMs = if (source.info.isStill) 5000 else source.info.durationMs))),
@@ -122,7 +123,7 @@ class DesktopExport(private val media: DesktopMedia = DesktopMedia()) {
     }
     fun command(project: DesktopProject, output: String): FfmpegCommand {
         val request=project.request()
-        return CommandBuilder(fonts).build(request,MediaPaths.aliasesFor(request).copy(inputs=project.sources.map { it.path },output=output))
+        return CommandBuilder(fonts).build(request,MediaPaths.aliasesFor(request).copy(inputs=project.sources.map { it.path },output=output,sounds=project.sounds.filter {!it.muted}.map {it.source.path}))
     }
     fun transcript(project:DesktopProject,format:OutputFormat):String {
         val request=project.request()
@@ -132,7 +133,7 @@ class DesktopExport(private val media: DesktopMedia = DesktopMedia()) {
         else TranscriptText.write(words,project.effects.effectiveSpeed)
     }
     suspend fun export(project: DesktopProject, output: File): DesktopSource {
-        require(project.sources.none { File(it.path).canonicalFile == output.canonicalFile }) { "Choose a new output. Source files are never overwritten." }
+        require((project.sources+project.sounds.map {it.source}).none { File(it.path).canonicalFile == output.canonicalFile }) { "Choose a new output. Source files are never overwritten." }
         require(project.format != OutputFormat.CUSTOM) { "This output needs an adapter that is still being ported." }
         val temporary = File(output.parentFile, ".${output.nameWithoutExtension}-${UUID.randomUUID()}.${project.format.extension}")
         val auxiliaries=Files.createTempDirectory("ffmpeggui-export-").toFile()
@@ -170,7 +171,7 @@ class DesktopExport(private val media: DesktopMedia = DesktopMedia()) {
                     writeText(AssSubtitles.write(SubtitleLayout.ofWords(words,style,request.subtitleFrameRatio,facts),style,request.subtitleFrameRatio,facts?.family ?: "DejaVu Sans"))
                 }
             } else null
-            val paths=MediaPaths(project.sources.map { it.path },temporary.path,subtitles=subtitles?.path,subtitleFonts=subtitles?.let { File(fonts.fontPath(style?.bold ?: false)).parent })
+            val paths=MediaPaths(project.sources.map { it.path },temporary.path,sounds=project.sounds.filter {!it.muted}.map {it.source.path},subtitles=subtitles?.path,subtitleFonts=subtitles?.let { File(fonts.fontPath(style?.bold ?: false)).parent })
             media.process.checked(listOf("ffmpeg", "-nostdin") + CommandBuilder(fonts).build(request,paths).arguments)
             val result = media.probe(temporary.path)
             require(result.info.isStill || result.info.durationMs > 0) { "Export verification failed." }

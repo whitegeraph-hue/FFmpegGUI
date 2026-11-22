@@ -22,6 +22,14 @@ object DesktopProjects {
             put("sources",buildJsonArray { project.sources.forEach { add(buildJsonObject { put("path",it.path); put("size",File(it.path).length()); put("durationMs",it.info.durationMs) }) } })
             put("format",project.format.name)
             put("effects",core(ModelJson.write(project.effects)))
+            put("sounds",buildJsonArray {project.sounds.forEach { sound -> add(buildJsonObject {
+                put("path",sound.source.path);put("size",File(sound.source.path).length());put("durationMs",sound.source.info.durationMs);put("muted",sound.muted)
+                val s=sound.placed
+                put("startMs",s.startMs);put("trimStartMs",s.trimStartMs);s.trimEndMs?.let {put("trimEndMs",it)}
+                put("volume",s.volume);put("speed",s.speed);put("keepPitch",s.keepPitch);put("pitch",s.pitchSemitones);put("repeats",s.repeats)
+                put("fadeIn",s.fadeInSeconds);put("fadeOut",s.fadeOutSeconds);put("normalize",s.normalize)
+                put("bass",s.bassDb);put("mid",s.midDb);put("treble",s.trebleDb);put("effects",core(ModelJson.write(s.effects)))
+            }) }})
             put("captions",buildJsonArray { project.captions.forEach {add(core(ModelJson.write(it)))} })
             put("image",core(ModelJson.write(project.image)))
             put("audioEffects",core(ModelJson.write(project.audioEffects)))
@@ -36,7 +44,7 @@ object DesktopProjects {
             put("timeline",core(ModelJson.write(project.timeline)))
             put("words",buildJsonArray { project.words.forEach { w -> add(buildJsonObject { put("startMs",w.startMs);put("endMs",w.endMs);put("text",w.text) }) } })
         }
-        require(project.sources.none { File(it.path).canonicalFile==target.canonicalFile }) { "Cannot replace a source with a project." }
+        require((project.sources+project.sounds.map {it.source}).none { File(it.path).canonicalFile==target.canonicalFile }) { "Cannot replace a source with a project." }
         val temporary=File(target.parentFile,".${target.name}-${UUID.randomUUID()}.tmp")
         try {
             temporary.writeText(Json { prettyPrint=true }.encodeToString(JsonObject.serializer(),data))
@@ -59,6 +67,17 @@ object DesktopProjects {
             val end=c.endMs
             s!=null && c.startMs>=0 && end!=null && end>c.startMs && (s.info.isStill || end<=s.info.durationMs+50)
         }) { "Project timeline refers to missing or invalid footage." }
+        val sounds=data["sounds"]?.jsonArray?.map {item ->
+            val v=item.jsonObject;val source=media.probe(v["path"]!!.jsonPrimitive.content)
+            require(source.info.hasAudio && source.info.durationMs==v["durationMs"]!!.jsonPrimitive.long && File(source.path).length()==v["size"]!!.jsonPrimitive.long){"A sound file changed or has no audio."}
+            fun f(k:String)=v[k]!!.jsonPrimitive.float
+            fun l(k:String)=v[k]!!.jsonPrimitive.long
+            val placed=PlacedSound(startMs=l("startMs"),trimStartMs=l("trimStartMs"),trimEndMs=v["trimEndMs"]?.jsonPrimitive?.long,
+                volume=f("volume"),speed=f("speed"),keepPitch=v["keepPitch"]!!.jsonPrimitive.boolean,pitchSemitones=f("pitch"),repeats=v["repeats"]!!.jsonPrimitive.int,
+                fadeInSeconds=f("fadeIn"),fadeOutSeconds=f("fadeOut"),normalize=v["normalize"]!!.jsonPrimitive.boolean,bassDb=f("bass"),midDb=f("mid"),trebleDb=f("treble"),effects=ModelJson.audioEffects(read(v["effects"]!!)))
+            require(placed.startMs>=0 && placed.trimStartMs>=0 && (placed.trimEndMs ?: source.info.durationMs) in (placed.trimStartMs+1)..source.info.durationMs){"Invalid sound trim."}
+            DesktopSound(source,placed,v["muted"]!!.jsonPrimitive.boolean)
+        } ?: emptyList()
         val effects=ModelJson.effects(read(data["effects"]!!))
         val gif=data["gif"]?.jsonObject
         val gifSettings=gif?.let { GifSettings(it["width"]!!.jsonPrimitive.int,it["fps"]!!.jsonPrimitive.int,it["colors"]!!.jsonPrimitive.int,GifDither.valueOf(it["dither"]!!.jsonPrimitive.content),it["loops"]!!.jsonPrimitive.int,it["smaller"]!!.jsonPrimitive.boolean) } ?: GifSettings()
@@ -69,6 +88,6 @@ object DesktopProjects {
                 cpuSpeed=data["cpuSpeed"]?.jsonPrimitive?.content?.let { CpuEncoderSpeed.valueOf(it) } ?: CpuEncoderSpeed.BALANCED,
                 keepHdr=data["keepHdr"]?.jsonPrimitive?.boolean ?: true,gif=gifSettings,
                 audio=AudioEncoding(data["audioBitrate"]?.jsonPrimitive?.int ?: 192,data["audioSampleRate"]?.jsonPrimitive?.int ?: 0,data["audioDepth"]?.jsonPrimitive?.int ?: 16)),
-            followCrop=data["followCrop"]?.let { ModelJson.followCrop(read(it)) },subtitleStyle=data["subtitleStyle"]?.let { ModelJson.subtitleStyle(read(it)) },captions=data["captions"]?.jsonArray?.map { ModelJson.textOverlay(read(it)) ?: error("Invalid caption") } ?: emptyList(),image=data["image"]?.let {ModelJson.imageEdit(read(it))} ?: ImageEdit(),audioEffects=data["audioEffects"]?.let {ModelJson.audioEffects(read(it))} ?: AudioEffects.NONE)
+            followCrop=data["followCrop"]?.let { ModelJson.followCrop(read(it)) },subtitleStyle=data["subtitleStyle"]?.let { ModelJson.subtitleStyle(read(it)) },sounds=sounds,captions=data["captions"]?.jsonArray?.map { ModelJson.textOverlay(read(it)) ?: error("Invalid caption") } ?: emptyList(),image=data["image"]?.let {ModelJson.imageEdit(read(it))} ?: ImageEdit(),audioEffects=data["audioEffects"]?.let {ModelJson.audioEffects(read(it))} ?: AudioEffects.NONE)
     }
 }

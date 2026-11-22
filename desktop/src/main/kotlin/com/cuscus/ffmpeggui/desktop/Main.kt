@@ -120,7 +120,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                                 }
                             }
                             Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(10.dp)) {
-                                val tabs=listOf("Edit","Transcript","Pause cuts","Scenes","Beats","Follow crop","Models","Subtitles","Audio","Text layers")
+                                val tabs=listOf("Edit","Transcript","Pause cuts","Scenes","Beats","Follow crop","Models","Subtitles","Audio","Text layers","Sound tracks")
                                 FlowRowCompat {
                                     tabs.forEach { title -> FilterChip(selected=controller.tab==title,onClick={ controller.tab=title },label={ Text(title) }) }
                                 }
@@ -128,6 +128,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                                     when(controller.tab) {
                                         "Edit" -> EditPanel(controller,project)
                                         "Subtitles" -> SubtitlesPanel(controller,project)
+                                        "Sound tracks" -> SoundTracksPanel(controller,project) {pick()?.path}
                                         "Audio" -> AudioMasterPanel(controller,project)
                                         "Text layers" -> TextLayersPanel(controller,project)
                                         "Pause cuts" -> PauseCutsPanel(controller.smartUi())
@@ -409,7 +410,7 @@ private fun EditPanel(c: EditorController,p: DesktopProject) {
     if(!p.sources[0].info.isVideo && !p.sources[0].info.isStill){Text("Text layers need a picture or video.");return}
     PanelCard {
         Text("Text layers",style=MaterialTheme.typography.titleMedium)
-        Text("Whole-output layers. Render to inspect placement. Higher layer number is on top. Clip binding and animation keys remain in progress.",style=MaterialTheme.typography.bodySmall)
+        Text("Whole-output layers. Render to inspect placement. Higher layer number is on top. Clip binding and custom animation curves remain in progress.",style=MaterialTheme.typography.bodySmall)
         Button(onClick={c.mutate(p.copy(captions=p.captions+TextOverlay(text="Your text",layer=p.captions.size)))},enabled=!c.busy){Text("Add text layer")}
     }
     p.captions.forEachIndexed {index,t->
@@ -431,11 +432,57 @@ private fun EditPanel(c: EditorController,p: DesktopProject) {
                 ValueSlider("Fade in seconds",t.fadeInSeconds,0f..3f,!c.busy){update(t.copy(fadeInSeconds=it))}
                 ValueSlider("Fade out seconds",t.fadeOutSeconds,0f..3f,!c.busy){update(t.copy(fadeOutSeconds=it))}
             }
+            if(!p.sources[0].info.isStill) CaptionKeys(c,p,t,::update)
             Row {
                 TextButton(onClick={update(t.copy(layer=t.layer+1))},enabled=!c.busy){Text("Raise (${t.layer})")}
                 TextButton(onClick={update(t.copy(layer=t.layer-1))},enabled=!c.busy){Text("Lower")}
                 TextButton(onClick={c.mutate(p.copy(captions=p.captions.filterIndexed {i,_->i!=index}))},enabled=!c.busy){Text("Remove")}
             }
+        }
+    }
+}
+
+@Composable private fun CaptionKeys(c:EditorController,p:DesktopProject,t:TextOverlay,update:(TextOverlay)->Unit) {
+    val at=(c.position-t.startMs).coerceAtLeast(0)
+    Text("Animation keys",style=MaterialTheme.typography.titleSmall)
+    Text("Seek on the output timeline, set the controls above, then capture. Times below are relative to this text's start.",style=MaterialTheme.typography.bodySmall)
+    Button(onClick={update(t.copy(keyframes=t.keyframes.set(at,mapOf(KeyProperty.X to t.x,KeyProperty.Y to t.y,KeyProperty.SIZE to t.size,KeyProperty.OPACITY to t.opacity))))},enabled=!c.busy && c.position>=t.startMs && c.position<=(t.endMs ?: p.timeline.durationMs)){Text("Capture at ${time(at)}")}
+    t.keyframes.sorted.forEach {key->
+        Column {
+            Text("${time(key.atMs)} · X ${key.values[KeyProperty.X]} · Y ${key.values[KeyProperty.Y]}",style=MaterialTheme.typography.bodySmall)
+            Row(Modifier.horizontalScroll(rememberScrollState())) {KeyEasing.entries.filter {it!=KeyEasing.CUSTOM}.forEach {e->FilterChip(key.easing==e,{update(t.copy(keyframes=t.keyframes.withEasing(key.atMs,e)))},label={Text(e.name)},enabled=!c.busy)}}
+            TextButton(onClick={update(t.copy(keyframes=t.keyframes.remove(key.atMs)))},enabled=!c.busy){Text("Remove key")}
+        }
+    }
+}
+
+@Composable private fun SoundTracksPanel(c:EditorController,p:DesktopProject,pick:()->String?) {
+    if(p.sources[0].info.isStill){Text("Sound tracks need a video or audio timeline.");return}
+    PanelCard {
+        Text("Sound tracks",style=MaterialTheme.typography.titleMedium)
+        Text("Add music, voice or effects from local files. Tracks mix on the output clock and stop at its end. Render to hear the mix.",style=MaterialTheme.typography.bodySmall)
+        Button(onClick={pick()?.let {path->c.work("Reading sound track…") {val source=c.media.probe(path);require(source.info.hasAudio){"File has no audio."};c.mutate(p.copy(sounds=p.sounds+DesktopSound(source,PlacedSound(trimEndMs=source.info.durationMs))))}}},enabled=!c.busy){Text("Add sound file")}
+    }
+    p.sounds.forEachIndexed {index,sound->
+        val s=sound.placed
+        fun update(v:PlacedSound)=c.mutate(p.copy(sounds=p.sounds.mapIndexed {i,old->if(i==index)old.copy(placed=v)else old}))
+        PanelCard {
+            Text("${index+1}. ${File(sound.source.path).name}",style=MaterialTheme.typography.titleSmall)
+            Row {Checkbox(sound.muted,{mute->c.mutate(p.copy(sounds=p.sounds.mapIndexed {i,old->if(i==index)old.copy(muted=mute)else old}))},enabled=!c.busy);Text("Muted")}
+            ValueSlider("Start on output, seconds",s.startMs/1000f,0f..p.timeline.durationMs/1000f,!c.busy){update(s.copy(startMs=(it*1000).toLong()))}
+            ValueSlider("Trim start, seconds",s.trimStartMs/1000f,0f..sound.source.info.durationMs/1000f,!c.busy){update(s.copy(trimStartMs=(it*1000).toLong().coerceAtMost((s.trimEndMs ?: sound.source.info.durationMs)-1)))}
+            ValueSlider("Trim end, seconds",(s.trimEndMs ?: sound.source.info.durationMs)/1000f,0f..sound.source.info.durationMs/1000f,!c.busy){update(s.copy(trimEndMs=(it*1000).toLong().coerceAtLeast(s.trimStartMs+1)))}
+            ValueSlider("Volume",s.volume,0f..2f,!c.busy){update(s.copy(volume=it))}
+            ValueSlider("Speed",s.speed,.25f..4f,!c.busy){update(s.copy(speed=it))}
+            ValueSlider("Pitch semitones",s.pitchSemitones,-12f..12f,!c.busy){update(s.copy(pitchSemitones=it))}
+            ValueSlider("Repeats",s.repeats.toFloat(),1f..10f,!c.busy){update(s.copy(repeats=it.toInt()))}
+            ValueSlider("Fade in, seconds",s.fadeInSeconds,0f..5f,!c.busy){update(s.copy(fadeInSeconds=it))}
+            ValueSlider("Fade out, seconds",s.fadeOutSeconds,0f..5f,!c.busy){update(s.copy(fadeOutSeconds=it))}
+            ValueSlider("Bass dB",s.bassDb,-12f..12f,!c.busy){update(s.copy(bassDb=it))}
+            ValueSlider("Mid dB",s.midDb,-12f..12f,!c.busy){update(s.copy(midDb=it))}
+            ValueSlider("Treble dB",s.trebleDb,-12f..12f,!c.busy){update(s.copy(trebleDb=it))}
+            Row {Checkbox(s.keepPitch,{update(s.copy(keepPitch=it))},enabled=!c.busy);Text("Keep pitch");Checkbox(s.normalize,{update(s.copy(normalize=it))},enabled=!c.busy);Text("Normalize")}
+            TextButton(onClick={c.mutate(p.copy(sounds=p.sounds.filterIndexed {i,_->i!=index}))},enabled=!c.busy){Text("Remove track")}
         }
     }
 }
