@@ -66,23 +66,28 @@ class DesktopMedia(val process: DesktopProcess = DesktopProcess()) {
         val streams = data["streams"]!!.jsonArray.map { it.jsonObject }
         val video = streams.firstOrNull { it["codec_type"]?.jsonPrimitive?.content == "video" && it["disposition"]?.jsonObject?.get("attached_pic")?.jsonPrimitive?.intOrNull != 1 }
         val audio = streams.any { it["codec_type"]?.jsonPrimitive?.content == "audio" }
-        val duration = ((data["format"]?.jsonObject?.get("duration")?.jsonPrimitive?.doubleOrNull ?: video?.get("duration")?.jsonPrimitive?.doubleOrNull ?: 0.0) * 1000).toLong()
-        val still = duration == 0L && video != null
+        val measuredDuration = ((data["format"]?.jsonObject?.get("duration")?.jsonPrimitive?.doubleOrNull ?: video?.get("duration")?.jsonPrimitive?.doubleOrNull ?: 0.0) * 1000).toLong()
+        val demuxer=data["format"]?.jsonObject?.get("format_name")?.jsonPrimitive?.content.orEmpty()
+        val still = video!=null && (measuredDuration==0L || demuxer in setOf("jpeg_pipe","png_pipe","bmp_pipe","tiff_pipe","webp_pipe","image2"))
+        val duration=if(still)0L else measuredDuration
         var w = video?.get("width")?.jsonPrimitive?.intOrNull ?: 0
         var h = video?.get("height")?.jsonPrimitive?.intOrNull ?: 0
         val rotation = video?.get("side_data_list")?.jsonArray?.mapNotNull { it.jsonObject["rotation"]?.jsonPrimitive?.intOrNull }?.firstOrNull() ?: 0
         if (kotlin.math.abs(rotation) % 180 == 90) { val swap = w; w = h; h = swap }
+        if(still && DesktopStillInputs.orientation(file)>=5 && kotlin.math.abs(rotation)%180!=90){val swap=w;w=h;h=swap}
         val rate = video?.get("avg_frame_rate")?.jsonPrimitive?.content?.split('/')?.let { if (it.size == 2 && it[1].toFloatOrNull() != 0f) (it[0].toFloatOrNull() ?: 0f) / (it[1].toFloatOrNull() ?: 1f) else 0f } ?: 0f
         return DesktopSource(file.path, MediaInfo.of(duration, video != null, w, h, file.length(), audio, still, frameRate = rate,hasAlpha=video?.get("pix_fmt")?.jsonPrimitive?.content?.let {it.startsWith("rgba") || it.startsWith("bgra") || it.startsWith("argb") || it.startsWith("abgr") || it.startsWith("yuva") || it.startsWith("gbrap") || it.startsWith("ya")} ?: false))
     }
     suspend fun frame(path: String, atMs: Long, filters: String? = null): BufferedImage? {
         val target = File.createTempFile("ffmpeggui-frame-", ".png")
+        val directory=Files.createTempDirectory("ffmpeggui-upright-").toFile()
         return try {
-            val args = mutableListOf("ffmpeg", "-y", "-v", "error", "-ss", (atMs/1000.0).toString(), "-i", path, "-frames:v", "1")
+            val input=DesktopStillInputs.resolve(path,directory)
+            val args = mutableListOf("ffmpeg", "-y", "-v", "error", "-ss", (atMs/1000.0).toString(), "-i", input, "-frames:v", "1")
             args += listOf("-vf", listOfNotNull(filters, "scale=960:640:force_original_aspect_ratio=decrease").joinToString(","), target.path)
             process.checked(args)
             ImageIO.read(target)
-        } finally { target.delete() }
+        } finally { target.delete();directory.deleteRecursively() }
     }
     suspend fun samples(path: String): FloatArray {
         val target = File.createTempFile("ffmpeggui-audio-", ".pcm")
@@ -215,7 +220,7 @@ class DesktopExport(private val media: DesktopMedia = DesktopMedia()) {
                     writeText(AssSubtitles.write(SubtitleLayout.ofWords(words,style,request.subtitleFrameRatio,facts),style,request.subtitleFrameRatio,facts?.family ?: "DejaVu Sans"))
                 }
             } else null
-            val paths=MediaPaths(project.sources.map { it.path },temporary.path,imageOverlays=project.pictures.filter {it.activeOn(project.timeline)}.map {it.source.path}+listOfNotNull(drawing?.path),sounds=project.sounds.filter {!it.muted}.map {it.source.path},subtitles=subtitles?.path,subtitleFonts=subtitles?.let { File(fonts.fontPath(style?.bold ?: false)).parent })
+            val paths=MediaPaths(project.sources.map { DesktopStillInputs.resolve(it.path,auxiliaries) },temporary.path,imageOverlays=project.pictures.filter {it.activeOn(project.timeline)}.map {DesktopStillInputs.resolve(it.source.path,auxiliaries)}+listOfNotNull(drawing?.path),sounds=project.sounds.filter {!it.muted}.map {it.source.path},subtitles=subtitles?.path,subtitleFonts=subtitles?.let { File(fonts.fontPath(style?.bold ?: false)).parent })
             media.process.checked(listOf("ffmpeg", "-nostdin") + CommandBuilder(fonts).build(request,paths).arguments)
             val result = media.probe(temporary.path)
             require(result.info.isStill || result.info.durationMs > 0) { "Export verification failed." }

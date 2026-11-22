@@ -274,11 +274,13 @@ class DesktopSmartModels(
     private suspend fun frame(path: String, atMs: Long): BufferedImage {
         cacheDirectory.mkdirs()
         val image = Files.createTempFile(cacheDirectory.toPath(), "subject-", ".png").toFile()
+        val upright=Files.createTempDirectory(cacheDirectory.toPath(),"upright-").toFile()
         try {
+            val input=DesktopStillInputs.resolve(path,upright)
             runFfmpeg(listOf("-y", "-ss", "%.3f".format(java.util.Locale.ROOT, atMs / 1000.0),
-                "-i", File(path).absolutePath, "-frames:v", "1", image.absolutePath))
+                "-i", File(input).absolutePath, "-frames:v", "1", image.absolutePath))
             return ImageIO.read(image) ?: throw IOException("No frame at $atMs ms")
-        } finally { image.delete() }
+        } finally { image.delete();upright.deleteRecursively() }
     }
 
     private suspend fun runFfmpeg(args: List<String>) {

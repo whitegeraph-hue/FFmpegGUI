@@ -56,8 +56,10 @@ class DesktopStudio(private val media:DesktopMedia) {
         val ext=output.substringAfterLast('.')
         require(target.extension.equals(ext,true)){"Choose an output ending in .$ext, matching the command."}
         val temporary=File(target.parentFile,".studio-${UUID.randomUUID()}.$ext")
+        val upright=Files.createTempDirectory("ffmpeggui-studio-inputs-").toFile()
         try {
-            val resolved=ManualCommandResolver().resolve(text,aliases(p),temporary.path.removeSuffix(".$ext")) as? ManualCommandResolver.Result.Resolved ?: error("Missing output alias")
+            val inputs=aliases(p).mapValues {(_,path)->DesktopStillInputs.resolve(path,upright)}
+            val resolved=ManualCommandResolver().resolve(text,inputs,temporary.path.removeSuffix(".$ext")) as? ManualCommandResolver.Result.Resolved ?: error("Missing output alias")
             val args=resolved.command.arguments.toMutableList()
             val outputIndex=args.indexOf(resolved.outputPath)
             val durations=args.indices.filter {args[it]=="-t"}.mapNotNull {i->args.getOrNull(i+1)?.split(':')?.fold(0.0){acc,part->acc*60+(part.toDoubleOrNull() ?: error("Use a numeric time limit."))}}
@@ -67,7 +69,7 @@ class DesktopStudio(private val media:DesktopMedia) {
             require(result.info.isStill || result.info.durationMs>0){"Command did not produce usable media."}
             Files.move(temporary.toPath(),target.toPath(),StandardCopyOption.REPLACE_EXISTING)
             return result.copy(path=target.canonicalPath)
-        } finally {temporary.delete()}
+        } finally {temporary.delete();upright.deleteRecursively()}
     }
     companion object {
         private val safeFilters=setOf("scale","crop","transpose","hflip","vflip","fps","format","setsar","setpts","asetpts","atempo","reverse","areverse","fade","afade","volume","loudnorm","split","asplit","palettegen","paletteuse","overlay","amix","showwavespic","eq","trim","atrim","null","anull","pad","aformat","aresample")

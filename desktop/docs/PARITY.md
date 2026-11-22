@@ -231,3 +231,18 @@ saved reload semantics. Do not claim real-photo geometry until fixed. Mask
 cleanup also pending; retain Undo and saved embedded mask recovery. Packaged
 U2-Net licence verified inside4dcJAR matches sources.json SHA c71d239d... .
 Cutout9ed/8c CI were pending last checked. No final package since4dcfd2a.
+
+EXIF checkpoint 2026-11-23 01:19 Cairo: bounded JPEG APP1/TIFF orientation
+reader handles1..8including mirror cases. Scoped upright PNGs used consistently
+in source preview, export primary/picture inputs, model extraction and studio.
+Original source paths/data remain unchanged, saved reload re-normalizes.41native
+checks pass including all8corner-pixel cases, upright dimensions, original SHA,
+save/reload export and layer rendering. Isolated model suite additionally passes
+orientation6cutout dimensions and embedded saved-mask export. It exposed JPEG
+image2demuxer reporting40ms and wrongly being treated as video; still detection
+now recognises still demuxers, and model EXIF roundtrip passes. Actual upright
+120x240 GUI screenshot inspected. Source photo itself is synthetic; no real-face
+quality claim. Native inputs above32MP reject before Java decode. JPEG only
+EXIF parser; other formats' orientation support not established. Mask disk
+retention cleanup remains next, preserving Undo and embedded saved projects.
+Current package4dcstale; need clean/exact final package regression later.

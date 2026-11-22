@@ -371,6 +371,37 @@ fun main(args:Array<String>)=runBlocking {
         check(kotlin.math.abs(result.info.durationMs-edited.outputDurationMs)<180)
         media.process.checked(listOf("ffmpeg","-v","error","-i",result.path,"-f","null","-"))
     }
+    verify("all EXIF orientations upright preview export reload and layer") {
+        val raw=java.awt.image.BufferedImage(240,120,java.awt.image.BufferedImage.TYPE_INT_RGB)
+        for(y in 0 until 120)for(x in 0 until 240)raw.setRGB(x,y,when {x<120 && y<60->0xff0000;x>=120 && y<60->0x00ff00;x<120->0x0000ff;else->0xffff00})
+        val bytes=java.io.ByteArrayOutputStream().also {javax.imageio.ImageIO.write(raw,"jpg",it)}.toByteArray()
+        val sourceHash=java.security.MessageDigest.getInstance("SHA-256")
+        for(orientation in 1..8) {
+            val payload=byteArrayOf(69,120,105,102,0,0,73,73,42,0,8,0,0,0,1,0,18,1,3,0,1,0,0,0,orientation.toByte(),0,0,0,0,0,0,0)
+            val file=File(folder,"exif-$orientation.jpg")
+            file.writeBytes(bytes.take(2).toByteArray()+byteArrayOf(0xff.toByte(),0xe1.toByte(),0,(payload.size+2).toByte())+payload+bytes.drop(2).toByteArray())
+            val before=sourceHash.digest(file.readBytes())
+            check(DesktopStillInputs.orientation(file)==orientation)
+            val source=media.probe(file.path);check(source.info.width==if(orientation>=5)120 else 240);check(source.info.height==if(orientation>=5)240 else 120)
+            val frame=media.frame(file.path,0)!!
+            check((frame.width>frame.height)==(orientation<5))
+            val expected=when(orientation){1->0xff0000;2->0x00ff00;3->0xffff00;4->0x0000ff;5->0xff0000;6->0x0000ff;7->0xffff00;else->0x00ff00}
+            fun close(actual:Int):Boolean=(0..2).all {k->kotlin.math.abs(((actual shr (8*k)) and 255)-((expected shr (8*k)) and 255))<18}
+            check(close(frame.getRGB(frame.width/8,frame.height/8))) {"Preview orientation $orientation"}
+            val project=DesktopProject.create(source)
+            val saved=File(folder,"exif-$orientation.ffgui.json");DesktopProjects.save(project,saved)
+            val loaded=DesktopProjects.load(saved,media)
+            val output=File(folder,"exif-$orientation.png");val result=exporter.export(loaded,output)
+            check(result.info.width==source.info.width && result.info.height==source.info.height)
+            val exported=javax.imageio.ImageIO.read(output);check(close(exported.getRGB(exported.width/8,exported.height/8))) {"Export orientation $orientation"}
+            check(sourceHash.digest(file.readBytes()).contentEquals(before))
+        }
+        val picture=media.probe(File(folder,"exif-6.jpg").path)
+        val layered=p.copy(pictures=listOf(DesktopPicture(picture,ImagePlacement(x=.1f,y=.1f,widthFraction=.3f,aspect=.5f))))
+        val target=exporter.export(layered,File(folder,"exif-layer.mp4"))
+        check(target.info.durationMs>0)
+        javax.imageio.ImageIO.write(media.frame(target.path,0),"png",File(folder,"exif-layer-proof.png"))
+    }
     verify("cancel real process") {
         val start=System.currentTimeMillis()
         val job=launch { media.process.run(listOf("ffmpeg","-re","-f","lavfi","-i","testsrc2=size=640x360:rate=25","-t","30","-f","null","-")) }
