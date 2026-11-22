@@ -99,3 +99,14 @@ tasks.named("compileKotlin") { dependsOn(verifyNativeJars) }
 tasks.register("writeRuntimeClasspath") {
     doLast { layout.buildDirectory.file("runtime-classpath.txt").get().asFile.writeText(sourceSets.main.get().runtimeClasspath.asPath) }
 }
+
+val correspondingSource by tasks.registering(Exec::class) {
+    val output=layout.buildDirectory.file("corresponding-source/ffmpeggui-source.tar.gz")
+    outputs.file(output)
+    outputs.upToDateWhen { false }
+    commandLine("python3",file("scripts/source-bundle.py"),output.get().asFile)
+}
+tasks.named<ProcessResources>("processResources") {
+    dependsOn(correspondingSource)
+    from(layout.buildDirectory.dir("corresponding-source")) { into("licenses/source") }
+}

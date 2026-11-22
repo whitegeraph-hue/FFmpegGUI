@@ -12,4 +12,19 @@ The distribution-installed FFmpeg and DejaVu packages retain their own notices
 under /usr/share/doc. No Android FFmpegKit binary is included.
 
 sources.json records additional upstream licence URLs retrieved for this port.
-Review is ongoing for Skiko/Skia transitive notices before external delivery.
+Skiko/Skia transitive notices and exact dependency revisions are recorded below.
+
+Skiko0.9.4.2 selects Skia m132-a00c390e98-1. Its official x64 release archive
+and exact source DEPS were inspected. skia-transitive/ preserves packaged
+notices plus pinned ICU, FreeType, HarfBuzz, JPEG, WebP, Expat, Brotli and Wuffs
+notices from the exact dependency revisions. sources.json records hashes,
+archive entry names where applicable, and pinned source URLs.
+
+This software is based in part on the work of the Independent JPEG Group.
+Portions of this software are copyright 2024 The FreeType Project
+(www.freetype.org). All rights reserved. FreeType is used under FTL.TXT,
+not its alternative GPL licence. ORT third-party notices remain included.
+This collection is an engineering audit, not legal certification.
+
+Corresponding port source is bundled under licenses/source/ in this runtime.
+Third-party library sources and licence evidence are linked in sources.json.

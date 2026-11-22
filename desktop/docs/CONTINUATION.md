@@ -112,3 +112,31 @@ UI click scripts /tmp/final-deb-click-ui.py, /tmp/pkg-subtree-kill.py,
 /tmp/timed-play-ui.py use actual xdotool window1280px (avoid1px helper).
 Pulse virtual sink configured /tmp/ffgui-pulse.conf, set ALSA_CONFIG_PATH only
 for tests. Do not ship test null-sink configuration.
+
+## Checkpoint 2026-11-22 23:16 Cairo
+
+Recent branches:487807d audio/GIF, a08f735 photo/tone and packaging menu fix,
+4a3da6b SVG/text-art and dependency/remove tests, ac2e0fd timed text layers.
+20native assertions now pass locally, with actual audio bitdepth/rate, GIF,
+PNG geometry/tone/corners, SVG/ASCII/ANSI files and timed text pixels.
+PARITY.md describes remaining full-app scope; not ready for final delivery.
+Actual clicked photo render and add-text UI inspected. Rendered preview now
+uses its frame (previous code made but never displayed previewFrame), clears
+on project mutation, hides playback for stills. Live art preview explicitly
+blocked; export works. WEBP unported.
+
+92683 CI failed postinst xdg-desktop-menu on headless Ubuntu. a08f735 removes
+those session-menu calls, owns usr/share/applications desktop entry instead.
+All four maintainer scripts locally pass sh -n, desktop-file-validate passes.
+4a3da6b CI additionally removes ffmpeg/fonts before apt install, validates
+actual installed entry, then remove/purge. Check exact clean runs before any
+install claim:45070406929 (a08),45070644779 (4a),45070961352 (ac2).
+
+Skiko0.9.4.2 gradle.properties pins Skia m132-a00c390e98-1, exact commit
+ a00c390e98b1a8741f11774c742ff60d767365ac. Added notices from official release
+archive plus pinned DEPS libraries including ICU/FreeType/HarfBuzz/JPEG/WebP/
+Expat/Brotli/Wuffs; sources.json hashes verified. Added per-package source
+archive via source-bundle.py and processResources. Bundle build locally passed,
+but fresh clean package inspection remains needed. Notice collection is not
+legal certification. Weights are not in source. Native jars excluded with
+verified download instructions and hashes instead.
