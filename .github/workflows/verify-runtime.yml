@@ -38,6 +38,16 @@ jobs:
       - name: Build the app and the on-device tests
         run: ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest --stacktrace
 
+      # The runner has KVM; the action's auto check can miss it and fall back
+      # to software CPU emulation, which the emulator refuses. Give the kvm
+      # device to everyone and force hardware acceleration.
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          ls -l /dev/kvm
+
       - name: Run the smart-editing UI tests on an emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -45,6 +55,7 @@ jobs:
           target: default
           arch: x86_64
           profile: pixel_6
+          disable-linux-hw-accel: false
           script: ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.cuscus.ffmpeggui.SmartPanelsScreenshotTest,com.cuscus.ffmpeggui.EditorOpenScreenshotTest --stacktrace
 
       - name: Pull the screenshots
