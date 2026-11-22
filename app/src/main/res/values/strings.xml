@@ -1943,6 +1943,7 @@
     <string name="subtitle_cut_line">Cut from video</string>
     <string name="subtitle_keep_line">Keep only this</string>
     <string name="smart_follow_samples">How it will look</string>
+    <string name="smart_follow_main_only">Only the main file's subject is followed; while other files play, the window keeps its nearest position.</string>
 
     <!-- About: what runs the smart features, and their licences -->
     <string name="about_sherpa">sherpa-onnx</string>

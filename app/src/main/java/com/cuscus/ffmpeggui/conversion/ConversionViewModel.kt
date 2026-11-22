@@ -4,6 +4,7 @@ import com.cuscus.ffmpeggui.core.model.movedLayers
 import com.cuscus.ffmpeggui.core.model.movedLayersTo
 import com.cuscus.ffmpeggui.core.model.StackSlot
 import com.cuscus.ffmpeggui.core.model.stackOrder
+import com.cuscus.ffmpeggui.core.model.Rotation
 import com.cuscus.ffmpeggui.core.model.Transition
 import android.net.Uri
 import android.os.SystemClock
@@ -4294,7 +4295,7 @@ class ConversionViewModel(
                 // size, not the probe's coded one, frames the window.
                 val (w, h) = FollowCropTrack.windowSize(tracked.frameWidth, tracked.frameHeight, 9, 16)
                 val track = FollowCropTrack(mapped, tracked.frameWidth, tracked.frameHeight, w, h, sourceKey = source.uri.toString())
-                _followCropSamples.value = tracked.samples
+                _followCropSamples.value = followCropSamplesOf(tracked.samples, track)
                 mutate(stepKey = "followCrop") { it.copy(followCrop = track) }
                 _followCropStatus.value = FollowCropStatus.Idle
             } catch (e: CancellationException) {
@@ -4312,6 +4313,47 @@ class ConversionViewModel(
     fun stopFollowCrop() {
         followCropJob?.cancel()
         _followCropStatus.value = FollowCropStatus.Idle
+    }
+
+    /**
+     * The kept raw frames cropped as the export will crop them: at their
+     * position on the edited sequence (frames the edit drops are left out),
+     * with the whole video's flips and quarter turns applied as the export
+     * applies them after the crop. A crop only picks pixels, so these are
+     * faithful stills, not an approximation; the canvas's bars are not drawn.
+     */
+    private fun followCropSamplesOf(
+        rawSamples: List<Pair<Long, android.graphics.Bitmap>>,
+        track: FollowCropTrack,
+    ): List<android.graphics.Bitmap> {
+        val effects = _settings.value.wholeEffects
+        return rawSamples.mapNotNull { (fileMs, bitmap) ->
+            val seqMs = filePointOntoTimeline(fileMs) ?: return@mapNotNull null
+            val (cx, cy) = track.centerAt(seqMs)
+            val x = (cx - track.outWidth / 2f).toInt().coerceIn(0, (track.inWidth - track.outWidth).coerceAtLeast(0))
+            val y = (cy - track.outHeight / 2f).toInt().coerceIn(0, (track.inHeight - track.outHeight).coerceAtLeast(0))
+            var out = android.graphics.Bitmap.createBitmap(
+                bitmap, x, y,
+                track.outWidth.coerceAtMost(track.inWidth - x),
+                track.outHeight.coerceAtMost(track.inHeight - y),
+            )
+            val matrix = android.graphics.Matrix()
+            if (effects.flipHorizontal) matrix.postScale(-1f, 1f)
+            if (effects.flipVertical) matrix.postScale(1f, -1f)
+            when (effects.rotation) {
+                Rotation.DEG_90 -> matrix.postRotate(90f)
+                Rotation.DEG_180 -> matrix.postRotate(180f)
+                Rotation.DEG_270 -> matrix.postRotate(270f)
+                Rotation.NONE -> Unit
+            }
+            if (!matrix.isIdentity) {
+                out = android.graphics.Bitmap.createBitmap(out, 0, 0, out.width, out.height, matrix, true)
+            }
+            if (out.height > FOLLOW_CROP_SAMPLE_HEIGHT) {
+                out = android.graphics.Bitmap.createScaledBitmap(out, out.width * FOLLOW_CROP_SAMPLE_HEIGHT / out.height, FOLLOW_CROP_SAMPLE_HEIGHT, true)
+            }
+            out
+        }
     }
 
     /** Takes the subject-following reframe off again. */
@@ -4655,6 +4697,7 @@ class ConversionViewModel(
 
     companion object {
         private const val DEFAULT_INPUT_NAME = "input"
+        private const val FOLLOW_CROP_SAMPLE_HEIGHT = 360
 
         /** Editors stacked at most (the projects nested in a project file stay readable: see Json.MAX_DEPTH). */
         const val MAX_STACK_DEPTH = 150

@@ -49,6 +49,8 @@ class SmartEditUi(
     val followCropSet: Boolean = false,
     /** A few frames cropped as the export will crop them (null until tracked). */
     val followCropSamples: List<androidx.compose.ui.graphics.ImageBitmap>? = null,
+    /** The sequence holds more than one file: only the main file's subject is followed. */
+    val followCropMultiSource: Boolean = false,
     val onFindPauseCuts: () -> Unit = {},
     val onTogglePauseCut: (Int) -> Unit = {},
     val onApplyPauseCuts: () -> Unit = {},
@@ -334,6 +336,9 @@ fun FollowCropPanel(ui: SmartEditUi) {
                         }
                     }
                     SmartNote(stringResource(R.string.smart_follow_set))
+                    if (ui.followCropMultiSource) {
+                        SmartNote(stringResource(R.string.smart_follow_main_only))
+                    }
                     OutlinedButton(onClick = ui.onTrackSubject, modifier = Modifier.fillMaxWidth()) {
                         Text(stringResource(R.string.smart_follow_retrack))
                     }

@@ -387,6 +387,7 @@ class MainActivity : ComponentActivity() {
                         followCrop = followCropStatus,
                         followCropSet = s.followCrop != null,
                         followCropSamples = followCropSamples?.map { it.asImageBitmap() },
+                        followCropMultiSource = s.playingClips.map { it.sourceId }.distinct().size > 1,
                         onFindPauseCuts = { vm.findPauseCuts() },
                         onTogglePauseCut = vm::togglePauseCut,
                         onApplyPauseCuts = vm::applyPauseCuts,
