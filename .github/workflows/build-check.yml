@@ -42,3 +42,11 @@ jobs:
 
       - name: Core tests and app build
         run: ./gradlew :core:test :app:assembleDebug --stacktrace
+
+      # Kept a few days so a built APK can be fetched after a green run.
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: app-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          retention-days: 5
