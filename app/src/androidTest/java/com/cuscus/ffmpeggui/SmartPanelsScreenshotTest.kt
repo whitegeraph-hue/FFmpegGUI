@@ -2,9 +2,7 @@ package com.cuscus.ffmpeggui
 
 import android.graphics.Bitmap
 import androidx.activity.ComponentActivity
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asAndroidBitmap
-import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.test.hasAnyChild
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
@@ -63,7 +61,9 @@ class SmartPanelsScreenshotTest {
 
     private fun shot(name: String) {
         rule.waitForIdle()
-        saveShot(name, rule.onRoot().captureToImage().asAndroidBitmap())
+        val bitmap = InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
+            ?: error("takeScreenshot returned null")
+        saveShot(name, bitmap)
     }
 
     private fun subtitleEditing(seeks: MutableList<Pair<String, Long>>) = SubtitleEditing(
@@ -155,10 +155,7 @@ class SmartPanelsScreenshotTest {
     @Test
     fun followCropPanelSetWithSamples() {
         val frames = listOf(0xFFB00020.toInt(), 0xFF006400.toInt(), 0xFF103070.toInt()).map { color ->
-            ImageBitmap(48, 84).apply {
-                val bmp = asAndroidBitmap()
-                bmp.eraseColor(color)
-            }
+            Bitmap.createBitmap(48, 84, Bitmap.Config.ARGB_8888).apply { eraseColor(color) }.asImageBitmap()
         }
         rule.setContent {
             FollowCropPanel(
