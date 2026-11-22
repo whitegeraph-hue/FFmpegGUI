@@ -75,10 +75,17 @@ class EditorOpenScreenshotTest {
             .setDataAndType(uri, "video/mp4")
             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         ActivityScenario.launch<MainActivity>(intent).use {
-            // The editor reached the toolbar: every smart tool is there.
-            rule.waitUntil(30_000) {
-                rule.onAllNodesWithText("Scenes").fetchSemanticsNodes().isNotEmpty() ||
-                    rule.onAllNodesWithContentDescription("Scenes").fetchSemanticsNodes().isNotEmpty()
+            // The editor reached the toolbar: every smart tool is there. On a
+            // timeout, keep the evidence: what the screen actually showed.
+            try {
+                rule.waitUntil(60_000) {
+                    rule.onAllNodesWithText("Scenes").fetchSemanticsNodes().isNotEmpty() ||
+                        rule.onAllNodesWithContentDescription("Scenes").fetchSemanticsNodes().isNotEmpty()
+                }
+            } catch (e: Throwable) {
+                saveShot("editor-timeout")
+                rule.onRoot(useUnmergedTree = true).printToLog("CI-EDITOR-TREE")
+                throw e
             }
             saveShot("editor-open")
             listOf("Pause cuts", "Scenes", "Beats", "Follow crop").forEach { tool ->

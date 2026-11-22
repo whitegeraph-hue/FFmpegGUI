@@ -58,11 +58,10 @@ jobs:
           disable-linux-hw-accel: false
           # Pull the screenshots INSIDE the emulator session: the runner kills
           # the emulator when the script ends, so a later step cannot adb pull.
-          script: |
-            ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.cuscus.ffmpeggui.SmartPanelsScreenshotTest,com.cuscus.ffmpeggui.EditorOpenScreenshotTest,com.cuscus.ffmpeggui.ExportSmokeTest --stacktrace; rc=$?
-            mkdir -p ci-shots
-            adb pull /sdcard/Android/data/com.cuscus.ffmpeggui/files/ci-shots/ ci-shots/ || echo "no screenshots pulled (tests may have failed before writing any)"
-            exit $rc
+          # One line: the runner runs each line in its own shell, so a multiline
+          # script would lose rc and mask test failures. The debug package is
+          # com.cuscus.ffmpeggui.debug.
+          script: ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.cuscus.ffmpeggui.SmartPanelsScreenshotTest,com.cuscus.ffmpeggui.EditorOpenScreenshotTest,com.cuscus.ffmpeggui.ExportSmokeTest --stacktrace; rc=$?; mkdir -p ci-shots; adb pull /sdcard/Android/data/com.cuscus.ffmpeggui.debug/files/ci-shots/ ci-shots/ || echo "no screenshots pulled (tests may have failed before writing any)"; exit $rc
 
       - uses: actions/upload-artifact@v4
         if: always()

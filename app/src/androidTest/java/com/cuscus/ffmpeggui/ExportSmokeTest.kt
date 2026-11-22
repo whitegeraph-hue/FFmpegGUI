@@ -78,8 +78,10 @@ class ExportSmokeTest {
             assertTrue("duration $durationMs not near 6500ms", durationMs in 6_100..6_900)
 
             // Representative content: red half at the start, blue half at the end.
-            val (startRed, startBlue) = channelAverages(mmr.getFrameAtTime(100_000, MediaMetadataRetriever.OPTION_CLOSEST_SYNC))
-            val (endRed, endBlue) = channelAverages(mmr.getFrameAtTime(6_300_000, MediaMetadataRetriever.OPTION_CLOSEST_SYNC))
+            // OPTION_CLOSEST decodes the real frame at that time; CLOSEST_SYNC
+            // would return the stream's only keyframe (t=0) for every probe.
+            val (startRed, startBlue) = channelAverages(mmr.getFrameAtTime(100_000, MediaMetadataRetriever.OPTION_CLOSEST))
+            val (endRed, endBlue) = channelAverages(mmr.getFrameAtTime(6_300_000, MediaMetadataRetriever.OPTION_CLOSEST))
             assertTrue("start frame not red (r=$startRed b=$startBlue)", startRed > startBlue + 60)
             assertTrue("end frame not blue (r=$endRed b=$endBlue)", endBlue > endRed + 60)
         } finally {
