@@ -265,6 +265,18 @@ class EditingTest {
         assertEquals(points, points.packed().unpackedPoints())
     }
 
+    @Test
+    fun `follow crop track survives the project format`() {
+        val track = track()
+        val read = com.cuscus.ffmpeggui.core.project.ModelJson.followCrop(
+            com.cuscus.ffmpeggui.core.project.ModelJson.writeFollowCrop(track),
+        )
+        assertNotNull(read)
+        assertEquals(track.inWidth, read!!.inWidth)
+        assertEquals(track.outWidth, read.outWidth)
+        assertEquals(track.points, read.points)
+    }
+
     // ------------------------------------------------------------------
     // TranscriptEdit
     // ------------------------------------------------------------------

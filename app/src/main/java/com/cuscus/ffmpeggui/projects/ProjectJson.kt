@@ -126,6 +126,7 @@ object ProjectJson {
         put("splitValue", s.splitValue)
         put("tags", ModelJson.write(s.tags))
         put("coverUri", s.coverUri?.toString())
+        put("followCrop", s.followCrop, ModelJson::writeFollowCrop)
         put("openAbove", s.openAbove, ::writeOpen)
     }
 
@@ -211,6 +212,7 @@ object ProjectJson {
             splitValue = o.int("splitValue", d.splitValue),
             tags = o.obj("tags")?.let(ModelJson::metadataTags) ?: d.tags,
             coverUri = o.stringOrNull("coverUri")?.let(Uri::parse),
+            followCrop = o.obj("followCrop")?.let(ModelJson::followCrop) ?: d.followCrop,
             openAbove = o.obj("openAbove")?.let(::openEditor),
         )
     }

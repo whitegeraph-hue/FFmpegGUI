@@ -1,5 +1,8 @@
 package com.cuscus.ffmpeggui.core.project
 
+import com.cuscus.ffmpeggui.core.editing.FollowCropTrack
+import com.cuscus.ffmpeggui.core.editing.packed
+import com.cuscus.ffmpeggui.core.editing.unpackedPoints
 import com.cuscus.ffmpeggui.core.subtitles.SpokenWord
 import com.cuscus.ffmpeggui.core.subtitles.SubtitleStyle
 import com.cuscus.ffmpeggui.core.model.AudioEffects
@@ -1058,5 +1061,27 @@ object ModelJson {
         val texts = if (text.isEmpty()) emptyList() else text.split(' ')
         if (times.size != texts.size * 2) return null
         return texts.mapIndexed { i, word -> SpokenWord(times[i * 2], times[i * 2 + 1], word) }
+    }
+
+    /**
+     * A subject-following reframe (core/editing/FollowCrop): its frame and
+     * window sizes, and its points as one line of numbers (time, x, y and
+     * confidence of each look, see FollowCrop's packed).
+     */
+    fun writeFollowCrop(track: FollowCropTrack): Json.Obj = jsonObject {
+        put("inWidth", track.inWidth)
+        put("inHeight", track.inHeight)
+        put("outWidth", track.outWidth)
+        put("outHeight", track.outHeight)
+        putList("points", track.points.packed()) { Json.of(it) }
+    }
+
+    /** The track written by [writeFollowCrop], or null when it does not line up. */
+    fun followCrop(o: Json.Obj): FollowCropTrack? {
+        val numbers = (o["points"] as? Json.Arr)?.items?.map { it.asDouble()?.toFloat() ?: return null } ?: return null
+        val points = numbers.unpackedPoints()
+        if (points.isEmpty()) return null
+        val track = FollowCropTrack(points, o.int("inWidth", 0), o.int("inHeight", 0), o.int("outWidth", 0), o.int("outHeight", 0))
+        return track.takeIf { it.inWidth > 0 && it.inHeight > 0 && it.outWidth > 0 && it.outHeight > 0 }
     }
 }

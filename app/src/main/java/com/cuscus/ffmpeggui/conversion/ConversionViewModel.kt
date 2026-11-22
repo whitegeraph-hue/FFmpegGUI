@@ -1321,10 +1321,13 @@ class ConversionViewModel(
      */
     fun splitClipAt(timelineMs: Long) = mutate { settings ->
         val timeline = settings.timeline
-        if (!timeline.canSplitAt(timelineMs)) return@mutate settings
-        val original = timeline.clips[timeline.locate(timelineMs)?.index ?: return@mutate settings].id
+        // Beat snapping (the smart editing's beat search): a cut asked near a
+        // beat lands on it; a beat that cannot split there asks for the cut itself.
+        val at = if (_snapToBeats.value) nearestBeat(timelineMs)?.takeIf(timeline::canSplitAt) ?: timelineMs else timelineMs
+        if (!timeline.canSplitAt(at)) return@mutate settings
+        val original = timeline.clips[timeline.locate(at)?.index ?: return@mutate settings].id
         val newClipId = newId()
-        settings.copy(timeline = timeline.splitAt(timelineMs, newClipId)).withOverlaysCopied(original, newClipId)
+        settings.copy(timeline = timeline.splitAt(at, newClipId)).withOverlaysCopied(original, newClipId)
             .withStemTracksCut(original, newClipId)
     }
 
