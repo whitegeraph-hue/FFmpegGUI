@@ -1,0 +1,46 @@
+name: Linux desktop port
+on:
+  push:
+    branches: [linux-desktop]
+    paths: ['desktop/**', 'core/**', '.github/workflows/linux-desktop.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  native-linux:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.14.3'
+      - name: Install Linux media and packaging tools
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg xvfb fakeroot
+      - name: Compile unchanged core and native desktop
+        run: gradle -p desktop compileKotlin --console=plain
+      - name: Run shared core tests
+        run: gradle -p desktop :shared-core:test --console=plain
+      - name: Generate media fixture
+        run: ffmpeg -y -f lavfi -i testsrc2=size=640x360:rate=25 -f lavfi -i sine=frequency=440:sample_rate=48000 -t 4 -c:v libx264 -pix_fmt yuv420p -c:a aac /tmp/linux-input.mp4
+      - name: Export using the shared Kotlin CommandBuilder
+        run: |
+          gradle -p desktop smokeExport -Pinput=/tmp/linux-input.mp4 -Poutput=/tmp/linux-output.mp4 --console=plain
+          ffprobe -v error -show_entries format=duration -of json /tmp/linux-output.mp4
+          ffmpeg -v error -i /tmp/linux-output.mp4 -f null -
+      - name: Package native app with Java runtime
+        run: gradle -p desktop packageDeb createDistributable --console=plain
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: linux-desktop-proof
+          path: |
+            desktop/build/compose/binaries/main/deb/*.deb
+            desktop/build/compose/binaries/main/app/**
+            desktop/shared-core/build/reports/tests/**
+            desktop/shared-core/build/test-results/**
+            /tmp/linux-output.mp4

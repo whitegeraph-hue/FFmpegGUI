@@ -1,0 +1,4 @@
+build/
+.gradle/
+.kotlin/
+shared-core/build/
