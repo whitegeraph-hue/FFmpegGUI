@@ -92,7 +92,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                                     if (frame!=null) Image(frame,if(controller.player.frame!=null || controller.previewFrame!=null) "Rendered edit playback" else "Source frame at the playhead, not an effects preview",modifier=Modifier.fillMaxSize())
                                     else Text(if (project.sources[0].info.isVideo) "Reading frame…" else "Audio file",color=Color.White)
                                 }
-                                Text(if(controller.previewFrame!=null && project.sources[0].info.isStill) "Rendered edited picture. Source file is unchanged." else if(controller.player.frame!=null) "Rendered edit · ${time(controller.player.positionMs)} / ${time(controller.player.durationMs)} · synchronized audio/video" else "Source frame · ${time(controller.position)} / ${time(project.timeline.durationMs)}. Render edited preview to inspect cuts and effects.",style=MaterialTheme.typography.bodySmall)
+                                Text(if(controller.previewFrame!=null && project.sources[0].info.isStill) "Rendered edited picture. Source file is unchanged." else if(controller.previewFrame!=null && controller.player.frame==null) "Rendered edited frame. Play preview to inspect motion and sound." else if(controller.player.frame!=null) "Rendered edit · ${time(controller.player.positionMs)} / ${time(controller.player.durationMs)} · synchronized audio/video" else "Source frame · ${time(controller.position)} / ${time(project.timeline.durationMs)}. Render edited preview to inspect cuts and effects.",style=MaterialTheme.typography.bodySmall)
                                 controller.player.failure?.let { Text(it,color=MaterialTheme.colorScheme.error,style=MaterialTheme.typography.bodySmall) }
                                 if(controller.player.frame!=null) {
                                     var scrub by remember { mutableStateOf<Float?>(null) }
@@ -100,7 +100,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                                 }
                                 Slider(controller.position.toFloat(),{ controller.player.stop();controller.seek(it.toLong()) },valueRange=0f..project.timeline.durationMs.coerceAtLeast(1).toFloat(),enabled=!controller.busy)
                                 Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                                    Button(onClick={ controller.splitHere() },enabled=!controller.busy) { Text("Split here") }
+                                    Button(onClick={ controller.splitHere() },enabled=!controller.busy && !project.sources[0].info.isStill) { Text("Split here") }
                                     OutlinedButton(onClick={ controller.preview() },enabled=!controller.busy) { Text("Render edited preview") }
                                     controller.rendered?.takeIf { !project.sources[0].info.isStill }?.let { file ->
                                         OutlinedButton(onClick={ if(controller.player.playing) controller.player.pause() else controller.player.play(file) }) { Text(if(controller.player.playing) "Pause preview" else "Play preview") }
@@ -172,7 +172,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
 private fun EditPanel(c: EditorController,p: DesktopProject) {
     PanelCard {
         Text("Export format",style=MaterialTheme.typography.titleMedium)
-        val formats=when { p.sources[0].info.isStill -> listOf(OutputFormat.JPG,OutputFormat.PNG,OutputFormat.BMP,OutputFormat.TIFF,OutputFormat.SVG,OutputFormat.ASCII,OutputFormat.ANSI)
+        val formats=when { p.sources[0].info.isStill -> listOf(OutputFormat.JPG,OutputFormat.PNG,OutputFormat.WEBP,OutputFormat.BMP,OutputFormat.TIFF,OutputFormat.SVG,OutputFormat.ASCII,OutputFormat.ANSI)
             !p.sources[0].info.isVideo -> listOf(OutputFormat.MP3,OutputFormat.M4A,OutputFormat.OGG,OutputFormat.OPUS,OutputFormat.FLAC,OutputFormat.WAV,OutputFormat.SRT,OutputFormat.TXT)
             else -> listOf(OutputFormat.MP4,OutputFormat.MKV,OutputFormat.AVI,OutputFormat.GIF,OutputFormat.MP3,OutputFormat.WAV,OutputFormat.SRT,OutputFormat.TXT) }
         Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(6.dp)) {
@@ -369,6 +369,8 @@ private fun EditPanel(c: EditorController,p: DesktopProject) {
         Text("Photo effect")
         Row(Modifier.horizontalScroll(rememberScrollState())) {ImageEffect.entries.forEach {f->FilterChip(e.effect==f,{edit(e.copy(effect=f))},label={Text(f.name)},enabled=!c.busy)}}
         ValueSlider("Effect strength",e.effectAmount,0f..1f,!c.busy){edit(e.copy(effectAmount=it))}
+        ValueSlider("Maximum output side (0 keeps original)",e.output.maxSide.toFloat(),0f..3840f,!c.busy){edit(e.copy(output=e.output.copy(maxSide=if(it<64)0 else it.toInt())))}
+        ValueSlider("Photo quality",e.output.quality,0f..1f,!c.busy){edit(e.copy(output=e.output.copy(quality=it)))}
         ValueSlider("Round corners",e.corners,0f..1f,!c.busy){edit(e.copy(corners=it))}
         OutlinedButton(onClick={edit(ImageEdit())},enabled=!c.busy){Text("Reset photo settings")}
         Text("Drawing, masks, layer canvas and HDR output remain in progress.",style=MaterialTheme.typography.bodySmall)

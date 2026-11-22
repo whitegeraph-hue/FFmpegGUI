@@ -118,6 +118,14 @@ fun main(args:Array<String>)=runBlocking {
         val hidden=project.copy(captions=listOf(text.copy(hidden=true)))
         check(!exporter.command(hidden,"output.mp4").arguments.joinToString(" ").contains("Desktop text"))
     }
+    verify("WebP adapter exact edited size and alpha") {
+        val source=media.probe(File(folder,"photo.png").path)
+        val photo=DesktopProject.create(source).copy(format=OutputFormat.WEBP,image=ImageEdit(corners=.2f,output=ImageOutput(maxSide=320,quality=.8f)))
+        val result=exporter.export(photo,File(folder,"photo.webp"))
+        check(result.info.width==320 && result.info.height==180 && result.info.isStill)
+        media.process.checked(listOf("ffmpeg","-v","error","-y","-i",result.path,"-frames:v","1",File(folder,"webp-decoded.png").path))
+        val image=javax.imageio.ImageIO.read(File(folder,"webp-decoded.png"));check(image.getRGB(0,0) ushr 24==0)
+    }
     verify("cancel real process") {
         val start=System.currentTimeMillis()
         val job=launch { media.process.run(listOf("ffmpeg","-re","-f","lavfi","-i","testsrc2=size=640x360:rate=25","-t","30","-f","null","-")) }

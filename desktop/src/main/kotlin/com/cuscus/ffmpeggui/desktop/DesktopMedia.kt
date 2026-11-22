@@ -133,10 +133,19 @@ class DesktopExport(private val media: DesktopMedia = DesktopMedia()) {
     }
     suspend fun export(project: DesktopProject, output: File): DesktopSource {
         require(project.sources.none { File(it.path).canonicalFile == output.canonicalFile }) { "Choose a new output. Source files are never overwritten." }
-        require(project.format != OutputFormat.WEBP && project.format != OutputFormat.CUSTOM) { "This output needs an adapter that is still being ported." }
+        require(project.format != OutputFormat.CUSTOM) { "This output needs an adapter that is still being ported." }
         val temporary = File(output.parentFile, ".${output.nameWithoutExtension}-${UUID.randomUUID()}.${project.format.extension}")
         val auxiliaries=Files.createTempDirectory("ffmpeggui-export-").toFile()
         try {
+            if(project.format==OutputFormat.WEBP) {
+                val png=File(auxiliaries,"webp-source.png")
+                export(project.copy(format=OutputFormat.PNG),png)
+                media.process.checked(listOf("ffmpeg","-nostdin","-v","error","-y","-i",png.path,"-frames:v","1","-c:v","libwebp","-quality",(project.image.output.quality.coerceIn(0f,1f)*100).toInt().toString(),temporary.path))
+                val result=media.probe(temporary.path)
+                require(result.info.isStill && result.info.width>0)
+                Files.move(temporary.toPath(),output.toPath(),StandardCopyOption.REPLACE_EXISTING)
+                return result.copy(path=output.canonicalPath)
+            }
             if(project.format==OutputFormat.SVG || project.format.isTextArt) {
                 val png=File(auxiliaries,"art-source.png")
                 val image=if(project.format.isTextArt)project.image.forTextArt() else project.image

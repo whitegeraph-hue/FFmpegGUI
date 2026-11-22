@@ -79,7 +79,7 @@ SVG settings, text modes/columns/paper/dither and ANSI colour depth exposed.
 Real SVG parses with paths, ASCII has expected columns, ANSI contains colour
 codes; project settings roundtrip tested (19native assertions). Actual SVG and
 ASCII previews were rendered and inspected separately. The editor honestly
-blocks live art preview until a renderer is ported. WEBP still unported.
+blocks live art preview until a renderer is ported. WEBP now has distro libwebp adapter, actual320x180alpha output tested.
 
 Text layers: whole-output TextOverlay add/edit/remove, X/Y/size/opacity, colour
 swatches, bold/outline/box, hidden, stack order, start/end and fades are exposed
@@ -87,3 +87,8 @@ and persisted. Hidden/obsolete clip captions are filtered in request mapping,
 as Android does.20native checks include real time-gated caption pixels and
 roundtrip. UI add-layer click and rendered caption pixels inspected. Clip
 binding, rotation/blend/stretch and keyframe UI remain missing.
+
+WebP continuation: FFmpeg PNG render plus Linux libwebp encode, quality and
+max-side controls.21native assertions include decoded WebP dimensions and
+transparent corners. This deliberately uses distro FFmpeg capability, failing
+if libwebp is unavailable rather than silently changing output format.
