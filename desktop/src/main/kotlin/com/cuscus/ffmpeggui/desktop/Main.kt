@@ -127,7 +127,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                                 }
                             }
                             Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(10.dp)) {
-                                val tabs=listOf("Edit","Clip editor","Transcript","Pause cuts","Scenes","Beats","Follow crop","Models","Subtitles","Audio","Text layers","Sound tracks","Tags","Image layers")
+                                val tabs=listOf("Edit","Clip editor","Transcript","Pause cuts","Scenes","Beats","Follow crop","Models","Subtitles","Audio","Text layers","Sound tracks","Tags","Image layers","Command studio")
                                 if(project.sources.size>1)FlowRowCompat {
                                     project.sources.forEachIndexed {i,source->FilterChip(controller.selectedSource==i,{controller.selectSource(i)},label={Text("${i+1}: ${File(source.path).name.take(20)}")},enabled=!controller.busy)}
                                 }
@@ -137,6 +137,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                                 Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(12.dp)) {
                                     when(controller.tab) {
                                         "Edit" -> EditPanel(controller,project)
+                                        "Command studio" -> StudioPanel(controller,project){name->pick(true,name)}
                                         "Clip editor" -> ClipEditorPanel(controller,project)
                                         "Subtitles" -> SubtitlesPanel(controller,project)
                                         "Image layers" -> PictureLayersPanel(controller,project){pick()?.path}
@@ -657,5 +658,39 @@ private fun EditPanel(c: EditorController,p: DesktopProject) {
         Text("Key ${time(key.atMs)}")
         FlowRowCompat {KeyEasing.entries.filter {it!=KeyEasing.CUSTOM}.forEach {e->FilterChip(key.easing==e,{update(keys.withEasing(key.atMs,e))},label={Text(e.name)},enabled=!c.busy)}}
         TextButton(onClick={update(keys.remove(key.atMs))},enabled=!c.busy){Text("Remove layer key")}
+    }
+}
+
+@Composable private fun StudioPanel(c:EditorController,p:DesktopProject,pick:(String)->File?) {
+    val aliases=c.studio.paths(p).aliasEntries()
+    val lint=remember(c.studioText,c.studioCatalog,p){com.cuscus.ffmpeggui.core.command.studio.CommandLint(c.studioCatalog,aliases).check(c.studioText)}
+    PanelCard {
+        Text("Command studio",style=MaterialTheme.typography.titleLarge)
+        Text("Commands run locally as FFmpeg arguments, never through a shell. This single-output adapter permits listed input aliases and selected filters only. Generated subtitles/AI marks, arbitrary file paths, network and numbered outputs are not yet supported. Manual commands do not automatically apply editor effects.")
+        Text("Inputs: "+c.studio.aliases(p).keys.joinToString(", "))
+        FlowRowCompat {
+            OutlinedButton(onClick={c.studioText=com.cuscus.ffmpeggui.core.command.FfmpegCommand(c.exporter.command(p,"output.${p.format.extension}").arguments.map {arg->c.studio.aliases(p).entries.fold(arg){v,e->v.replace(e.value,e.key)}}).toDisplayString()},enabled=!c.busy){Text("Copy generated edit")}
+            OutlinedButton(onClick={c.work("Reading installed FFmpeg help…"){c.studioCatalog=c.studio.catalog();c.status="Installed FFmpeg catalogue loaded."}},enabled=!c.busy){Text("Read installed catalogue")}
+            OutlinedButton(onClick={c.studioText=com.cuscus.ffmpeggui.core.command.studio.tidyCommand(c.studioText,c.studioCatalog)},enabled=!c.busy){Text("Tidy command")}
+        }
+        OutlinedTextField(c.studioText,{c.studioText=it},label={Text("FFmpeg command")},modifier=Modifier.fillMaxWidth().heightIn(min=160.dp,max=280.dp),enabled=!c.busy)
+        Text("${c.studioCatalog.filters.size} filters, ${c.studioCatalog.encoders.size} encoders read from this system.")
+        lint.take(12).forEach {Text("${it.severity}: ${it.code} ${it.subject}",color=if(it.severity==com.cuscus.ffmpeggui.core.command.studio.LintSeverity.ERROR)MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)}
+        val validation=runCatching {c.studio.validate(p,c.studioText)}.exceptionOrNull()?.message
+        if(validation!=null)Text(validation,style=MaterialTheme.typography.bodySmall)
+        Button(onClick={
+            val ext=com.cuscus.ffmpeggui.core.command.tokenizeCommandLine(c.studioText).lastOrNull {it.matches(Regex("output\\.[A-Za-z0-9]+"))}?.substringAfterLast('.') ?: "mp4"
+            pick("manual-export.$ext")?.let {file->
+                if(!file.exists() || javax.swing.JOptionPane.showConfirmDialog(null,"Replace ${file.name}?","Existing output",javax.swing.JOptionPane.YES_NO_OPTION)==0)c.work("Running local manual command…"){val out=c.studio.export(p,c.studioText,file);c.status="Manual output ready: ${out.path}"}
+            }
+        },enabled=!c.busy && validation==null){Text("Run to new file")}
+    }
+    PanelCard {
+        Text("Original recipes",style=MaterialTheme.typography.titleMedium)
+        com.cuscus.ffmpeggui.core.command.studio.CommandRecipe.ALL.forEach {recipe->
+            val text=recipe.fill(aliases)
+            TextButton(onClick={c.studioText=text.orEmpty()},enabled=!c.busy && text!=null){Text(recipe.title)}
+            Text(recipe.summary,style=MaterialTheme.typography.bodySmall)
+        }
     }
 }

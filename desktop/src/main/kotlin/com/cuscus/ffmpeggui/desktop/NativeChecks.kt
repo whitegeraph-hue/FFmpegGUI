@@ -289,6 +289,20 @@ fun main(args:Array<String>)=runBlocking {
         val saved=File(folder,"video-layer.ffgui.json");DesktopProjects.save(project,saved);check(DesktopProjects.load(saved,media).pictures==listOf(picture))
         javax.imageio.ImageIO.write(during,"png",File(folder,"video-layer-proof.png"))
     }
+    verify("manual studio real catalogue local render and destination guards") {
+        val studio=DesktopStudio(media);val catalogue=studio.catalog()
+        check(catalogue.filters.any {it.name=="scale"} && catalogue.encoders.any {it.name=="libx264"})
+        val text="ffmpeg -i input.mp4 -t 1 -vf scale=320:180 -c:v libx264 -c:a aac output.mp4"
+        val output=studio.export(p,text,File(folder,"manual-studio.mp4"))
+        check(output.info.width==320 && output.info.height==180 && output.info.durationMs in 900..1200)
+        check(runCatching {studio.export(p,text,File(video.path))}.isFailure)
+        check(runCatching {studio.validate(p,"ffmpeg -i https://example.invalid/file.mp4 output.mp4")}.isFailure)
+        check(runCatching {studio.validate(p,"ffmpeg -i input.mp4 /tmp/not-output.mp4")}.isFailure)
+        check(runCatching {studio.validate(p,"ffmpeg -i input.mp4 -vf movie=/tmp/private output.mp4")}.isFailure)
+        check(runCatching {studio.validate(p,"ffmpeg -i input.mp4 -filter_script /tmp/private output.mp4")}.isFailure)
+        check(runCatching {studio.validate(p,"ffmpeg -i input.mp4 output_%03d.png")}.isFailure)
+        check(com.cuscus.ffmpeggui.core.command.studio.CommandLint(catalogue,studio.paths(p).aliasEntries()).check("ffmpeg -i input.mp4").any {it.code==com.cuscus.ffmpeggui.core.command.studio.LintCode.NO_OUTPUT})
+    }
     verify("cancel real process") {
         val start=System.currentTimeMillis()
         val job=launch { media.process.run(listOf("ffmpeg","-re","-f","lavfi","-i","testsrc2=size=640x360:rate=25","-t","30","-f","null","-")) }

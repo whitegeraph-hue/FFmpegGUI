@@ -36,6 +36,9 @@ class EditorController(val scope: CoroutineScope) {
     private val history = ArrayDeque<DesktopProject>()
     val media = DesktopMedia()
     val exporter = DesktopExport(media)
+    val studio=DesktopStudio(media)
+    var studioText by mutableStateOf("")
+    var studioCatalog by mutableStateOf(com.cuscus.ffmpeggui.core.command.studio.FfmpegCatalog.BUILT_IN)
     val player=DesktopPlayer(scope,media)
     val id: () -> String = { UUID.randomUUID().toString() }
 

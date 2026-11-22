@@ -20,7 +20,7 @@ Status is implementation evidence, not a promise that unchecked behavior works.
 | Subtitles/style/lyrics | Full core preserved | Transcript UI only initially. SRT/TXT retimed export and ASS burn-in/style controls implemented;14 native integration checks include actual burnt pixels and240p15fps. Custom fonts/colours, external subtitle import and lyrics workflows pending. |
 | Offline AI cutout/erase/translation/dub/stems | Core algorithms/model definitions preserved | Runtime adapters, model gates and integrity import, licences, speech memory limits, source separation, marking gates still need porting. No generative output exposed without required provenance marks. |
 | Project files | Original ModelJson | Linux envelope save/open implemented. Source validation; Android project envelope interoperability not yet supported. Need include all editor state once exposed. |
-| Command studio | Parser/catalog/lint/recipes preserved | Read-only generated command initially. Editable commands, lint, recipes and file aliases still missing UI. |
+| Command studio | Parser/catalog/lint/recipes preserved | Editable command/alias list, original lint/tidy/recipes, installed FFmpeg catalogue and constrained local single-output run now implemented. Arbitrary-file/filter adapters, generated subtitles/AI marks in manual mode, numbered outputs, completion/help panels and full Android studio remain missing. |
 | Metadata/cover/HDR/compression/stabilization | Core preserved | Metadata text tags exposed and tested. Cover/HDR/compression/stabilization adapters and filter availability checks pending. |
 | OS integration | None assumed | Debian amd64 with Java runtime and explicit apt FFmpeg/fonts dependencies. Zorin release/actual install/graphics/audio validation pending. No tag or release published. |
 
@@ -155,3 +155,10 @@ pass including actual timed blue frames from a trimmed second video, decorated
 pixels and save/load. Inspected actual rendered frame and image-layer controls.
 Video layer audio must be added independently as sound, explicitly disclosed in
 UI; clip-bound video layers remain blocked. Chooser navigation still unverified.
+
+Command studio continuation:35native checks include actual installed catalogue,
+320x180 manual export and source/network/external-path/filter-script/numbered
+output rejection. Local execution is argv-only, selected filters/options and
+input aliases, one new media output. Other commands remain edit/lint only.
+No network, shell or arbitrary file destinations. Generated subtitle/AI-mark
+manual adapters remain explicitly unavailable; manual commands bypass edits.
