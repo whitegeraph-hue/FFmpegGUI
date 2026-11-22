@@ -30,7 +30,7 @@ fun main() = application {
         LaunchedEffect(Unit) {
             System.getenv("FFMPEGGUI_OPEN")?.let { controller.open(it) }
             System.getenv("FFMPEGGUI_SCREENSHOT")?.let { path ->
-                delay(5000)
+                delay(System.getenv("FFMPEGGUI_CAPTURE_DELAY")?.toLongOrNull() ?: 5000)
                 System.getenv("FFMPEGGUI_TAB")?.let { controller.tab=it }; delay(500)
                 val screen=java.awt.Robot().createScreenCapture(java.awt.Rectangle(java.awt.Toolkit.getDefaultToolkit().screenSize))
                 javax.imageio.ImageIO.write(screen,"png",File(path))
@@ -69,7 +69,7 @@ fun main() = application {
                             Column(horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(18.dp)) {
                                 Text("Your files. Your machine.",style=MaterialTheme.typography.headlineMedium)
                                 Text("Open a clip to edit its timeline, find scene changes and musical beats, and export locally.")
-                                Text("Speech and subject-following adapters are being connected. This is not a finished release.",style=MaterialTheme.typography.bodyMedium)
+                                Text("Offline speech and subject models are imported once from their original downloads. This is not a finished release.",style=MaterialTheme.typography.bodyMedium)
                                 Button(onClick={ pick()?.let { controller.open(it.path) } },enabled=!controller.busy) { Text("Choose a file") }
                             }
                         }
@@ -107,7 +107,7 @@ fun main() = application {
                             }
                             Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(10.dp)) {
                                 val tabs=listOf("Edit","Transcript","Pause cuts","Scenes","Beats","Follow crop","Models")
-                                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(6.dp)) {
+                                FlowRowCompat {
                                     tabs.forEach { title -> FilterChip(selected=controller.tab==title,onClick={ controller.tab=title },label={ Text(title) }) }
                                 }
                                 Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(12.dp)) {
@@ -120,8 +120,19 @@ fun main() = application {
                                         "Transcript" -> TranscriptPanel(controller,project)
                                         "Models" -> PanelCard {
                                             Text("Offline models",style=MaterialTheme.typography.titleLarge)
-                                            Text("The Linux adapters for the same Parakeet and U2-NetP models are being connected. No cloud processing or automatic uploads.")
-                                            Text("Model import, hash checks and runtime tests are not complete yet.")
+                                            Text(controller.modelStatus)
+                                            Text("No cloud processing or automatic downloads. Import the original pinned files. Other weights are rejected.")
+                                            OutlinedButton(onClick={ Desktop.getDesktop().browse(java.net.URI(com.cuscus.ffmpeggui.speech.SpeechModel.FILES_URL)) },enabled=!controller.busy) { Text("Open original speech downloads") }
+                                            Button(onClick={
+                                                val dialog=FileDialog(window,"Import speech model files",FileDialog.LOAD)
+                                                dialog.isMultipleMode=true;dialog.isVisible=true
+                                                if(dialog.files.isNotEmpty()) controller.work("Checking and importing speech model files…") { DesktopModels.importSpeech(dialog.files.toList());controller.modelStatus=DesktopModels.present();controller.status=controller.modelStatus }
+                                            },enabled=!controller.busy) { Text("Import speech files") }
+                                            Text("Select encoder.int8.onnx, decoder.int8.onnx and joiner.int8.onnx together. The original token list is included. About 670 MB on disk; speech needs substantial free RAM.",style=MaterialTheme.typography.bodySmall)
+                                            OutlinedButton(onClick={ Desktop.getDesktop().browse(java.net.URI(com.cuscus.ffmpeggui.cutout.CutoutModel.FAST.downloadUrl)) },enabled=!controller.busy) { Text("Open U2-NetP download") }
+                                            Button(onClick={ pick()?.let { file -> controller.work("Checking and importing subject model…") { DesktopModels.importCutout(file);controller.modelStatus=DesktopModels.present();controller.status=controller.modelStatus } } },enabled=!controller.busy) { Text("Import u2netp.onnx") }
+                                            Text("Models and licences: NVIDIA Parakeet, CC BY 4.0; U2-NetP by Xuebin Qin et al., Apache 2.0. See the source project model record for attributions.",style=MaterialTheme.typography.bodySmall)
+                                            OutlinedButton(onClick={ Desktop.getDesktop().browse(java.net.URI("https://github.com/whitegeraph-hue/FFmpegGUI/blob/linux-desktop/docs/MODELS.md")) }) { Text("Model licences and sources") }
                                         }
                                     }
                                 }
@@ -131,7 +142,7 @@ fun main() = application {
                     if (controller.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
                     Row(verticalAlignment=Alignment.CenterVertically) {
                         Text(controller.status,modifier=Modifier.weight(1f),style=MaterialTheme.typography.bodySmall)
-                        if (controller.busy) TextButton(onClick={ controller.job?.cancel() }) { Text("Stop") }
+                        if (controller.busy) TextButton(onClick={ controller.status="Stopping after the current native call…";controller.job?.cancel() }) { Text("Stop") }
                     }
                     controller.error?.let { message -> AlertDialog(onDismissRequest={ controller.error=null },title={ Text("Could not finish") },text={ Box(Modifier.heightIn(max=350.dp).verticalScroll(rememberScrollState())) { Text(message) } },confirmButton={ TextButton(onClick={ controller.error=null }) { Text("Close") } }) }
                 }
@@ -183,7 +194,9 @@ private fun EditPanel(c: EditorController,p: DesktopProject) {
     PanelCard {
         Text("Transcript",style=MaterialTheme.typography.titleLarge)
         Text("Word taps seek the source on the current timeline. Line edits use the same cut/keep logic as Android.")
-        if(p.words.isEmpty()) Text("No lines yet. The offline speech adapter is being connected.")
+        if(p.words.isEmpty()) Text("No lines yet. Import the speech model in Models, then listen to this file.")
+        Button(onClick={ c.listen() },enabled=!c.busy && p.sources[0].info.hasAudio) { Text(if(p.words.isEmpty()) "Listen to the video" else "Listen again") }
+        Text("Native inference runs locally. Stop may wait for the current chunk to return.",style=MaterialTheme.typography.bodySmall)
         val blocks=remember(p.words) { p.words.wordBlocks().second }
         blocks.forEach { block ->
             HorizontalDivider()
@@ -197,4 +210,9 @@ private fun EditPanel(c: EditorController,p: DesktopProject) {
             }
         }
     }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable private fun FlowRowCompat(content: @Composable () -> Unit) {
+    FlowRow(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(6.dp),verticalArrangement=Arrangement.spacedBy(0.dp)) { content() }
 }

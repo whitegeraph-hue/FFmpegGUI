@@ -59,7 +59,7 @@ building, project model JSON and smart-detector logic come from the shared core.
 - Real scene and beat analysis, selectable boundaries and application to the
   timeline; beat snapping applies to manual splits.
 - Transcript line cut/keep and word seek use original core semantics. Native
-  speech and subject inference/model setup are still being integrated.
+  speech and subject inference/model setup are wired and compile; final packaged checks remain pending.
 - Save/open Linux project envelope uses original Timeline/Effects JSON. This
   is not yet an Android project-import/export compatibility guarantee.
 - Export uses a temporary file then atomic move. Source overwrite is refused;

@@ -8,11 +8,11 @@ Status is implementation evidence, not a promise that unchecked behavior works.
 | Core command generation and models | All core sources | Clean CI compile and 926 tests pass. Narrow real-media integration tests added. Broad FFmpeg filter compatibility still open. |
 | Basic import/probe/export | Models and builder | Desktop adapter compiled. Real source frame/seek and timeline export tested. Still import, more formats/rotation/error cases need broader tests. |
 | Video timeline | Timeline/Clip and effects | Split, remove, reorder, undo wired. Multi-file intake, transitions, keyframes, speed curves, overlays, layer stack, text and animations still missing UI. |
-| Transcript word seek and keep/cut | TranscriptEdits/wordBlocks | UI and core binding implemented. Speech inference/model setup pending integration. |
+| Transcript word seek and keep/cut | TranscriptEdits/wordBlocks | UI and core binding implemented. Speech inference/model setup wired and compiled; final app runtime/UI checks pending. |
 | Pause/filler cuts | PauseCuts/SilenceDetect + original panel | Wired after words exist, selectable/apply. Actual speech-derived pause/filler test pending. |
 | Scene splits | SceneDetect + original panel | Real FFmpeg scene detection passed at known 2s and 4s boundaries. Panel apply and manual UI tests pending. |
 | Beat-synced splits | BeatTrack + original panel | Real audio analysis passed 120 BPM fixture. Split/snapping wired. UI test pending. |
-| Subject-following crop | FollowCropTrack/SubjectModelIo + original panel | Synthetic moving crop export passed. Native U2-NetP inference/model import pending integration. |
+| Subject-following crop | FollowCropTrack/SubjectModelIo + original panel | Synthetic moving crop export passed. Native U2-NetP inference/model import wired and compiled; final app runtime/UI checks pending. |
 | Preview | Source frame adapter | Honest labelled source-frame seek; render edited preview includes effects/audio via real export and ffplay. Android live-preview parity not done. |
 | Audio editor/mastering | DSP/models/builder preserved | Basic speed/volume and formats only. Waveforms, ten-band EQ, compressor, reverb, stems/tracks still need UI/adapters and tests. |
 | Photo editor | Image/vector/text-art logic preserved | Basic still export path exposed. Detailed crop/perspective, layers, shapes, brush, masks, HDR, SVG editor, ASCII/ANSI tools still need porting. |
@@ -30,3 +30,5 @@ A finished Linux version must not be substituted by the current limited preview.
 Continue the inventory until original workflows are implemented and tested or
 Mohamed explicitly accepts a documented scope change. No such scope change has
 been requested or granted. Master must remain untouched unless separately asked.
+
+Only three production UI files are currently shared in the desktop build, out of roughly 102k lines of Android app code. Most screens remain unported. The newly written desktop shell is not the original Android EditorScreen.

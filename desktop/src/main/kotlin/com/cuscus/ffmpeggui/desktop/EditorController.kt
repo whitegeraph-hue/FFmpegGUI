@@ -27,6 +27,8 @@ class EditorController(val scope: CoroutineScope) {
     var beatStatus by mutableStateOf<BeatsStatus>(BeatsStatus.Idle)
     var followStatus by mutableStateOf<FollowCropStatus>(FollowCropStatus.Idle)
     var snap by mutableStateOf(false)
+    var modelStatus by mutableStateOf(DesktopModels.present())
+    val models=DesktopSmartModels(cacheDirectory=File(System.getProperty("java.io.tmpdir"),"ffmpeggui-linux-${System.getProperty("user.name")}"))
     var rendered by mutableStateOf<File?>(null)
     var job: Job? = null
     private var frameJob: Job? = null
@@ -155,13 +157,39 @@ class EditorController(val scope: CoroutineScope) {
             } catch (e: Exception) { file.delete(); throw e }
         }
     }
+    fun listen() {
+        val p=project ?: return
+        work("Listening locally. Stop may wait for the current native inference chunk…") {
+            val words=models.transcribe(p.sources[0].path,DesktopModels.speechDirectory,emptyList(),{ step,fraction ->
+                status="${step.name.lowercase()} locally${fraction?.let { " · ${(it*100).toInt()}%" } ?: ""}. Stop waits for the current native call."
+            },{})
+            check(words.isNotEmpty()) { "No speech found in this file." }
+            mutate(p.copy(words=words)); tab="Transcript";status="Heard ${words.size} words locally. Tap a word to seek."
+        }
+    }
+    fun follow() {
+        val p=project ?: return
+        if(!DesktopModels.cutoutFile.isFile) { followStatus=FollowCropStatus.NoModel;return }
+        followStatus=FollowCropStatus.Working(0f)
+        work("Following the subject locally. Stop waits for the current model call…") {
+            try {
+                val tracked=models.track(p.sources[0].path,p.sources[0].info.durationMs,DesktopModels.cutoutFile,progress={ followStatus=FollowCropStatus.Working(it) })
+                val mapped=tracked.points.flatMap { point -> mapToTimeline(point.atMs,point.atMs+1,p.request().segments,0).map { point.copy(atMs=it.first) } }
+                check(mapped.isNotEmpty()) { "No track points on the current timeline." }
+                val size=FollowCropTrack.windowSize(tracked.frameWidth,tracked.frameHeight,9,16)
+                mutate(p.copy(followCrop=FollowCropTrack(mapped,tracked.frameWidth,tracked.frameHeight,size.first,size.second,p.sources[0].path)))
+                followStatus=FollowCropStatus.Idle;status="Following crop set. Render edited preview to inspect motion before export."
+            } catch(e:CancellationException) { followStatus=FollowCropStatus.Idle;throw e }
+            catch(e:Exception) { followStatus=FollowCropStatus.Failed;throw e }
+        }
+    }
     fun smartUi() = com.cuscus.ffmpeggui.SmartEditUi(
         pauseCuts=pauseStatus, sceneSplits=sceneStatus, beats=beatStatus, snapToBeats=snap,
         followCrop=followStatus, followCropSet=project?.followCrop!=null,
         onFindPauseCuts=::findPauses,
         onTogglePauseCut={ index -> (pauseStatus as? PauseCutsStatus.Ready)?.let { s -> pauseStatus=s.copy(chosen=toggle(s.chosen,index)) } },
         onApplyPauseCuts={ val p=project; val s=pauseStatus as? PauseCutsStatus.Ready; if (p!=null && s!=null) mutate(p.copy(timeline=p.timeline.withoutRanges(s.cuts.filterIndexed { i,_ -> i in s.chosen },id),followCrop=null)) },
-        onDismissPauseCuts={ pauseStatus=PauseCutsStatus.Idle }, onListen={ tab="Transcript" },
+        onDismissPauseCuts={ pauseStatus=PauseCutsStatus.Idle }, onListen={ tab="Transcript";listen() },
         onFindSceneSplits=::findScenes,
         onToggleSceneSplit={ index -> (sceneStatus as? SceneSplitsStatus.Ready)?.let { s -> sceneStatus=s.copy(chosen=toggle(s.chosen,index)) } },
         onApplySceneSplits={ val p=project; val s=sceneStatus as? SceneSplitsStatus.Ready; if (p!=null && s!=null) mutate(p.copy(timeline=p.timeline.splitAtAll(s.points.filterIndexed { i,_ -> i in s.chosen },id),followCrop=null)) },
@@ -169,7 +197,7 @@ class EditorController(val scope: CoroutineScope) {
         onToggleBeat={ index -> (beatStatus as? BeatsStatus.Ready)?.let { s -> beatStatus=s.copy(chosen=toggle(s.chosen,index)) } },
         onSnapToBeats={ snap=it },
         onApplyBeatCuts={ val p=project; val s=beatStatus as? BeatsStatus.Ready; if (p!=null && s!=null) mutate(p.copy(timeline=p.timeline.splitAtAll(s.beatsMs.filterIndexed { i,_ -> i in s.chosen },id),followCrop=null)) },
-        onDismissBeats={ beatStatus=BeatsStatus.Idle }, onTrackSubject={ followStatus=FollowCropStatus.NoModel },
+        onDismissBeats={ beatStatus=BeatsStatus.Idle }, onTrackSubject=::follow,
         onStopFollowCrop={ job?.cancel(); followStatus=FollowCropStatus.Idle },
         onClearFollowCrop={ project?.let { mutate(it.copy(followCrop=null)) } }, onOpenCutoutModel={ tab="Models" }
     )

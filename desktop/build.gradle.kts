@@ -1,3 +1,4 @@
+import java.security.MessageDigest
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 plugins {
     kotlin("jvm") version "2.1.20"
@@ -65,3 +66,32 @@ tasks.register<JavaExec>("nativeChecks") {
     mainClass.set("com.cuscus.ffmpeggui.desktop.NativeChecksKt")
     args = listOf(project.findProperty("fixtureDir")?.toString() ?: "/tmp/ffmpeggui-fixtures")
 }
+
+dependencies {
+    implementation(files("libs/sherpa-onnx-jvm-2.0.3.jar", "libs/sherpa-onnx-native-lib-linux-x64-2.0.3.jar"))
+    implementation("com.microsoft.onnxruntime:onnxruntime:1.28.0")
+}
+val prepareModelDefinitions by tasks.registering(Copy::class) {
+    from("../app/src/main/java/com/cuscus/ffmpeggui/speech/SpeechModel.kt")
+    from("../app/src/main/java/com/cuscus/ffmpeggui/cutout/CutoutModel.kt")
+    into(layout.buildDirectory.dir("generated/modelDefinitions"))
+}
+sourceSets.main { kotlin.srcDir(layout.buildDirectory.dir("generated/modelDefinitions")); resources.srcDir("resources") }
+tasks.named("compileKotlin") { dependsOn(prepareModelDefinitions) }
+tasks.register<JavaExec>("modelChecks") {
+    classpath = sourceSets.main.get().runtimeClasspath
+    mainClass.set("com.cuscus.ffmpeggui.desktop.DesktopSmartModelsChecksKt")
+    args = listOf(project.findProperty("modelDir")?.toString() ?: "/tmp/ffmpeggui-models", "--speech", "--speech-first")
+}
+
+val verifyNativeJars by tasks.registering {
+    inputs.files(fileTree("libs") { include("*.jar") })
+    doLast {
+        file("libs/SHA256SUMS").readLines().filter { it.isNotBlank() }.forEach { line ->
+            val pair = line.split(Regex("\\s+"), limit = 2)
+            val digest = MessageDigest.getInstance("SHA-256").digest(file("libs/${pair[1]}").readBytes()).joinToString("") { "%02x".format(it.toInt() and 255) }
+            check(digest == pair[0]) { "Native runtime checksum mismatch: ${pair[1]}" }
+        }
+    }
+}
+tasks.named("compileKotlin") { dependsOn(verifyNativeJars) }

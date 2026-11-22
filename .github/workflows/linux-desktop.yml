@@ -36,6 +36,10 @@ jobs:
         run: |
           python3 desktop/scripts/make-fixtures.py /tmp/ffmpeggui-fixtures
           gradle -p desktop nativeChecks -PfixtureDir=/tmp/ffmpeggui-fixtures --console=plain
+      - name: Test original pinned offline models
+        run: |
+          python3 desktop/scripts/prepare-model-fixtures.py --repo . --output /tmp/ffmpeggui-models
+          gradle -p desktop modelChecks -PmodelDir=/tmp/ffmpeggui-models --console=plain
       - name: Inspect native GUI
         run: FFMPEGGUI_OPEN=/tmp/ffmpeggui-fixtures/video.mp4 FFMPEGGUI_SCREENSHOT=/tmp/linux-editor.png xvfb-run -a -s "-screen 0 1440x1000x24" gradle -p desktop run --console=plain
       - name: Package native app with Java runtime
