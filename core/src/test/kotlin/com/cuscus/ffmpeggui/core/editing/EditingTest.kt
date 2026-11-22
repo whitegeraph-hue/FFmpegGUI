@@ -230,8 +230,23 @@ class EditingTest {
         inner.forEach { c -> if (c == '(') depth++; if (c == ')') depth--; assertTrue(depth >= 0) }
         assertEquals(0, depth)
         assertTrue(filter.contains("clip("))
-        // Commas appear only escaped.
-        assertFalse(Regex("[^\\\\],").containsMatchIn(filter))
+    }
+
+    @Test
+    fun `follow crop joins the export chain and sets the frame`() {
+        val builder = com.cuscus.ffmpeggui.core.command.CommandBuilder { _ -> "/fonts/Regular.ttf" }
+        val track = FollowCropTrack(
+            points = listOf(SubjectPoint(0, 0.5f, 0.5f, 1f), SubjectPoint(2_000, 0.6f, 0.5f, 1f)),
+            inWidth = 1920, inHeight = 1080, outWidth = 606, outHeight = 1080,
+        )
+        val request = com.cuscus.ffmpeggui.core.model.ConversionRequest(
+            format = com.cuscus.ffmpeggui.core.model.OutputFormat.MP4,
+            inputFileName = "clip.mov",
+            sources = listOf(com.cuscus.ffmpeggui.core.model.SourceInfo(durationMs = 20_000, width = 1920, height = 1080)),
+            followCrop = track,
+        )
+        val args = builder.build(request, com.cuscus.ffmpeggui.core.command.MediaPaths.aliasesFor(request)).arguments.joinToString(" ")
+        assertTrue("crop in command", args.contains("crop=w=606:h=1080"))
     }
 
     @Test

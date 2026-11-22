@@ -1074,6 +1074,11 @@ class CommandBuilder(fonts: FontProvider) {
             else -> clipFrame(request, first) ?: (source.width to source.height)
         }
         var (w, h) = turnedAndCropped(request.effects, joined.first, joined.second)
+        // The subject-following reframe (see VideoFilters.wholeBefore) sets the frame.
+        request.followCrop?.let {
+            w = it.outWidth
+            h = it.outHeight
+        }
         // The canvas (see VideoFilters.canvasFilter): the frame grows to the ratio, even sides,
         // whether the picture is whole on it, covers it or is stretched to it.
         request.canvas.ratio?.let { ratio ->

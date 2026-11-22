@@ -109,11 +109,13 @@ data class FollowCropTrack(
             if (delta == 0f) continue
             expression.append(if (delta > 0) '+' else '-')
             expression.append(num(kotlin.math.abs(delta)))
+            // Commas stay raw: the expression is a single-quoted option value
+            // (as the other filters of the app quote theirs).
             expression.append("*clip((t-")
             expression.append(num(times[k - 1].toFloat()))
             expression.append(")/")
             expression.append(num(span.toFloat()))
-            expression.append("\\,0\\,1)")
+            expression.append(",0,1)")
         }
         return expression.toString()
     }

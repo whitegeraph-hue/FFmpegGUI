@@ -1,5 +1,6 @@
 package com.cuscus.ffmpeggui.core.model
 
+import com.cuscus.ffmpeggui.core.editing.FollowCropTrack
 import com.cuscus.ffmpeggui.core.preview.frameRatio
 import com.cuscus.ffmpeggui.core.subtitles.SourceWords
 import com.cuscus.ffmpeggui.core.subtitles.SpokenWord
@@ -84,6 +85,12 @@ data class ConversionRequest(
     val placedWords: List<SpokenWord> = emptyList(),
     val frameExtraction: FrameExtraction = FrameExtraction.Disabled,
     val stabilization: Stabilization? = null,
+    /**
+     * Subject-following reframe: a window of the track's size slides inside
+     * the joined footage following the subject (see core/editing/FollowCrop).
+     * Applied to the joined video before its canvas; ignored by a stream copy.
+     */
+    val followCrop: FollowCropTrack? = null,
     val split: Split = Split.Disabled,
     val metadata: MetadataTags = MetadataTags(),
     /**

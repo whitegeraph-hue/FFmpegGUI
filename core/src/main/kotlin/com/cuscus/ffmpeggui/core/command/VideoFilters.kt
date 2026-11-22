@@ -164,6 +164,10 @@ internal class VideoFilters(private val fonts: FontProvider) {
         }
         filters += denoise(effects.color)
         filters += geometry(effects)
+        // The subject-following reframe slides its window on the joined video's
+        // clock, which speed() below re-times last; it lands before the canvas
+        // so a chosen ratio still frames the window.
+        request.followCrop?.let { filters += it.cropFilter() }
         val placement = effects.placement?.takeUnless { it.isNeutral }
         if (placement == null) {
             canvasFilter(request.canvas, request.canvasFit)?.let { filters += it }
