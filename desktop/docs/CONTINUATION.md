@@ -58,3 +58,57 @@ Use same application model gate before adding concurrent engines. Imports are
 blocked by UI while a job is active. Native cancellation waits for current call.
 
 Master remains 5744861a1c934c4e1a1999b251f33d152fa850ac. No release/tag/PR merge.
+
+## Checkpoint 2026-11-22 22:52 Cairo
+
+Branch tip 0796ff9. All model-boundary/playback source pushed. Master untouched.
+The original in-process GUI Listen click crashed sherpa token parsing despite
+identical headless inputs passing. Root cause unknown. Both model engines now
+run headless isolated workers with pins revalidated, cancellation/descendant
+cleanup, shutdown hook, parent watchdog, JSON IPC and packaged launcher reuse.
+The inherited _JPACKAGE_LAUNCHER marker must be removed in worker environment.
+
+Fresh full package at desktop/build/compose/binaries/main/deb/ was rebuilt then
+postprocessed/extracted to `/tmp/final package spaces`. SHA256
+c0517ca6ca66bb22c5fba3dbdc27fcdcf9486bf0b900e7262783d73c22e693de.
+It includes latest watchdog/test source except subsequent small path handling,
+error-display and atomic-postprocessor edits in 0796ff9. Do not present that
+package hash as a clean 0796ff9 build. Fresh clean CI must replace it.
+
+Passed actual mouse clicks from full extracted package: Listen gives17 words,
+Follow sets crop. Imports were previously tested through native file pickers.
+Source/patched package earlier screenshots do not substitute fresh package
+screenshots `/tmp/final-deb-click-listen.png` and `...follow.png`. Both sent.
+Worker suite passed via actual package launcher in path with spaces and symlink:
+speech+track, cancel, forced crash as failure, retry. GUI double-click only one
+worker; killed worker yields error and editor survives. Parent SIGKILL while
+real FFmpeg grandchild was briefly suspended: worker+FFmpeg gone after1s.
+Evidence `/tmp/pkg-subtree-kill.log`, sent.35s speech:155words,last34879ms.
+Speech is disk-backed30s chunks, not full audio heap buffering. Beat is currently
+full sample array, ten-minute cap disclosed. ORT GLIBC floor2.27 declared.
+
+Rendered preview plays inside editor. Actual clicked playback using timed
+PulseAudio virtual sink advanced burn-in0.48->2.64s across roughly2s, pause
+observed. This is not physical speakers or full live-effects preview parity.
+Player seek/rapid stop/close cleanup, large-frame/long-timeline stress still
+need more coverage. Playback implementation is new and requires review.
+
+Next real work, not more duplicate model checks:
+1. Check new0796ff9 CI and clean artifact. Previous3ca2768 CI45068074048 green.
+2. Complete licenses: include all actually shipped JVM/native notices and
+U2-NetP attribution. Current bundle is not yet license-complete for delivery.
+3. Actual system install/target Zorin release+graphics/audio validation remain.
+4. Broader original UI migration: subtitles/style, encoding controls, command
+studio, photo/audio editors, multi-source timeline/layers/effects. PARITY.md is
+still full outstanding scope, no user scope reduction approved.
+5. Do not call this complete, tag, release or merge master. A usable development
+milestone can be delivered only with honest gaps and after delivery checks.
+
+Build Java17 /tmp/ffmpeg-build-tools/jdk-17.0.21.1+2, Gradle8.14.3.
+Stop Gradle before native inference on this2GB host. Model fixtures in
+/tmp/ffmpeggui-models, media fixtures /tmp/ffmpeggui-fixtures. Local incremental
+builds skipped already-compiled shared-core, clean CI compiles it.
+UI click scripts /tmp/final-deb-click-ui.py, /tmp/pkg-subtree-kill.py,
+/tmp/timed-play-ui.py use actual xdotool window1280px (avoid1px helper).
+Pulse virtual sink configured /tmp/ffgui-pulse.conf, set ALSA_CONFIG_PATH only
+for tests. Do not ship test null-sink configuration.
