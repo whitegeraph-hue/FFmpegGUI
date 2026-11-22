@@ -120,7 +120,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                                 }
                             }
                             Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(10.dp)) {
-                                val tabs=listOf("Edit","Transcript","Pause cuts","Scenes","Beats","Follow crop","Models","Subtitles")
+                                val tabs=listOf("Edit","Transcript","Pause cuts","Scenes","Beats","Follow crop","Models","Subtitles","Audio")
                                 FlowRowCompat {
                                     tabs.forEach { title -> FilterChip(selected=controller.tab==title,onClick={ controller.tab=title },label={ Text(title) }) }
                                 }
@@ -128,6 +128,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                                     when(controller.tab) {
                                         "Edit" -> EditPanel(controller,project)
                                         "Subtitles" -> SubtitlesPanel(controller,project)
+                                        "Audio" -> AudioMasterPanel(controller,project)
                                         "Pause cuts" -> PauseCutsPanel(controller.smartUi())
                                         "Scenes" -> SceneSplitsPanel(controller.smartUi())
                                         "Beats" -> BeatsPanel(controller.smartUi())
@@ -238,7 +239,14 @@ private fun EditPanel(c: EditorController,p: DesktopProject) {
         Text("Encoding",style=MaterialTheme.typography.titleMedium)
         Text("Quality and size use the original Android command settings. CPU encoding only.",style=MaterialTheme.typography.bodySmall)
         ValueSlider("Quality",p.encoding.quality,0f..1f,!c.busy) { c.mutate(p.copy(encoding=p.encoding.copy(quality=it))) }
-        if(p.format.hasVideo) {
+        if(p.format==OutputFormat.GIF) {
+            val g=p.encoding.gif
+            ValueSlider("GIF width",g.width.toFloat(),120f..960f,!c.busy) {c.mutate(p.copy(encoding=p.encoding.copy(gif=g.copy(width=it.toInt()))))}
+            ValueSlider("GIF fps",g.fps.toFloat(),5f..30f,!c.busy) {c.mutate(p.copy(encoding=p.encoding.copy(gif=g.copy(fps=it.toInt()))))}
+            ValueSlider("Palette colours",g.colors.toFloat(),2f..256f,!c.busy) {c.mutate(p.copy(encoding=p.encoding.copy(gif=g.copy(colors=it.toInt()))))}
+            FlowRowCompat { GifDither.entries.forEach { d -> FilterChip(g.dither==d,{c.mutate(p.copy(encoding=p.encoding.copy(gif=g.copy(dither=d))))},label={Text(d.name.lowercase())},enabled=!c.busy) } }
+            Row(verticalAlignment=Alignment.CenterVertically) {Checkbox(g.loops==0,{c.mutate(p.copy(encoding=p.encoding.copy(gif=g.copy(loops=if(it)0 else -1))))},enabled=!c.busy);Text("Loop forever");Checkbox(g.smaller,{c.mutate(p.copy(encoding=p.encoding.copy(gif=g.copy(smaller=it))))},enabled=!c.busy);Text("Smaller file")}
+        } else if(p.format.hasVideo) {
             Text("Output height")
             FlowRowCompat { Resolution.entries.forEach { r -> FilterChip(p.encoding.resolution==r,{ c.mutate(p.copy(encoding=p.encoding.copy(resolution=r))) },label={ Text(if(r==Resolution.ORIGINAL) "Original" else "${r.height}p") },enabled=!c.busy) } }
             Text("Frame rate")
@@ -272,5 +280,34 @@ private fun EditPanel(c: EditorController,p: DesktopProject) {
             Row(verticalAlignment=Alignment.CenterVertically) { Checkbox(style.bold,{c.mutate(p.copy(subtitleStyle=style.copy(bold=it)))},enabled=!c.busy);Text("Bold");Checkbox(style.uppercase,{c.mutate(p.copy(subtitleStyle=style.copy(uppercase=it)))},enabled=!c.busy);Text("Uppercase") }
             Text("Linux currently uses DejaVu Sans. Custom font and colour pickers remain unported.",style=MaterialTheme.typography.bodySmall)
         }
+    }
+}
+
+@Composable private fun AudioMasterPanel(c:EditorController,p:DesktopProject) {
+    val a=p.audioEffects
+    fun change(value:AudioEffects) {c.mutate(p.copy(audioEffects=value))}
+    PanelCard {
+        Text("Audio mastering",style=MaterialTheme.typography.titleLarge)
+        Text("The original ten-band EQ and mastering filter chain. Render edited preview to hear the actual result. Live waveform and multi-track editing remain unported.",style=MaterialTheme.typography.bodySmall)
+        OutlinedButton(onClick={change(AudioEffects.NONE)},enabled=!c.busy) {Text("Reset mastering")}
+        AudioEffects.EQ_BANDS_HZ.forEachIndexed { index,hz -> ValueSlider("$hz Hz (dB)",a.equalizerGains[index],-12f..12f,!c.busy) { value ->change(a.copy(equalizer=a.equalizerGains.toMutableList().also {it[index]=value}))} }
+        ValueSlider("Low cut Hz (0 = off)",a.lowCutHz.toFloat(),0f..500f,!c.busy) {change(a.copy(lowCutHz=it.toInt()))}
+        ValueSlider("High cut Hz (0 = off)",a.highCutHz.toFloat(),0f..20000f,!c.busy) {change(a.copy(highCutHz=it.toInt()))}
+        ValueSlider("Pitch semitones",a.pitchSemitones,-12f..12f,!c.busy) {change(a.copy(pitchSemitones=it))}
+    }
+    PanelCard {
+        Text("Dynamics and space",style=MaterialTheme.typography.titleMedium)
+        Row(verticalAlignment=Alignment.CenterVertically) {Switch(a.gate!=null,{change(a.copy(gate=if(it)NoiseGate() else null))},enabled=!c.busy);Text("Noise gate")}
+        a.gate?.let { g ->ValueSlider("Gate threshold dB",g.thresholdDb,-70f..-10f,!c.busy) {change(a.copy(gate=g.copy(thresholdDb=it)))} }
+        Row(verticalAlignment=Alignment.CenterVertically) {Switch(a.compressor!=null,{change(a.copy(compressor=if(it)Compressor() else null))},enabled=!c.busy);Text("Compressor")}
+        a.compressor?.let { comp ->ValueSlider("Threshold dB",comp.thresholdDb,-40f..0f,!c.busy) {change(a.copy(compressor=comp.copy(thresholdDb=it)))};ValueSlider("Ratio",comp.ratio,1f..12f,!c.busy) {change(a.copy(compressor=comp.copy(ratio=it)))} }
+        Row(verticalAlignment=Alignment.CenterVertically) {Switch(a.limiter!=null,{change(a.copy(limiter=if(it)Limiter() else null))},enabled=!c.busy);Text("Limiter")}
+        Row(verticalAlignment=Alignment.CenterVertically) {Switch(a.echo!=null,{change(a.copy(echo=if(it)Echo() else null))},enabled=!c.busy);Text("Echo")}
+        a.echo?.let { echo ->ValueSlider("Echo delay ms",echo.delayMs.toFloat(),20f..1000f,!c.busy) {change(a.copy(echo=echo.copy(delayMs=it.toInt())))};ValueSlider("Echo feedback",echo.feedback,0f..0.8f,!c.busy) {change(a.copy(echo=echo.copy(feedback=it)))} }
+        Row(verticalAlignment=Alignment.CenterVertically) {Switch(a.reverb!=null,{change(a.copy(reverb=if(it)Reverb() else null))},enabled=!c.busy);Text("Reverb")}
+        a.reverb?.let { r ->FlowRowCompat {RoomSize.entries.forEach { size ->FilterChip(r.size==size,{change(a.copy(reverb=r.copy(size=size)))},label={Text(size.name.lowercase())},enabled=!c.busy)}};ValueSlider("Reverb mix",r.mix,0f..1f,!c.busy) {change(a.copy(reverb=r.copy(mix=it)))} }
+        ValueSlider("Stereo width",a.stereo.width,0f..2f,!c.busy) {change(a.copy(stereo=a.stereo.copy(width=it)))}
+        ValueSlider("Stereo balance",a.stereo.balance,-1f..1f,!c.busy) {change(a.copy(stereo=a.stereo.copy(balance=it)))}
+        Row(verticalAlignment=Alignment.CenterVertically) {Checkbox(a.stereo.mono,{change(a.copy(stereo=a.stereo.copy(mono=it)))},enabled=!c.busy);Text("Mono");Checkbox(a.stereo.swapSides,{change(a.copy(stereo=a.stereo.copy(swapSides=it)))},enabled=!c.busy);Text("Swap sides")}
     }
 }

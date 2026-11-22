@@ -56,6 +56,22 @@ fun main(args:Array<String>)=runBlocking {
         val restored=DesktopProjects.load(file,media);check(restored.encoding==edited.encoding && restored.subtitleStyle==edited.subtitleStyle)
         val output=exporter.export(edited,File(folder,"encoded.mp4"));check(output.info.height==240 && kotlin.math.abs(output.info.frameRate-15f)<.1f)
     }
+    verify("audio mastering and actual 24bit 44100Hz export") {
+        val source=media.probe(File(folder,"beat.wav").path)
+        val mastering=AudioEffects(equalizer=List(10) { if(it==4) 6f else 0f },compressor=Compressor(),reverb=Reverb(mix=.2f),stereo=StereoImage(width=.8f))
+        val edited=DesktopProject.create(source).copy(format=OutputFormat.WAV,audioEffects=mastering,encoding=EncodingSettings(audio=AudioEncoding(192,44100,24)))
+        val target=File(folder,"mastered.wav");exporter.export(edited,target)
+        val probe=media.process.checked(listOf("ffprobe","-v","error","-show_streams","-of","json",target.path))
+        check("pcm_s24le" in probe && "44100" in probe)
+        val before=media.samples(source.path);val after=media.samples(target.path)
+        check(before.indices.take(16000).any { kotlin.math.abs(before[it]-after[it])>.001f })
+        val file=File(folder,"mastering.ffgui.json");DesktopProjects.save(edited,file);check(DesktopProjects.load(file,media).audioEffects==mastering)
+    }
+    verify("GIF palette frame rate width and persistence") {
+        val edited=p.copy(format=OutputFormat.GIF,encoding=EncodingSettings(gif=GifSettings(width=240,fps=10,colors=32,dither=GifDither.BAYER,loops=-1,smaller=true)))
+        val output=exporter.export(edited,File(folder,"palette.gif"));check(output.info.width==240 && kotlin.math.abs(output.info.frameRate-10f)<.1f)
+        val file=File(folder,"gif.ffgui.json");DesktopProjects.save(edited,file);check(DesktopProjects.load(file,media).encoding.gif==edited.encoding.gif)
+    }
     verify("cancel real process") {
         val start=System.currentTimeMillis()
         val job=launch { media.process.run(listOf("ffmpeg","-re","-f","lavfi","-i","testsrc2=size=640x360:rate=25","-t","30","-f","null","-")) }

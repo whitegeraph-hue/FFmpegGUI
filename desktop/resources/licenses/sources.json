@@ -1,42 +1,52 @@
 [
   {
     "file": "u2net/LICENSE",
-    "url": "https://raw.githubusercontent.com/xuebinqin/U-2-Net/master/LICENSE"
+    "url": "https://raw.githubusercontent.com/xuebinqin/U-2-Net/ac7e1c817ecab7c7dff5ce6b1abba61cd213ff29/LICENSE",
+    "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
   },
   {
     "file": "rembg/LICENSE",
-    "url": "https://raw.githubusercontent.com/danielgatis/rembg/main/LICENSE.txt"
+    "url": "https://raw.githubusercontent.com/danielgatis/rembg/991927b77667946dab59c50df31f7d4640e80457/LICENSE.txt",
+    "sha256": "90a3215072968fd304669c5389f04f1274a587abdd0507d99dead0f5511f8999"
   },
   {
     "file": "skiko/LICENSE",
-    "url": "https://raw.githubusercontent.com/JetBrains/skiko/v0.9.4.2/LICENSE"
+    "url": "https://raw.githubusercontent.com/JetBrains/skiko/v0.9.4.2/LICENSE",
+    "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
   },
   {
     "file": "compose/LICENSE",
-    "url": "https://raw.githubusercontent.com/JetBrains/compose-multiplatform/v1.8.2/LICENSE.txt"
+    "url": "https://raw.githubusercontent.com/JetBrains/compose-multiplatform/v1.8.2/LICENSE.txt",
+    "sha256": "f9a85c61ba4fe8bacc300053b3384b5fc7d9f585a08dc7b9a465b7c0716c4f50"
   },
   {
     "file": "datetime/LICENSE",
-    "url": "https://raw.githubusercontent.com/Kotlin/kotlinx-datetime/v0.6.0/LICENSE.txt"
+    "url": "https://raw.githubusercontent.com/Kotlin/kotlinx-datetime/v0.6.0/LICENSE.txt",
+    "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
   },
   {
     "file": "jetbrains-annotations/LICENSE",
-    "url": "https://raw.githubusercontent.com/JetBrains/java-annotations/23.0.0/LICENSE.txt"
+    "url": "https://raw.githubusercontent.com/JetBrains/java-annotations/23.0.0/LICENSE.txt",
+    "sha256": "8c1e966c7855fb54027bcaf6ebe7a43abe4785791e8cf9148c363761d493d097"
   },
   {
     "file": "atomicfu/LICENSE.txt",
-    "url": "https://raw.githubusercontent.com/Kotlin/kotlinx-atomicfu/0.23.2/LICENSE.txt"
+    "url": "https://raw.githubusercontent.com/Kotlin/kotlinx-atomicfu/0.23.2/LICENSE.txt",
+    "sha256": "f4def61b03500df363b99b1781d37b345d335129d33e28d7193de2e6bdb33e96"
   },
   {
     "file": "atomicfu/NOTICE.txt",
-    "url": "https://raw.githubusercontent.com/Kotlin/kotlinx-atomicfu/0.23.2/license/NOTICE.txt"
+    "url": "https://raw.githubusercontent.com/Kotlin/kotlinx-atomicfu/0.23.2/license/NOTICE.txt",
+    "sha256": "2b1db3aa8302414ea2bb1be5391110268b4611a11c9c3d28e34bf3acfddc9ef4"
   },
   {
     "file": "skiko/NOTICE",
-    "url": "https://raw.githubusercontent.com/JetBrains/skiko/v0.9.4.2/NOTICE"
+    "url": "https://raw.githubusercontent.com/JetBrains/skiko/v0.9.4.2/NOTICE",
+    "sha256": "35dd077c24768b53625101cfcc0ad853ae7e2abc08bd2a111a0267760d1406d8"
   },
   {
     "file": "skia/LICENSE",
-    "url": "https://raw.githubusercontent.com/google/skia/main/LICENSE"
+    "url": "https://raw.githubusercontent.com/google/skia/469a34e7fa44c9045251dd06d91e504751d25c0b/LICENSE",
+    "sha256": "5f787c1dee3c56547f09ccc2906ab5f5293c4d8dd6c8654e573216c38e908dbd"
   }
 ]

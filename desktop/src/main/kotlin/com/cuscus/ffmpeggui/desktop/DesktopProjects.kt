@@ -22,6 +22,8 @@ object DesktopProjects {
             put("sources",buildJsonArray { project.sources.forEach { add(buildJsonObject { put("path",it.path); put("size",File(it.path).length()); put("durationMs",it.info.durationMs) }) } })
             put("format",project.format.name)
             put("effects",core(ModelJson.write(project.effects)))
+            put("audioEffects",core(ModelJson.write(project.audioEffects)))
+            put("gif",buildJsonObject { val g=project.encoding.gif;put("width",g.width);put("fps",g.fps);put("colors",g.colors);put("dither",g.dither.name);put("loops",g.loops);put("smaller",g.smaller) })
             project.followCrop?.let { put("followCrop",core(ModelJson.writeFollowCrop(it))) }
             project.subtitleStyle?.let { put("subtitleStyle",core(ModelJson.write(it))) }
             put("resolution",project.encoding.resolution.name)
@@ -56,13 +58,15 @@ object DesktopProjects {
             s!=null && c.startMs>=0 && end!=null && end>c.startMs && (s.info.isStill || end<=s.info.durationMs+50)
         }) { "Project timeline refers to missing or invalid footage." }
         val effects=ModelJson.effects(read(data["effects"]!!))
+        val gif=data["gif"]?.jsonObject
+        val gifSettings=gif?.let { GifSettings(it["width"]!!.jsonPrimitive.int,it["fps"]!!.jsonPrimitive.int,it["colors"]!!.jsonPrimitive.int,GifDither.valueOf(it["dither"]!!.jsonPrimitive.content),it["loops"]!!.jsonPrimitive.int,it["smaller"]!!.jsonPrimitive.boolean) } ?: GifSettings()
         val words=data["words"]!!.jsonArray.map { w -> w.jsonObject.let { SpokenWord(it["startMs"]!!.jsonPrimitive.long,it["endMs"]!!.jsonPrimitive.long,it["text"]!!.jsonPrimitive.content) } }
         return DesktopProject(sources,timeline,OutputFormat.valueOf(data["format"]!!.jsonPrimitive.content),effects=effects,words=words,
             encoding=EncodingSettings(resolution=data["resolution"]?.jsonPrimitive?.content?.let { Resolution.valueOf(it) } ?: Resolution.ORIGINAL, quality=data["quality"]?.jsonPrimitive?.float ?: .7f,
                 framerate=data["framerate"]?.jsonPrimitive?.content?.let { Framerate.valueOf(it) } ?: Framerate.ORIGINAL,
                 cpuSpeed=data["cpuSpeed"]?.jsonPrimitive?.content?.let { CpuEncoderSpeed.valueOf(it) } ?: CpuEncoderSpeed.BALANCED,
-                keepHdr=data["keepHdr"]?.jsonPrimitive?.boolean ?: true,
+                keepHdr=data["keepHdr"]?.jsonPrimitive?.boolean ?: true,gif=gifSettings,
                 audio=AudioEncoding(data["audioBitrate"]?.jsonPrimitive?.int ?: 192,data["audioSampleRate"]?.jsonPrimitive?.int ?: 0,data["audioDepth"]?.jsonPrimitive?.int ?: 16)),
-            followCrop=data["followCrop"]?.let { ModelJson.followCrop(read(it)) },subtitleStyle=data["subtitleStyle"]?.let { ModelJson.subtitleStyle(read(it)) })
+            followCrop=data["followCrop"]?.let { ModelJson.followCrop(read(it)) },subtitleStyle=data["subtitleStyle"]?.let { ModelJson.subtitleStyle(read(it)) },audioEffects=data["audioEffects"]?.let {ModelJson.audioEffects(read(it))} ?: AudioEffects.NONE)
     }
 }

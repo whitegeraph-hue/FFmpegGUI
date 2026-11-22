@@ -59,3 +59,10 @@ switch produced17words and visible style controls. Actual ASS render pixels
 inspected (Hello Linux, outlined yellow, bottom centre). SRT removes cut words
 and retimes2x correctly in native test. Custom font/colour and external subtitle
 file import still unported. Original core stays unchanged.
+
+Audio/GIF continuation: ten-band EQ, low/high cuts, pitch, noise gate,
+compressor, limiter, echo, reverb, stereo width/balance/mono/swap are now bound
+to shared AudioEffects and persisted with ModelJson. The16native checks verify
+actual mastered PCM differs and output is pcm_s24le/44100Hz. GIF palette size,
+width, fps, dither, loop and smaller options are exposed and persisted; real
+240px10fps GIF checked. Waveforms, live DSP, modulation and stems remain gaps.
