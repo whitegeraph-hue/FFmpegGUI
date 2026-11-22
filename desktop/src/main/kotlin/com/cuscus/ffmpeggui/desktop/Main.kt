@@ -141,7 +141,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                                         "Drawing" -> DrawingPanel(controller,project)
                                         "Command studio" -> StudioPanel(controller,project){name->pick(true,name)}
                                         "Clip editor" -> ClipEditorPanel(controller,project)
-                                        "Subtitles" -> SubtitlesPanel(controller,project)
+                                        "Subtitles" -> SubtitlesPanel(controller,project){pick()}
                                         "Image layers" -> PictureLayersPanel(controller,project){pick()?.path}
                                         "Tags" -> TagsPanel(controller,project)
                                         "Sound tracks" -> SoundTracksPanel(controller,project) {pick()?.path}
@@ -284,7 +284,7 @@ private fun EditPanel(c: EditorController,p: DesktopProject) {
         if(p.format.isLosslessAudio) Row { listOf(16,24).forEach { depth -> FilterChip(p.encoding.audio.bitDepth==depth,{ c.mutate(p.copy(encoding=p.encoding.copy(audio=p.encoding.audio.copy(bitDepth=depth)))) },label={Text("$depth bit")},enabled=!c.busy) } }
     }
 }
-@Composable private fun SubtitlesPanel(c:EditorController,p:DesktopProject) {
+@Composable private fun SubtitlesPanel(c:EditorController,p:DesktopProject,pick:()->File?) {
     val style=p.subtitleStyle ?: SubtitleStyle()
     PanelCard {
         Text("Spoken subtitles",style=MaterialTheme.typography.titleLarge)
@@ -304,8 +304,27 @@ private fun EditPanel(c: EditorController,p: DesktopProject) {
             FlowRowCompat { WordHighlight.entries.forEach { highlight -> FilterChip(style.highlight==highlight,{c.mutate(p.copy(subtitleStyle=style.copy(highlight=highlight)))},label={Text(highlight.name.lowercase())},enabled=!c.busy) } }
             FlowRowCompat { SubtitleLook.entries.forEach { look -> FilterChip(style.look==look,{c.mutate(p.copy(subtitleStyle=style.copy(look=look)))},label={Text(look.name.lowercase())},enabled=!c.busy) } }
             Row(verticalAlignment=Alignment.CenterVertically) { Checkbox(style.bold,{c.mutate(p.copy(subtitleStyle=style.copy(bold=it)))},enabled=!c.busy);Text("Bold");Checkbox(style.uppercase,{c.mutate(p.copy(subtitleStyle=style.copy(uppercase=it)))},enabled=!c.busy);Text("Uppercase") }
-            Text("Linux currently uses DejaVu Sans. Custom font and colour pickers remain unported.",style=MaterialTheme.typography.bodySmall)
+            Text("Font: "+(style.fontFile?.let {File(it).name} ?: "DejaVu Sans"),style=MaterialTheme.typography.bodySmall)
+            Row {
+                OutlinedButton(onClick={pick()?.let {file->c.work("Checking font…"){DesktopFonts.validate(file);c.mutate(p.copy(subtitleStyle=style.copy(fontFile=file.absolutePath)));c.status="Font selected. Render preview to see the result."}}},enabled=!c.busy) {Text("Choose TTF / OTF")}
+                TextButton(onClick={c.mutate(p.copy(subtitleStyle=style.copy(fontFile=null)))},enabled=!c.busy) {Text("Default font")}
+            }
+            Text("Custom fonts stay at their original paths. Missing fonts use DejaVu Sans. No fonts are embedded in project files.",style=MaterialTheme.typography.bodySmall)
+            ArgbField("Text ARGB",style.textColor,!c.busy){c.mutate(p.copy(subtitleStyle=style.copy(textColor=it)))}
+            ArgbField("Highlight ARGB",style.highlightColor,!c.busy){c.mutate(p.copy(subtitleStyle=style.copy(highlightColor=it)))}
+            ArgbField("Shadow ARGB",style.shadowColor,!c.busy){c.mutate(p.copy(subtitleStyle=style.copy(shadowColor=it)))}
+            Row(verticalAlignment=Alignment.CenterVertically) {Checkbox(style.dropShadow,{c.mutate(p.copy(subtitleStyle=style.copy(dropShadow=it)))},enabled=!c.busy);Text("Drop shadow");Checkbox(style.maxLines==2,{c.mutate(p.copy(subtitleStyle=style.copy(maxLines=if(it)2 else 1)))},enabled=!c.busy);Text("Two lines")}
+
         }
+    }
+}
+
+@Composable private fun ArgbField(label:String,value:Long,enabled:Boolean,update:(Long)->Unit) {
+    var text by remember(value) {mutableStateOf("%08X".format(value and 0xffffffffL))}
+    val valid=text.matches(Regex("[0-9a-fA-F]{8}"))
+    Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+        Box(Modifier.size(24.dp).background(Color(value.toInt())))
+        OutlinedTextField(text,{text=it.take(8);if(text.matches(Regex("[0-9a-fA-F]{8}")))update(text.toLong(16))},label={Text(label+" (AARRGGBB)")},enabled=enabled,isError=!valid,singleLine=true)
     }
 }
 

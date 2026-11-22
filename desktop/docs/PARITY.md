@@ -284,3 +284,9 @@ rejected until its adapter exists. Latest full package8b6predatesHDR/canvas.
 - Clip editor now exposes all original transition kinds that do not require separately ported companion assets, using the unchanged core graph/expressions. Punch/punch-back and technical-difficulties remain gated.
 - Native check 45 actually renders seven representative families (flash, cube, RGB split, hearts, zoom blur, page turn and native wipe), decodes their midpoint, checks output time and project reload. Representative coverage is not all-kind visual proof. Solid-colour inputs cannot establish blur quality.
 - Transition controls and seven-render midpoint montage inspected. No Zorin compatibility or final-package claim. Current local package predates this change.
+
+### 2026-11-23 02:00 EET: subtitle fonts and styling
+- Subtitle panel now selects validated single TTF/OTF fonts up to 16 MB, edits ARGB text/highlight/shadow, toggles drop shadow and one/two lines. User font paths persist, files are not embedded. Missing fonts fall back to packaged DejaVu Sans.
+- Export copies only the selected font into its temporary font directory, not the user's full directory. Original FontFacts, SubtitleLayout and ASS writer are reused. Other built-in families remain unexposed.
+- 46 native checks pass, including genuine custom-serif versus fallback-sans pixel differences, green burn-in, invalid-font rejection, save/reload and missing-file fallback. Colour editing was actually typed through UI and inspected, rendered serif/green/shadow output inspected. Font chooser UI itself is not yet a clicked proof.
+- First same-family bold/regular difference assertion did not establish a difference because libass selected regular by style weight; replaced with distinct-family proof, not counted as a functional pass.

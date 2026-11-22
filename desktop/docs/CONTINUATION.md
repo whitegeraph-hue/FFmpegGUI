@@ -294,3 +294,5 @@ interaction and rich native layer selection still missing. HDR+canvas explicitly
 rejected until its adapter exists. Latest full package8b6predatesHDR/canvas.
 
 01:50 EET: transition family controls use original non-companion kinds, 45 native checks pass including seven real family renders and reload/duration assertions. UI and rendered montage inspected. Companion assets still gated. Next: subtitle custom fonts/colours, original editor gaps and five-feature broader proof, then exact current packaging. Package remains 8b6 stale.
+
+02:00 EET: subtitle custom font plus colour/shadow/line controls implemented and tested (46 native checks). New DesktopFonts validates up to16MB TTF/OTF, export isolates selected font. Custom family pixel difference, missing fallback, invalid rejection and persistence proved; UI colour edit typed, output inspected. Font selector click still owed. Current package stale8b6. Continue clean CI/current exact package and remaining broader parity, no completion/release.

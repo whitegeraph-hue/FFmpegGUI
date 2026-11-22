@@ -154,10 +154,13 @@ class DesktopProject(val sources: List<DesktopSource>, val timeline: Timeline,
 }
 
 class DesktopExport(private val media: DesktopMedia = DesktopMedia()) {
-    val fonts = FontProvider { bold ->
+    val fonts = object : FontProvider {
+      override fun customFontPath(file:String):String? = File(file).takeIf {it.isFile && it.canRead()}?.path
+      override fun fontPath(bold:Boolean):String {
         val name = if (bold) "DejaVuSans-Bold.ttf" else "DejaVuSans.ttf"
         val candidates = listOf(File(System.getProperty("compose.application.resources.dir", "resources"), "fonts/$name"), File("/usr/share/fonts/truetype/dejavu/$name"))
-        (candidates.firstOrNull { it.isFile } ?: error("Required font is missing: $name")).path
+        return (candidates.firstOrNull { it.isFile } ?: error("Required font is missing: $name")).path
+      }
     }
     fun command(project: DesktopProject, output: String): FfmpegCommand {
         val request=project.request()
@@ -213,8 +216,13 @@ class DesktopExport(private val media: DesktopMedia = DesktopMedia()) {
             if(drawing!=null)request=request.copy(imageOverlays=request.imageOverlays+ImagePlacement(x=0f,y=0f,widthFraction=1f))
             val words=request.timedWords()
             val style=project.subtitleStyle
+            var subtitleFontDirectory:File?=null
             val subtitles=if(request.hasSpokenSubtitles && words.isNotEmpty() && style!=null) {
-                val fontFile=File(fonts.fontPath(style.bold))
+                val selected=style.fontFile?.let {file->File(file).takeIf {it.isFile && it.canRead()}}
+                val original=selected ?: File(fonts.fontPath(style.bold))
+                if(selected!=null)DesktopFonts.validate(selected)
+                subtitleFontDirectory=File(auxiliaries,"subtitle-fonts").apply {mkdirs()}
+                val fontFile=File(subtitleFontDirectory,"subtitle."+original.extension.lowercase()).also {original.copyTo(it)}
                 val facts=FontFacts.read(fontFile)
                 File(auxiliaries,"subtitles.ass").apply {
                     writeText(AssSubtitles.write(SubtitleLayout.ofWords(words,style,request.subtitleFrameRatio,facts),style,request.subtitleFrameRatio,facts?.family ?: "DejaVu Sans"))
@@ -223,7 +231,7 @@ class DesktopExport(private val media: DesktopMedia = DesktopMedia()) {
             val hdr=project.image.hdr?.takeIf {project.format==OutputFormat.JPG}
             require(hdr==null || (hdr.mode==HdrMode.GENERATED && hdr.area==HdrArea.EVERYWHERE && project.image.canvas==null)) {"This HDR mode needs an adapter still being ported."}
             val hdrPictures=hdr?.let {HdrPictures(File(auxiliaries,"hdr-final.png").path,File(auxiliaries,"hdr-plain.png").path)}
-            val paths=MediaPaths(project.sources.map { DesktopStillInputs.resolve(it.path,auxiliaries) },temporary.path,imageOverlays=project.pictures.filter {it.activeOn(project.timeline)}.map {DesktopStillInputs.resolve(it.source.path,auxiliaries)}+listOfNotNull(drawing?.path),sounds=project.sounds.filter {!it.muted}.map {it.source.path},hdrPictures=hdrPictures,subtitles=subtitles?.path,subtitleFonts=subtitles?.let { File(fonts.fontPath(style?.bold ?: false)).parent })
+            val paths=MediaPaths(project.sources.map { DesktopStillInputs.resolve(it.path,auxiliaries) },temporary.path,imageOverlays=project.pictures.filter {it.activeOn(project.timeline)}.map {DesktopStillInputs.resolve(it.source.path,auxiliaries)}+listOfNotNull(drawing?.path),sounds=project.sounds.filter {!it.muted}.map {it.source.path},hdrPictures=hdrPictures,subtitles=subtitles?.path,subtitleFonts=subtitleFontDirectory?.path)
             media.process.checked(listOf("ffmpeg", "-nostdin") + CommandBuilder(fonts).build(request,paths).arguments)
             if(hdr!=null && hdrPictures!=null)DesktopHdr.assemble(temporary,File(hdrPictures.finalPng),File(hdrPictures.plainPng),hdr)
             val result = media.probe(temporary.path)

@@ -50,6 +50,28 @@ fun main(args:Array<String>)=runBlocking {
         exporter.export(edited.copy(format=OutputFormat.TXT),File(folder,"transcript.txt"))
         check(File(folder,"subtitles.srt").readText()==text)
     }
+    verify("custom subtitle font colour shadow limits and missing-font fallback") {
+        val custom=File(folder,"custom font's.ttf")
+        File("/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf").copyTo(custom,overwrite=true)
+        DesktopFonts.validate(custom)
+        val invalid=File(folder,"not-a-font.ttf").apply {writeText("not a font")}
+        check(runCatching {DesktopFonts.validate(invalid)}.isFailure)
+        val edited=captioned.copy(subtitleStyle=SubtitleStyle(fontFile=custom.path,bold=false,highlight=WordHighlight.NONE,textColor=0xff00ff00L,dropShadow=true,shadowColor=0xccff0000L,maxLines=1,size=.14f))
+        val output=exporter.export(edited,File(folder,"subtitle-custom.mp4"))
+        val frame=media.frame(output.path,1000)!!
+        var green=0
+        for(y in 200 until frame.height)for(x in 0 until frame.width){val rgb=frame.getRGB(x,y);val r=(rgb shr 16) and 255;val g=(rgb shr 8) and 255;val b=rgb and 255;if(g>140 && r<90 && b<90)green++}
+        check(green>100)
+        val file=File(folder,"subtitle-custom.ffgui.json");DesktopProjects.save(edited,file);check(DesktopProjects.load(file,media).subtitleStyle==edited.subtitleStyle)
+        val missing=edited.copy(subtitleStyle=edited.subtitleStyle!!.copy(fontFile=File(folder,"missing.ttf").path))
+        val missingOutput=exporter.export(missing,File(folder,"subtitle-fallback.mp4"))
+        check(missingOutput.info.durationMs==output.info.durationMs)
+        val fallbackFrame=media.frame(missingOutput.path,1000)!!
+        var changed=0
+        for(y in 200 until frame.height)for(x in 0 until frame.width)if(frame.getRGB(x,y)!=fallbackFrame.getRGB(x,y))changed++
+        check(changed>200) {"Custom serif family must differ from sans fallback"}
+        check(File(video.path).isFile && custom.isFile)
+    }
     verify("encoding controls persisted and applied") {
         val edited=p.copy(encoding=EncodingSettings(resolution=Resolution.P240,framerate=Framerate.FPS15,cpuSpeed=CpuEncoderSpeed.FAST,quality=.5f,audio=AudioEncoding(128,44100,24)),subtitleStyle=SubtitlePreset.BOXED.apply(SubtitleStyle()))
         val file=File(folder,"encoding.ffgui.json");DesktopProjects.save(edited,file)
