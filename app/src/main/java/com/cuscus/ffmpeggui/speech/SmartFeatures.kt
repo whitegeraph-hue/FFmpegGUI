@@ -20,6 +20,7 @@ import com.cuscus.ffmpeggui.marking.MarkingSweep
 import com.cuscus.ffmpeggui.translate.TranslationEngine
 import com.cuscus.ffmpeggui.translate.TranslationModelStore
 import com.cuscus.ffmpeggui.media.FfmpegAudioExtractor
+import com.cuscus.ffmpeggui.media.FfmpegEditAnalysis
 import com.cuscus.ffmpeggui.voice.StemModels
 import com.cuscus.ffmpeggui.dub.DubEngine
 import com.cuscus.ffmpeggui.erase.EraseEngine
@@ -118,6 +119,9 @@ class SmartFeatures(
     val engine = SpeechEngine(context, store)
     /** Takes a file's sound out with FFmpeg (the speech model's, voice separation's, the AI check's). */
     internal val extractor = FfmpegAudioExtractor(context, executor)
+
+    /** The silences, scene changes and beats of a file, for the editor's smart editing tools. */
+    val editAnalysis = FfmpegEditAnalysis(context, executor)
     // The voice set apart before is listened to instead of the whole sound (see core's ListenedSound).
     val transcriber = SpeechTranscriber(context, engine, extractor) { uri -> voiceSeparator.voiceTracks(android.net.Uri.parse(uri)) }
 

@@ -6,6 +6,7 @@ import com.cuscus.ffmpeggui.core.model.Compression
 import com.cuscus.ffmpeggui.core.model.AudioEncoding
 import com.cuscus.ffmpeggui.core.model.CanvasFit
 import com.cuscus.ffmpeggui.core.model.CanvasRatio
+import com.cuscus.ffmpeggui.core.editing.FollowCropTrack
 import com.cuscus.ffmpeggui.core.model.Effects
 import com.cuscus.ffmpeggui.core.model.FrameExtractionMode
 import com.cuscus.ffmpeggui.core.model.GifSettings
@@ -127,6 +128,13 @@ data class ConversionSettings(
 
     // Cover picture of an audio file (an app-made square JPEG): the opened file's own, or one chosen
     val coverUri: Uri? = null,
+
+    /**
+     * Subject-following vertical reframe of the main file (see core/editing/FollowCrop):
+     * a crop window that slides following the subject. Found by the smart editing
+     * tools, kept with the project.
+     */
+    val followCrop: FollowCropTrack? = null,
 
     // Made by the compressor (set only for its export, never saved with the project)
     val compression: Compression? = null,

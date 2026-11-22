@@ -103,7 +103,17 @@ import com.cuscus.ffmpeggui.core.timeline.TimeSpan
 import com.cuscus.ffmpeggui.effects.EffectLibrary
 import com.cuscus.ffmpeggui.span
 import com.cuscus.ffmpeggui.withSpan
+import com.cuscus.ffmpeggui.core.editing.BeatTrack
+import com.cuscus.ffmpeggui.core.editing.CutRange
+import com.cuscus.ffmpeggui.core.editing.FollowCropTrack
+import com.cuscus.ffmpeggui.core.editing.PauseCuts
+import com.cuscus.ffmpeggui.core.editing.SceneDetect
+import com.cuscus.ffmpeggui.core.editing.normalized
+import com.cuscus.ffmpeggui.core.editing.splitAtAll
+import com.cuscus.ffmpeggui.core.editing.withoutRanges
+import com.cuscus.ffmpeggui.core.preview.mapToTimeline
 import com.cuscus.ffmpeggui.core.timeline.Timeline
+import com.cuscus.ffmpeggui.editing.SubjectTracker
 import com.cuscus.ffmpeggui.core.time.expectedOutputDurationMs
 import com.cuscus.ffmpeggui.core.preview.SubtitleRetimer
 import com.cuscus.ffmpeggui.core.subtitles.SpokenWord
@@ -4021,6 +4031,237 @@ class ConversionViewModel(
         val now = currentStep
         _editorStack.value = if (frames.isEmpty() || now == null) emptyList() else frames.map { it.step } + now
     }
+
+    // ---------------------------------------------------------------------
+    // Smart editing: pause cuts, scene splits, beats, subject-following crop
+    // ---------------------------------------------------------------------
+
+    private val _pauseCuts = MutableStateFlow<PauseCutsStatus>(PauseCutsStatus.Idle)
+    val pauseCuts: StateFlow<PauseCutsStatus> = _pauseCuts.asStateFlow()
+    private val _sceneSplits = MutableStateFlow<SceneSplitsStatus>(SceneSplitsStatus.Idle)
+    val sceneSplits: StateFlow<SceneSplitsStatus> = _sceneSplits.asStateFlow()
+    private val _beats = MutableStateFlow<BeatsStatus>(BeatsStatus.Idle)
+    val beats: StateFlow<BeatsStatus> = _beats.asStateFlow()
+    private val _snapToBeats = MutableStateFlow(false)
+    val snapToBeats: StateFlow<Boolean> = _snapToBeats.asStateFlow()
+    private val _followCropStatus = MutableStateFlow<FollowCropStatus>(FollowCropStatus.Idle)
+    val followCropStatus: StateFlow<FollowCropStatus> = _followCropStatus.asStateFlow()
+
+    private var pauseCutsJob: Job? = null
+    private var sceneSplitsJob: Job? = null
+    private var beatsJob: Job? = null
+    private var followCropJob: Job? = null
+    private var subjectTracker: SubjectTracker? = null
+
+    /** Ranges of the main file's own clock moved onto the edited sequence. */
+    private fun List<CutRange>.ontoTimeline(): List<CutRange> {
+        val footage = _settings.value.footage()
+        val index = footage.mainFileIndex ?: return emptyList()
+        return flatMap { range ->
+            mapToTimeline(range.startMs, range.endMs, footage.segments, index)
+                .map { CutRange(it.first, it.second, range.reason) }
+        }
+    }
+
+    /** A moment of the main file's own clock moved onto the edited sequence. */
+    private fun filePointOntoTimeline(ms: Long): Long? {
+        val footage = _settings.value.footage()
+        val index = footage.mainFileIndex ?: return null
+        return mapToTimeline(ms, ms + 1, footage.segments, index).firstOrNull()?.first
+    }
+
+    /**
+     * Suggests the pauses and hesitations of the main file worth cutting. The
+     * file's words are needed: when it was not listened to yet the status says
+     * so (the panel's button then starts the listening, see generateSubtitles).
+     */
+    fun findPauseCuts(minPauseMs: Long = 700L) {
+        val features = smart ?: return
+        if (pauseCutsJob?.isActive == true) return
+        val settings = _settings.value
+        val source = settings.source(EditorSource.MAIN_ID) ?: return
+        val words = settings.spokenWords[EditorSource.MAIN_ID]
+        if (words == null) {
+            _pauseCuts.value = PauseCutsStatus.NeedsWords
+            return
+        }
+        if (words.isEmpty() || source.isStill) {
+            _pauseCuts.value = PauseCutsStatus.Ready(emptyList(), emptySet())
+            return
+        }
+        pauseCutsJob = viewModelScope.launch {
+            _pauseCuts.value = PauseCutsStatus.Working
+            try {
+                val silences = features.editAnalysis.silencesOf(source.uri.toString(), source.info?.durationMs ?: 0L)
+                if (silences == null) {
+                    _pauseCuts.value = PauseCutsStatus.Failed
+                    return@launch
+                }
+                val durationMs = source.info?.durationMs ?: 0L
+                val cuts = PauseCuts.suggest(words, silences, durationMs, minPauseMs = minPauseMs)
+                    .ontoTimeline()
+                    .normalized(_settings.value.timeline.durationMs, minGapMs = 120L)
+                _pauseCuts.value = PauseCutsStatus.Ready(cuts, cuts.indices.toSet())
+            } catch (e: CancellationException) {
+                if (_pauseCuts.value is PauseCutsStatus.Working) _pauseCuts.value = PauseCutsStatus.Idle
+                throw e
+            } catch (e: Exception) {
+                android.util.Log.w("ConversionViewModel", "Pause cuts failed", e)
+                _pauseCuts.value = PauseCutsStatus.Failed
+            }
+        }
+    }
+
+    fun togglePauseCut(index: Int) {
+        val ready = _pauseCuts.value as? PauseCutsStatus.Ready ?: return
+        _pauseCuts.value = ready.copy(chosen = if (index in ready.chosen) ready.chosen - index else ready.chosen + index)
+    }
+
+    fun dismissPauseCuts() {
+        pauseCutsJob?.cancel()
+        _pauseCuts.value = PauseCutsStatus.Idle
+    }
+
+    /** Takes the ticked pause and filler cuts out of the timeline. */
+    fun applyPauseCuts() {
+        val ready = _pauseCuts.value as? PauseCutsStatus.Ready ?: return
+        val chosen = ready.chosen.sorted().mapNotNull { ready.cuts.getOrNull(it) }
+        _pauseCuts.value = PauseCutsStatus.Idle
+        if (chosen.isEmpty()) return
+        editTimeline { timeline -> timeline.withoutRanges(chosen) { newId() } }
+    }
+
+    /** Finds where the main file's scenes change, as split points to tick. */
+    fun findSceneSplits(threshold: Double = SceneDetect.DEFAULT_THRESHOLD) {
+        val features = smart ?: return
+        if (sceneSplitsJob?.isActive == true) return
+        val source = _settings.value.source(EditorSource.MAIN_ID) ?: return
+        if (source.isStill) return
+        sceneSplitsJob = viewModelScope.launch {
+            _sceneSplits.value = SceneSplitsStatus.Working
+            try {
+                val scenes = features.editAnalysis.sceneChangesOf(source.uri.toString(), threshold)
+                if (scenes == null) {
+                    _sceneSplits.value = SceneSplitsStatus.Failed
+                    return@launch
+                }
+                val points = scenes.mapNotNull(::filePointOntoTimeline).distinct().sorted()
+                    .filter { _settings.value.timeline.canSplitAt(it) }
+                _sceneSplits.value = SceneSplitsStatus.Ready(points, points.indices.toSet())
+            } catch (e: CancellationException) {
+                if (_sceneSplits.value is SceneSplitsStatus.Working) _sceneSplits.value = SceneSplitsStatus.Idle
+                throw e
+            } catch (e: Exception) {
+                android.util.Log.w("ConversionViewModel", "Scene splits failed", e)
+                _sceneSplits.value = SceneSplitsStatus.Failed
+            }
+        }
+    }
+
+    fun toggleSceneSplit(index: Int) {
+        val ready = _sceneSplits.value as? SceneSplitsStatus.Ready ?: return
+        _sceneSplits.value = ready.copy(chosen = if (index in ready.chosen) ready.chosen - index else ready.chosen + index)
+    }
+
+    fun dismissSceneSplits() {
+        sceneSplitsJob?.cancel()
+        _sceneSplits.value = SceneSplitsStatus.Idle
+    }
+
+    /** Splits the clips at the ticked scene changes. */
+    fun applySceneSplits() {
+        val ready = _sceneSplits.value as? SceneSplitsStatus.Ready ?: return
+        val chosen = ready.chosen.sorted().mapNotNull { ready.points.getOrNull(it) }
+        _sceneSplits.value = SceneSplitsStatus.Idle
+        if (chosen.isEmpty()) return
+        editTimeline { timeline -> timeline.splitAtAll(chosen) { newId() } }
+    }
+
+    /** Finds the beats of the main file's sound, to snap edits to. */
+    fun findBeats() {
+        val features = smart ?: return
+        if (beatsJob?.isActive == true) return
+        val source = _settings.value.source(EditorSource.MAIN_ID) ?: return
+        if (source.isStill || source.info?.hasAudio == false) return
+        beatsJob = viewModelScope.launch {
+            _beats.value = BeatsStatus.Working
+            try {
+                val found = features.editAnalysis.beatsOf(source.uri.toString(), source.info?.durationMs ?: 0L)
+                if (found == null || found.beatsMs.isEmpty()) {
+                    _beats.value = BeatsStatus.Failed
+                    return@launch
+                }
+                val beats = found.beatsMs.mapNotNull(::filePointOntoTimeline).distinct().sorted()
+                val onsets = found.onsetsMs.mapNotNull(::filePointOntoTimeline).distinct().sorted()
+                if (beats.isEmpty()) {
+                    _beats.value = BeatsStatus.Failed
+                } else {
+                    _beats.value = BeatsStatus.Ready(onsets, beats, found.tempoBpm)
+                }
+            } catch (e: CancellationException) {
+                if (_beats.value is BeatsStatus.Working) _beats.value = BeatsStatus.Idle
+                throw e
+            } catch (e: Exception) {
+                android.util.Log.w("ConversionViewModel", "Beat search failed", e)
+                _beats.value = BeatsStatus.Failed
+            }
+        }
+    }
+
+    fun setSnapToBeats(enabled: Boolean) {
+        _snapToBeats.value = enabled
+    }
+
+    /** The beat nearest to [timelineMs] at most [maxDistanceMs] away, or null. */
+    fun nearestBeat(timelineMs: Long, maxDistanceMs: Long = 150L): Long? =
+        (_beats.value as? BeatsStatus.Ready)?.beatsMs?.let { BeatTrack.nearest(it, timelineMs, maxDistanceMs) }
+
+    /**
+     * Follows the subject of the main file with the cut-out model and sets the
+     * moving vertical reframe that follows it (see ConversionSettings.followCrop).
+     * Slow on purpose: a model run about every [everyMs] of footage.
+     */
+    fun trackSubjectForVerticalCrop(everyMs: Long = SubjectTracker.DEFAULT_EVERY_MS) {
+        val features = smart ?: return
+        if (followCropJob?.isActive == true) return
+        val source = _settings.value.source(EditorSource.MAIN_ID) ?: return
+        val info = source.info
+        if (source.isStill || info == null || info.width <= 0 || info.height <= 0) return
+        followCropJob = viewModelScope.launch {
+            _followCropStatus.value = FollowCropStatus.Working(0f)
+            try {
+                val tracker = subjectTracker
+                    ?: SubjectTracker(stillMaker) { smart?.cutoutEngine }.also { subjectTracker = it }
+                val points = tracker.track(source.uri.toString(), info.durationMs, everyMs) { fraction ->
+                    _followCropStatus.value = FollowCropStatus.Working(fraction)
+                }
+                if (points == null) {
+                    _followCropStatus.value = FollowCropStatus.Failed
+                    return@launch
+                }
+                val (w, h) = FollowCropTrack.windowSize(info.width, info.height, 9, 16)
+                val track = FollowCropTrack(points, info.width, info.height, w, h)
+                mutate(stepKey = "followCrop") { it.copy(followCrop = track) }
+                _followCropStatus.value = FollowCropStatus.Idle
+            } catch (e: CancellationException) {
+                if (_followCropStatus.value is FollowCropStatus.Working) _followCropStatus.value = FollowCropStatus.Idle
+                throw e
+            } catch (e: com.cuscus.ffmpeggui.cutout.CutoutEngine.ModelMissing) {
+                _followCropStatus.value = FollowCropStatus.NoModel
+            } catch (e: Exception) {
+                android.util.Log.w("ConversionViewModel", "Follow crop failed", e)
+                _followCropStatus.value = FollowCropStatus.Failed
+            }
+        }
+    }
+
+    fun stopFollowCrop() {
+        followCropJob?.cancel()
+        _followCropStatus.value = FollowCropStatus.Idle
+    }
+
+    /** Takes the subject-following reframe off again. */
+    fun clearFollowCrop() = mutate(stepKey = "followCrop") { it.copy(followCrop = null) }
 
     override fun onCleared() {
         // Leaving the app for good: the project is saved one last time, then its

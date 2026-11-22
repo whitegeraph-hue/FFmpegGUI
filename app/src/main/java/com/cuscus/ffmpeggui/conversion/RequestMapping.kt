@@ -160,6 +160,8 @@ private fun ConversionSettings.toRequestOf(
     ),
     // A speed curve is a clip's alone.
     effects = wholeEffects.copy(speedCurve = null),
+    // The subject-following reframe (a stream copy drops it, as every filter).
+    followCrop = followCrop,
     audioEffects = audioEffects,
     canvas = projectRatio,
     canvasFit = projectFit,
