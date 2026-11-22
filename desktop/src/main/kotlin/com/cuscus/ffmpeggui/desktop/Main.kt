@@ -120,7 +120,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                                 }
                             }
                             Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(10.dp)) {
-                                val tabs=listOf("Edit","Transcript","Pause cuts","Scenes","Beats","Follow crop","Models","Subtitles","Audio","Text layers","Sound tracks")
+                                val tabs=listOf("Edit","Transcript","Pause cuts","Scenes","Beats","Follow crop","Models","Subtitles","Audio","Text layers","Sound tracks","Tags","Image layers")
                                 FlowRowCompat {
                                     tabs.forEach { title -> FilterChip(selected=controller.tab==title,onClick={ controller.tab=title },label={ Text(title) }) }
                                 }
@@ -128,6 +128,8 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                                     when(controller.tab) {
                                         "Edit" -> EditPanel(controller,project)
                                         "Subtitles" -> SubtitlesPanel(controller,project)
+                                        "Image layers" -> PictureLayersPanel(controller,project){pick()?.path}
+                                        "Tags" -> TagsPanel(controller,project)
                                         "Sound tracks" -> SoundTracksPanel(controller,project) {pick()?.path}
                                         "Audio" -> AudioMasterPanel(controller,project)
                                         "Text layers" -> TextLayersPanel(controller,project)
@@ -181,6 +183,11 @@ private fun EditPanel(c: EditorController,p: DesktopProject) {
         }
     }
     EncodingPanel(c,p)
+    if(p.sources[0].info.isVideo && !p.sources[0].info.isStill)PanelCard {
+        Text("Canvas",style=MaterialTheme.typography.titleMedium)
+        FlowRowCompat {CanvasRatio.entries.forEach {v->FilterChip(p.canvas==v,{c.mutate(p.copy(canvas=v))},label={Text(v.name)},enabled=!c.busy)}}
+        FlowRowCompat {CanvasFit.entries.forEach {v->FilterChip(p.canvasFit==v,{c.mutate(p.copy(canvasFit=v))},label={Text(v.name)},enabled=!c.busy)}}
+    }
     PanelCard {
         Text("Picture and sound",style=MaterialTheme.typography.titleMedium)
         ValueSlider("Speed",p.effects.speed,.25f..4f,!c.busy) { c.mutate(p.copy(effects=p.effects.copy(speed=it))) }
@@ -450,7 +457,7 @@ private fun EditPanel(c: EditorController,p: DesktopProject) {
     t.keyframes.sorted.forEach {key->
         Column {
             Text("${time(key.atMs)} · X ${key.values[KeyProperty.X]} · Y ${key.values[KeyProperty.Y]}",style=MaterialTheme.typography.bodySmall)
-            Row(Modifier.horizontalScroll(rememberScrollState())) {KeyEasing.entries.filter {it!=KeyEasing.CUSTOM}.forEach {e->FilterChip(key.easing==e,{update(t.copy(keyframes=t.keyframes.withEasing(key.atMs,e)))},label={Text(e.name)},enabled=!c.busy)}}
+            FlowRowCompat {KeyEasing.entries.filter {it!=KeyEasing.CUSTOM}.forEach {e->FilterChip(key.easing==e,{update(t.copy(keyframes=t.keyframes.withEasing(key.atMs,e)))},label={Text(e.name)},enabled=!c.busy)}}
             TextButton(onClick={update(t.copy(keyframes=t.keyframes.remove(key.atMs)))},enabled=!c.busy){Text("Remove key")}
         }
     }
@@ -461,7 +468,7 @@ private fun EditPanel(c: EditorController,p: DesktopProject) {
     PanelCard {
         Text("Sound tracks",style=MaterialTheme.typography.titleMedium)
         Text("Add music, voice or effects from local files. Tracks mix on the output clock and stop at its end. Render to hear the mix.",style=MaterialTheme.typography.bodySmall)
-        Button(onClick={pick()?.let {path->c.work("Reading sound track…") {val source=c.media.probe(path);require(source.info.hasAudio){"File has no audio."};c.mutate(p.copy(sounds=p.sounds+DesktopSound(source,PlacedSound(trimEndMs=source.info.durationMs))))}}},enabled=!c.busy){Text("Add sound file")}
+        Button(onClick={pick()?.let {path->c.work("Reading sound track…") {val source=c.media.probe(path);require(source.info.hasAudio){"File has no audio."};c.mutate(p.copy(sounds=p.sounds+DesktopSound(source,PlacedSound(trimEndMs=source.info.durationMs))));c.status="Sound track added: ${File(source.path).name}"}}},enabled=!c.busy){Text("Add sound file")}
     }
     p.sounds.forEachIndexed {index,sound->
         val s=sound.placed
@@ -483,6 +490,62 @@ private fun EditPanel(c: EditorController,p: DesktopProject) {
             ValueSlider("Treble dB",s.trebleDb,-12f..12f,!c.busy){update(s.copy(trebleDb=it))}
             Row {Checkbox(s.keepPitch,{update(s.copy(keepPitch=it))},enabled=!c.busy);Text("Keep pitch");Checkbox(s.normalize,{update(s.copy(normalize=it))},enabled=!c.busy);Text("Normalize")}
             TextButton(onClick={c.mutate(p.copy(sounds=p.sounds.filterIndexed {i,_->i!=index}))},enabled=!c.busy){Text("Remove track")}
+        }
+    }
+}
+
+@Composable private fun TagsPanel(c:EditorController,p:DesktopProject) {
+    val t=p.tags
+    fun update(v:MetadataTags)=c.mutate(p.copy(tags=v))
+    PanelCard {
+        Text("Output tags",style=MaterialTheme.typography.titleMedium)
+        Text("Container support varies. Render or export to write these tags. AI provenance marks are never removed by these controls.",style=MaterialTheme.typography.bodySmall)
+        Row {Checkbox(t.stripAll,{update(t.copy(stripAll=it))},enabled=!c.busy);Text("Strip source tags")}
+        Row {Checkbox(t.stripSensitive,{update(t.copy(stripSensitive=it))},enabled=!c.busy);Text("Strip location and device tags")}
+        OutlinedTextField(t.title,{update(t.copy(title=it))},label={Text("Title")},enabled=!c.busy)
+        OutlinedTextField(t.artist,{update(t.copy(artist=it))},label={Text("Artist")},enabled=!c.busy)
+        OutlinedTextField(t.album,{update(t.copy(album=it))},label={Text("Album")},enabled=!c.busy)
+        OutlinedTextField(t.albumArtist,{update(t.copy(albumArtist=it))},label={Text("Album artist")},enabled=!c.busy)
+        OutlinedTextField(t.year,{update(t.copy(year=it))},label={Text("Year")},enabled=!c.busy)
+        OutlinedTextField(t.genre,{update(t.copy(genre=it))},label={Text("Genre")},enabled=!c.busy)
+        OutlinedTextField(t.comment,{update(t.copy(comment=it))},label={Text("Comment")},enabled=!c.busy)
+        OutlinedTextField(t.copyright,{update(t.copy(copyright=it))},label={Text("Copyright")},enabled=!c.busy)
+        OutlinedTextField(t.lyrics,{update(t.copy(lyrics=it))},label={Text("Lyrics")},enabled=!c.busy)
+    }
+}
+
+@Composable private fun PictureLayersPanel(c:EditorController,p:DesktopProject,pick:()->String?) {
+    if(!p.sources[0].info.isVideo){Text("Image layers need a video or picture.");return}
+    PanelCard {
+        Text("Image layers",style=MaterialTheme.typography.titleMedium)
+        Text("Add local still pictures, stickers and logos. Render to inspect the composite. Animated/video layers and direct dragging are still in progress.",style=MaterialTheme.typography.bodySmall)
+        Button(onClick={pick()?.let {path->c.work("Reading image layer…"){val source=c.media.probe(path);require(source.info.isStill){"Choose a still picture. Video layers are still being ported."};c.mutate(p.copy(pictures=p.pictures+DesktopPicture(source,ImagePlacement(aspect=source.info.width.toFloat()/source.info.height,layer=p.pictures.size+p.captions.size))));c.status="Image layer added."}}},enabled=!c.busy){Text("Add picture")}
+    }
+    p.pictures.forEachIndexed {index,picture->
+        val v=picture.placement
+        fun update(next:ImagePlacement)=c.mutate(p.copy(pictures=p.pictures.mapIndexed {i,old->if(i==index)old.copy(placement=next)else old}))
+        PanelCard {
+            Text("${index+1}. ${File(picture.source.path).name}",style=MaterialTheme.typography.titleSmall)
+            Row {Checkbox(picture.hidden,{hidden->c.mutate(p.copy(pictures=p.pictures.mapIndexed {i,old->if(i==index)old.copy(hidden=hidden)else old}))},enabled=!c.busy);Text("Hidden")}
+            ValueSlider("X",v.x,0f..1f,!c.busy){update(v.copy(x=it))}
+            ValueSlider("Y",v.y,0f..1f,!c.busy){update(v.copy(y=it))}
+            ValueSlider("Width",v.widthFraction,.02f..2f,!c.busy){update(v.copy(widthFraction=it))}
+            ValueSlider("Opacity",v.opacity,0f..1f,!c.busy){update(v.copy(opacity=it))}
+            ValueSlider("Rotation",v.rotationDegrees,-180f..180f,!c.busy){update(v.copy(rotationDegrees=it))}
+            ValueSlider("Stretch",v.stretch,.25f..4f,!c.busy){update(v.copy(stretch=it))}
+            Row {Checkbox(v.flipHorizontal,{update(v.copy(flipHorizontal=it))},enabled=!c.busy);Text("Flip H");Checkbox(v.flipVertical,{update(v.copy(flipVertical=it))},enabled=!c.busy);Text("Flip V")}
+            ValueSlider("Brightness",v.brightness,-1f..1f,!c.busy){update(v.copy(brightness=it))}
+            ValueSlider("Contrast",v.contrast,0f..2f,!c.busy){update(v.copy(contrast=it))}
+            ValueSlider("Saturation",v.saturation,0f..2f,!c.busy){update(v.copy(saturation=it))}
+            Text("Blend")
+            FlowRowCompat {LayerBlend.entries.forEach {b->FilterChip(v.blend==b,{update(v.copy(blend=b))},label={Text(b.name)},enabled=!c.busy)}}
+            if(!p.sources[0].info.isStill){
+                ValueSlider("Start seconds",v.startMs/1000f,0f..p.timeline.durationMs/1000f,!c.busy){update(v.copy(startMs=(it*1000).toLong().coerceAtMost((v.endMs ?: p.timeline.durationMs)-1)))}
+                ValueSlider("End seconds",(v.endMs ?: p.timeline.durationMs)/1000f,0f..p.timeline.durationMs/1000f,!c.busy){update(v.copy(endMs=(it*1000).toLong().coerceAtLeast(v.startMs+1)))}
+                ValueSlider("Fade in seconds",v.fadeInSeconds,0f..3f,!c.busy){update(v.copy(fadeInSeconds=it))}
+                ValueSlider("Fade out seconds",v.fadeOutSeconds,0f..3f,!c.busy){update(v.copy(fadeOutSeconds=it))}
+            }
+            Row {TextButton(onClick={update(v.copy(layer=v.layer+1))},enabled=!c.busy){Text("Raise (${v.layer})")};TextButton(onClick={update(v.copy(layer=v.layer-1))},enabled=!c.busy){Text("Lower")};TextButton(onClick={c.mutate(p.copy(pictures=p.pictures.filterIndexed {i,_->i!=index}))},enabled=!c.busy){Text("Remove")}}
         }
     }
 }

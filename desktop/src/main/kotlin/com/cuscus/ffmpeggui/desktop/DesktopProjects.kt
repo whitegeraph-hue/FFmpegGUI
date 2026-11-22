@@ -21,7 +21,16 @@ object DesktopProjects {
             put("type","ffmpeggui-linux-project"); put("version",1)
             put("sources",buildJsonArray { project.sources.forEach { add(buildJsonObject { put("path",it.path); put("size",File(it.path).length()); put("durationMs",it.info.durationMs) }) } })
             put("format",project.format.name)
+            put("tags",core(ModelJson.write(project.tags)));put("canvas",project.canvas.name);put("canvasFit",project.canvasFit.name);put("normalize",project.normalize)
             put("effects",core(ModelJson.write(project.effects)))
+            put("pictures",buildJsonArray {project.pictures.forEach {picture->add(buildJsonObject {
+                put("path",picture.source.path);put("size",File(picture.source.path).length());put("hidden",picture.hidden)
+                val v=picture.placement
+                put("x",v.x);put("y",v.y);put("width",v.widthFraction);put("opacity",v.opacity);put("rotation",v.rotationDegrees);put("layer",v.layer)
+                put("startMs",v.startMs);v.endMs?.let {put("endMs",it)};put("fadeIn",v.fadeInSeconds);put("fadeOut",v.fadeOutSeconds)
+                put("flipH",v.flipHorizontal);put("flipV",v.flipVertical);put("brightness",v.brightness);put("contrast",v.contrast);put("saturation",v.saturation)
+                put("blend",v.blend.name);put("stretch",v.stretch);put("look",core(ModelJson.write(v.look)))
+            })}})
             put("sounds",buildJsonArray {project.sounds.forEach { sound -> add(buildJsonObject {
                 put("path",sound.source.path);put("size",File(sound.source.path).length());put("durationMs",sound.source.info.durationMs);put("muted",sound.muted)
                 val s=sound.placed
@@ -44,7 +53,7 @@ object DesktopProjects {
             put("timeline",core(ModelJson.write(project.timeline)))
             put("words",buildJsonArray { project.words.forEach { w -> add(buildJsonObject { put("startMs",w.startMs);put("endMs",w.endMs);put("text",w.text) }) } })
         }
-        require((project.sources+project.sounds.map {it.source}).none { File(it.path).canonicalFile==target.canonicalFile }) { "Cannot replace a source with a project." }
+        require((project.sources+project.sounds.map {it.source}+project.pictures.map {it.source}).none { File(it.path).canonicalFile==target.canonicalFile }) { "Cannot replace a source with a project." }
         val temporary=File(target.parentFile,".${target.name}-${UUID.randomUUID()}.tmp")
         try {
             temporary.writeText(Json { prettyPrint=true }.encodeToString(JsonObject.serializer(),data))
@@ -67,6 +76,16 @@ object DesktopProjects {
             val end=c.endMs
             s!=null && c.startMs>=0 && end!=null && end>c.startMs && (s.info.isStill || end<=s.info.durationMs+50)
         }) { "Project timeline refers to missing or invalid footage." }
+        val pictures=data["pictures"]?.jsonArray?.map {item->
+            val v=item.jsonObject;val source=media.probe(v["path"]!!.jsonPrimitive.content)
+            require(source.info.isStill && File(source.path).length()==v["size"]!!.jsonPrimitive.long){"An image layer changed or is not a still picture."}
+            fun f(k:String)=v[k]!!.jsonPrimitive.float
+            val placement=ImagePlacement(x=f("x"),y=f("y"),widthFraction=f("width"),opacity=f("opacity"),rotationDegrees=f("rotation"),layer=v["layer"]!!.jsonPrimitive.int,
+                startMs=v["startMs"]!!.jsonPrimitive.long,endMs=v["endMs"]?.jsonPrimitive?.long,fadeInSeconds=f("fadeIn"),fadeOutSeconds=f("fadeOut"),
+                flipHorizontal=v["flipH"]!!.jsonPrimitive.boolean,flipVertical=v["flipV"]!!.jsonPrimitive.boolean,brightness=f("brightness"),contrast=f("contrast"),saturation=f("saturation"),
+                blend=LayerBlend.valueOf(v["blend"]!!.jsonPrimitive.content),stretch=f("stretch"),look=ModelJson.overlayLook(read(v["look"]!!)),aspect=source.info.width.toFloat()/source.info.height)
+            DesktopPicture(source,placement,v["hidden"]!!.jsonPrimitive.boolean)
+        } ?: emptyList()
         val sounds=data["sounds"]?.jsonArray?.map {item ->
             val v=item.jsonObject;val source=media.probe(v["path"]!!.jsonPrimitive.content)
             require(source.info.hasAudio && source.info.durationMs==v["durationMs"]!!.jsonPrimitive.long && File(source.path).length()==v["size"]!!.jsonPrimitive.long){"A sound file changed or has no audio."}
@@ -88,6 +107,6 @@ object DesktopProjects {
                 cpuSpeed=data["cpuSpeed"]?.jsonPrimitive?.content?.let { CpuEncoderSpeed.valueOf(it) } ?: CpuEncoderSpeed.BALANCED,
                 keepHdr=data["keepHdr"]?.jsonPrimitive?.boolean ?: true,gif=gifSettings,
                 audio=AudioEncoding(data["audioBitrate"]?.jsonPrimitive?.int ?: 192,data["audioSampleRate"]?.jsonPrimitive?.int ?: 0,data["audioDepth"]?.jsonPrimitive?.int ?: 16)),
-            followCrop=data["followCrop"]?.let { ModelJson.followCrop(read(it)) },subtitleStyle=data["subtitleStyle"]?.let { ModelJson.subtitleStyle(read(it)) },sounds=sounds,captions=data["captions"]?.jsonArray?.map { ModelJson.textOverlay(read(it)) ?: error("Invalid caption") } ?: emptyList(),image=data["image"]?.let {ModelJson.imageEdit(read(it))} ?: ImageEdit(),audioEffects=data["audioEffects"]?.let {ModelJson.audioEffects(read(it))} ?: AudioEffects.NONE)
+            followCrop=data["followCrop"]?.let { ModelJson.followCrop(read(it)) },subtitleStyle=data["subtitleStyle"]?.let { ModelJson.subtitleStyle(read(it)) },pictures=pictures,tags=data["tags"]?.let {ModelJson.metadataTags(read(it))} ?: MetadataTags(),canvas=data["canvas"]?.jsonPrimitive?.content?.let {CanvasRatio.valueOf(it)} ?: CanvasRatio.FIT,canvasFit=data["canvasFit"]?.jsonPrimitive?.content?.let {CanvasFit.valueOf(it)} ?: CanvasFit.FIT,normalize=data["normalize"]?.jsonPrimitive?.boolean ?: false,sounds=sounds,captions=data["captions"]?.jsonArray?.map { ModelJson.textOverlay(read(it)) ?: error("Invalid caption") } ?: emptyList(),image=data["image"]?.let {ModelJson.imageEdit(read(it))} ?: ImageEdit(),audioEffects=data["audioEffects"]?.let {ModelJson.audioEffects(read(it))} ?: AudioEffects.NONE)
     }
 }

@@ -100,3 +100,11 @@ Sound tracks: multiple local files, output placement, trim, repeats, speed,
 pitch, EQ, fades, normalize, mute, remove, project save/load and overwrite
 protection. Actual delayed/repeated mix is silent before/after its range.
 Waveform and sound keyframes, clip-bound text, custom curves remain missing.
+
+Canvas/tags/image-layer continuation: output ratio/fit controls, metadata editor,
+whole-output still image layers with placement/opacity/rotation/stretch/flips,
+colour, blend, stacking and times/fades are bound to original core.25native
+checks include actual portrait output tags and time-gated image composite,
+roundtrips and image-source overwrite protection. Easing options now wrap.
+Sound-file chooser was clicked successfully for en.wav, controls inspected.
+Image-file chooser and wrapped easing final visual verification remain pending.

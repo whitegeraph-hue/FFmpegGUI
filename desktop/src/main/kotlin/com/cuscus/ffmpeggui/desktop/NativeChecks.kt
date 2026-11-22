@@ -149,6 +149,25 @@ fun main(args:Array<String>)=runBlocking {
         val file=File(folder,"sounds.ffgui.json");DesktopProjects.save(project,file);check(DesktopProjects.load(file,media).sounds==listOf(track))
         check(runCatching {exporter.export(project,File(source.path))}.isFailure)
     }
+    verify("canvas portrait and actual metadata tags") {
+        val project=p.copy(canvas=CanvasRatio.PORTRAIT_9_16,canvasFit=CanvasFit.FIT,tags=MetadataTags(title="Linux export",artist="Offline editor",stripAll=true))
+        val result=exporter.export(project,File(folder,"portrait-tags.mp4"))
+        check(kotlin.math.abs(result.info.width.toDouble()/result.info.height-9.0/16)<.01)
+        val tags=media.process.checked(listOf("ffprobe","-v","error","-show_entries","format_tags=title,artist","-of","json",result.path))
+        check(tags.contains("Linux export") && tags.contains("Offline editor"))
+        val file=File(folder,"canvas-tags.ffgui.json");DesktopProjects.save(project,file);val restored=DesktopProjects.load(file,media);check(restored.tags==project.tags && restored.canvas==project.canvas && restored.canvasFit==project.canvasFit)
+    }
+    verify("timed image layer actual composite and saved state") {
+        val file=File(folder,"sticker.png")
+        media.process.checked(listOf("ffmpeg","-v","error","-y","-f","lavfi","-i","color=white:s=100x100","-frames:v","1",file.path))
+        val source=media.probe(file.path);val picture=DesktopPicture(source,ImagePlacement(x=.5f,y=.5f,widthFraction=.3f,startMs=2000,endMs=4000,aspect=1f))
+        val project=p.copy(pictures=listOf(picture));val result=exporter.export(project,File(folder,"picture-layer.mp4"))
+        val before=media.frame(result.path,1000)!!;val during=media.frame(result.path,3000)!!
+        check((during.getRGB(during.width/2,during.height/2) and 0xffffff)>0xeeeeee)
+        check(before.getRGB(before.width/2,before.height/2)!=during.getRGB(during.width/2,during.height/2))
+        val saved=File(folder,"pictures.ffgui.json");DesktopProjects.save(project,saved);check(DesktopProjects.load(saved,media).pictures==listOf(picture))
+        check(runCatching {exporter.export(project,file)}.isFailure)
+    }
     verify("cancel real process") {
         val start=System.currentTimeMillis()
         val job=launch { media.process.run(listOf("ffmpeg","-re","-f","lavfi","-i","testsrc2=size=640x360:rate=25","-t","30","-f","null","-")) }
