@@ -22,6 +22,8 @@ data class FollowCropTrack(
     val inHeight: Int,
     val outWidth: Int,
     val outHeight: Int,
+    /** The file the subject was tracked in (its uri); empty when unknown. */
+    val sourceKey: String = "",
 ) {
     init {
         require(points.isNotEmpty()) { "A follow crop needs at least one look at the subject" }

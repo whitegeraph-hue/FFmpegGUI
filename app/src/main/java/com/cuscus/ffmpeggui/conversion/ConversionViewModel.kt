@@ -4051,6 +4051,10 @@ class ConversionViewModel(
     private val _followCropStatus = MutableStateFlow<FollowCropStatus>(FollowCropStatus.Idle)
     val followCropStatus: StateFlow<FollowCropStatus> = _followCropStatus.asStateFlow()
 
+    /** A few cropped frames from the tracked video: what the export's window will show. */
+    private val _followCropSamples = MutableStateFlow<List<android.graphics.Bitmap>?>(null)
+    val followCropSamples: StateFlow<List<android.graphics.Bitmap>?> = _followCropSamples.asStateFlow()
+
     private var pauseCutsJob: Job? = null
     private var sceneSplitsJob: Job? = null
     private var beatsJob: Job? = null
@@ -4289,7 +4293,8 @@ class ConversionViewModel(
                 // The frames the model saw, turned as the phone shows them: their
                 // size, not the probe's coded one, frames the window.
                 val (w, h) = FollowCropTrack.windowSize(tracked.frameWidth, tracked.frameHeight, 9, 16)
-                val track = FollowCropTrack(mapped, tracked.frameWidth, tracked.frameHeight, w, h)
+                val track = FollowCropTrack(mapped, tracked.frameWidth, tracked.frameHeight, w, h, sourceKey = source.uri.toString())
+                _followCropSamples.value = tracked.samples
                 mutate(stepKey = "followCrop") { it.copy(followCrop = track) }
                 _followCropStatus.value = FollowCropStatus.Idle
             } catch (e: CancellationException) {
@@ -4310,7 +4315,26 @@ class ConversionViewModel(
     }
 
     /** Takes the subject-following reframe off again. */
-    fun clearFollowCrop() = mutate(stepKey = "followCrop") { it.copy(followCrop = null) }
+    fun clearFollowCrop() {
+        _followCropSamples.value = null
+        mutate(stepKey = "followCrop") { it.copy(followCrop = null) }
+    }
+
+    /**
+     * Keeps only the words [startMs]..[endMs] of the main file (on its own
+     * clock): everything before and after them goes (see SubtitlePanels).
+     */
+    fun keepSpokenRangeOnly(sourceId: String, startMs: Long, endMs: Long) {
+        if (sourceId != EditorSource.MAIN_ID || endMs <= startMs) return
+        val durationMs = _settings.value.source(EditorSource.MAIN_ID)?.info?.durationMs ?: return
+        val file = listOfNotNull(
+            if (startMs > 0L) CutRange(0L, startMs, TranscriptEdits.REASON_TRANSCRIPT) else null,
+            if (durationMs > endMs) CutRange(endMs, durationMs, TranscriptEdits.REASON_TRANSCRIPT) else null,
+        )
+        val ranges = file.ontoTimeline()
+        if (ranges.isEmpty()) return
+        editTimeline { timeline -> timeline.withoutRanges(ranges) { newId() } }
+    }
 
     override fun onCleared() {
         // Leaving the app for good: the project is saved one last time, then its

@@ -161,8 +161,13 @@ private fun ConversionSettings.toRequestOf(
     ),
     // A speed curve is a clip's alone.
     effects = wholeEffects.copy(speedCurve = null),
-    // The subject-following reframe (it turns the stream copy above off).
-    followCrop = followCrop,
+    // The subject-following reframe (it turns the stream copy above off). It is
+    // dropped rather than misapplied when the file it was tracked in is no
+    // longer the project's main file.
+    followCrop = followCrop?.takeIf { track ->
+        track.sourceKey.isEmpty() ||
+            footage.mainFileIndex?.let { footage.files[it].uri.toString() } == track.sourceKey
+    },
     audioEffects = audioEffects,
     canvas = projectRatio,
     canvasFit = projectFit,

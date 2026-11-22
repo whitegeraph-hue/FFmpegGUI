@@ -156,6 +156,8 @@ class SubtitleEditing(
     val onEditLine: (String, Long, Long, String) -> Unit = { _, _, _, _ -> },
     /** Cuts a line's span of the main file out of the video (source id, start and end on the file's clock). */
     val onCutLine: (String, Long, Long) -> Unit = { _, _, _ -> },
+    /** Keeps only a line's span of the main file: everything before and after it goes. */
+    val onKeepLine: (String, Long, Long) -> Unit = { _, _, _ -> },
     /** The spoken subtitles as a .srt file, timed like the export. */
     val srt: () -> String? = { null },
     val onOpenSmartFeatures: () -> Unit = {},
@@ -192,7 +194,7 @@ private val SUBTITLE_COLORS = listOf(
 )
 
 @Composable
-internal fun SubtitleSectionContent(subtitles: SubtitleEditing) {
+internal fun SubtitleSectionContent(subtitles: SubtitleEditing, onSeekLine: (String, Long) -> Unit = { _, _ -> }) {
     var page by rememberSaveable { mutableStateOf(SubtitlePage.SOURCE) }
     val motion = MaterialTheme.motionScheme
     Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
@@ -211,7 +213,7 @@ internal fun SubtitleSectionContent(subtitles: SubtitleEditing) {
                 when (shown) {
                     SubtitlePage.SOURCE -> SourcePage(subtitles)
                     SubtitlePage.STYLE -> StylePage(subtitles)
-                    SubtitlePage.LINES -> LinesPage(subtitles)
+                    SubtitlePage.LINES -> LinesPage(subtitles, onSeekLine)
                 }
             }
         }
@@ -737,7 +739,7 @@ private fun SampleLetters(text: String, base: TextStyle, style: SubtitleStyle) {
 private class TranscriptLine(val sourceId: String, val startMs: Long, val endMs: Long, val text: String)
 
 @Composable
-private fun LinesPage(subtitles: SubtitleEditing) {
+private fun LinesPage(subtitles: SubtitleEditing, onSeekLine: (String, Long) -> Unit = { _, _ -> }) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val haptics = LocalHapticFeedback.current
@@ -812,6 +814,9 @@ private fun LinesPage(subtitles: SubtitleEditing) {
                     modifier = Modifier
                         .clip(CircleShape)
                         .background(MaterialTheme.colorScheme.secondaryContainer)
+                        .clickable(
+                            onClickLabel = stringResource(R.string.transcript_play_from, lineTime(line.startMs)),
+                        ) { onSeekLine(line.sourceId, line.startMs) }
                         .padding(horizontal = 8.dp, vertical = 2.dp),
                 ) {
                     Text(lineTime(line.startMs), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSecondaryContainer)
@@ -850,13 +855,22 @@ private fun LinesPage(subtitles: SubtitleEditing) {
             } else {
                 null
             },
+            onKeep = if (line.sourceId == EditorSource.MAIN_ID) {
+                {
+                    haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+                    subtitles.onKeepLine(line.sourceId, line.startMs, line.endMs)
+                    editing = null
+                }
+            } else {
+                null
+            },
             onDismiss = { editing = null },
         )
     }
 }
 
 @Composable
-private fun EditLineDialog(line: TranscriptLine, onSave: (String) -> Unit, onCut: (() -> Unit)? = null, onDismiss: () -> Unit) {
+private fun EditLineDialog(line: TranscriptLine, onSave: (String) -> Unit, onCut: (() -> Unit)? = null, onKeep: (() -> Unit)? = null, onDismiss: () -> Unit) {
     var text by remember(line) { mutableStateOf(line.text) }
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -884,6 +898,9 @@ private fun EditLineDialog(line: TranscriptLine, onSave: (String) -> Unit, onCut
             Row {
                 if (onCut != null) {
                     TextButton(onClick = onCut) { Text(stringResource(R.string.subtitle_cut_line)) }
+                }
+                if (onKeep != null) {
+                    TextButton(onClick = onKeep) { Text(stringResource(R.string.subtitle_keep_line)) }
                 }
                 TextButton(onClick = onDismiss) { Text(stringResource(R.string.subtitle_edit_cancel)) }
             }

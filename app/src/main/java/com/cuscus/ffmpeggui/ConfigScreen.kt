@@ -371,6 +371,20 @@ fun ConfigScreen(
     }
     /** Shows a position of the editor's timeline (the clips end to end, before the trim). */
     val seekTimeline: (Long) -> Unit = { timelineMs -> seekPreview((timelineMs - trimStartMs).coerceAtLeast(0L)) }
+    /** Seeks the preview to where a heard line of [sourceId] starts (its file's clock). */
+    val seekToSaid: (String, Long) -> Unit = said@{ sourceId, fileMs ->
+        var start = 0L
+        for (clip in playingClips) {
+            val length = clip.lengthMs
+            if (clip.sourceId == sourceId && fileMs >= clip.startMs && fileMs < (clip.endMs ?: Long.MAX_VALUE)) {
+                val speed = clip.effects.speed.coerceAtLeast(0.01f)
+                val inClip = ((fileMs - clip.startMs) / speed).toLong().coerceIn(0L, length)
+                seekPreview(start + if (clip.effects.reversed) length - inClip else inClip)
+                return@said
+            }
+            start += length
+        }
+    }
     /**
      * Shows a position of the timeline while it is dragged: the preview follows
      * the finger frame by frame, then shows the last one exactly (see PreviewSeek.scrubbing).
@@ -2348,7 +2362,7 @@ fun ConfigScreen(
                     onManualCommandChange = onManualCommandChange,
                     onResetManualMode = onResetManualMode,
                 )
-                EditorTool.SUBTITLE -> SubtitleSectionContent(subtitles)
+                EditorTool.SUBTITLE -> SubtitleSectionContent(subtitles, onSeekLine = seekToSaid)
                 EditorTool.AUTO_DUB -> com.cuscus.ffmpeggui.dub.AutoDubSectionContent(autoDub)
                 EditorTool.REMUX -> RemuxSectionContent(
                     useStreamCopy = useStreamCopy,

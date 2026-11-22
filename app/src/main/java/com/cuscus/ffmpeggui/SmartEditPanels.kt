@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.LinearProgressIndicator
@@ -45,6 +47,8 @@ class SmartEditUi(
     val followCrop: FollowCropStatus = FollowCropStatus.Idle,
     /** A subject-following reframe is set on the video. */
     val followCropSet: Boolean = false,
+    /** A few frames cropped as the export will crop them (null until tracked). */
+    val followCropSamples: List<androidx.compose.ui.graphics.ImageBitmap>? = null,
     val onFindPauseCuts: () -> Unit = {},
     val onTogglePauseCut: (Int) -> Unit = {},
     val onApplyPauseCuts: () -> Unit = {},
@@ -313,6 +317,22 @@ fun FollowCropPanel(ui: SmartEditUi) {
             }
             FollowCropStatus.Idle -> PanelCard {
                 if (ui.followCropSet) {
+                    val samples = ui.followCropSamples
+                    if (!samples.isNullOrEmpty()) {
+                        Text(
+                            text = stringResource(R.string.smart_follow_samples),
+                            style = MaterialTheme.typography.titleSmall,
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                            samples.forEach { frame ->
+                                androidx.compose.foundation.Image(
+                                    bitmap = frame,
+                                    contentDescription = null,
+                                    modifier = Modifier.weight(1f).clip(RoundedCornerShape(12.dp)),
+                                )
+                            }
+                        }
+                    }
                     SmartNote(stringResource(R.string.smart_follow_set))
                     OutlinedButton(onClick = ui.onTrackSubject, modifier = Modifier.fillMaxWidth()) {
                         Text(stringResource(R.string.smart_follow_retrack))

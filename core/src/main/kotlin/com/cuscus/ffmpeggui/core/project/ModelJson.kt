@@ -1073,6 +1073,7 @@ object ModelJson {
         put("inHeight", track.inHeight)
         put("outWidth", track.outWidth)
         put("outHeight", track.outHeight)
+        put("source", track.sourceKey)
         putList("points", track.points.packed()) { Json.of(it) }
     }
 
@@ -1088,6 +1089,6 @@ object ModelJson {
         // A window that does not fit inside its frame is refused, not built: the
         // track's own checks would throw on it.
         if (inWidth <= 0 || inHeight <= 0 || outWidth !in 2..inWidth || outHeight !in 2..inHeight) return null
-        return FollowCropTrack(points, inWidth, inHeight, outWidth, outHeight)
+        return FollowCropTrack(points, inWidth, inHeight, outWidth, outHeight, o.string("source", ""))
     }
 }

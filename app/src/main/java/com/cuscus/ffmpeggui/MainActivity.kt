@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.graphics.asImageBitmap
 import com.cuscus.ffmpeggui.hdr.LocalStillGainMaps
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -357,6 +358,7 @@ class MainActivity : ComponentActivity() {
                     val beatsStatus by vm.beats.collectAsState()
                     val snapToBeats by vm.snapToBeats.collectAsState()
                     val followCropStatus by vm.followCropStatus.collectAsState()
+                    val followCropSamples by vm.followCropSamples.collectAsState()
                     val voiceEditing = VoiceEditing(
                         modelReady = voiceModel is SpeechModelStore.State.Ready,
                         status = voiceStatus,
@@ -384,6 +386,7 @@ class MainActivity : ComponentActivity() {
                         snapToBeats = snapToBeats,
                         followCrop = followCropStatus,
                         followCropSet = s.followCrop != null,
+                        followCropSamples = followCropSamples?.map { it.asImageBitmap() },
                         onFindPauseCuts = { vm.findPauseCuts() },
                         onTogglePauseCut = vm::togglePauseCut,
                         onApplyPauseCuts = vm::applyPauseCuts,
@@ -1124,6 +1127,7 @@ class MainActivity : ComponentActivity() {
                                         onToTexts = vm::spokenSubtitlesToTexts,
                                         onEditLine = vm::editSpokenLine,
                                         onCutLine = vm::cutSpokenRange,
+                                        onKeepLine = vm::keepSpokenRangeOnly,
                                         srt = vm::spokenSubtitlesSrt,
                                         onOpenSmartFeatures = { com.cuscus.ffmpeggui.settings.SmartPageRequest.next = com.cuscus.ffmpeggui.settings.SmartPage.SPEECH; navController.navigate(Screen.settingsCategory(SettingsCategory.SMART)) },
                                         onLyrics = vm::lyricsFromSpeech,

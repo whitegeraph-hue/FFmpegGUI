@@ -1941,6 +1941,8 @@
     <string name="subtitle_edit_save">Save</string>
     <string name="subtitle_edit_cancel">Cancel</string>
     <string name="subtitle_cut_line">Cut from video</string>
+    <string name="subtitle_keep_line">Keep only this</string>
+    <string name="smart_follow_samples">How it will look</string>
 
     <!-- About: what runs the smart features, and their licences -->
     <string name="about_sherpa">sherpa-onnx</string>
