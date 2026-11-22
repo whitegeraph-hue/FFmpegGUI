@@ -20,6 +20,7 @@ import com.cuscus.ffmpeggui.conversion.FollowCropStatus
 import com.cuscus.ffmpeggui.conversion.PauseCutsStatus
 import com.cuscus.ffmpeggui.conversion.SceneSplitsStatus
 import com.cuscus.ffmpeggui.core.editing.CutRange
+import com.cuscus.ffmpeggui.core.editing.PauseCuts
 import com.cuscus.ffmpeggui.core.subtitles.SpokenWord
 import java.io.File
 import java.io.FileOutputStream
@@ -107,14 +108,17 @@ class SmartPanelsScreenshotTest {
             PauseCutsPanel(
                 SmartEditUi(
                     pauseCuts = PauseCutsStatus.Ready(
-                        cuts = listOf(CutRange(900, 3_000, "silence"), CutRange(3_600, 3_800, "filler")),
+                        cuts = listOf(CutRange(900, 3_000, PauseCuts.REASON_PAUSE), CutRange(3_600, 3_800, PauseCuts.REASON_FILLER)),
                         chosen = setOf(0, 1),
                     ),
                 ),
             )
         }
         rule.waitForIdle()
-        rule.onNodeWithText("Hesitations", substring = true).assertExists()
+        rule.onNodeWithText("Pauses (1 ticked)").assertExists()
+        rule.onNodeWithText("Hesitations (1 ticked)").assertExists()
+        // Short cuts show tenths, so a 0.2 s hesitation does not read "0:03 to 0:03".
+        rule.onNodeWithText("0:03.6 to 0:03.8", substring = true).assertExists()
         shot("panel-pause-cuts")
     }
 

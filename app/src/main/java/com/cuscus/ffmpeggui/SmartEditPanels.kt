@@ -80,6 +80,12 @@ private fun smartSeconds(ms: Long): String {
     return String.format(Locale.US, "%d:%02d", total / 60, total % 60)
 }
 
+/** m:ss.t, tenths kept, for ranges short enough that whole seconds would read the same at both ends. */
+private fun smartSecondsTenths(ms: Long): String {
+    val tenths = ms / 100
+    return String.format(Locale.US, "%d:%02d.%d", tenths / 600, (tenths / 10) % 60, tenths % 10)
+}
+
 @Composable
 private fun SmartNote(text: String) {
     Text(text = text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -166,8 +172,8 @@ fun PauseCutsPanel(ui: SmartEditUi) {
 @Composable
 private fun cutLabel(cut: CutRange): String = stringResource(
     R.string.smart_cut_range,
-    smartSeconds(cut.startMs),
-    smartSeconds(cut.endMs),
+    smartSecondsTenths(cut.startMs),
+    smartSecondsTenths(cut.endMs),
     decimal((cut.endMs - cut.startMs) / 1000f, 1),
 )
 
