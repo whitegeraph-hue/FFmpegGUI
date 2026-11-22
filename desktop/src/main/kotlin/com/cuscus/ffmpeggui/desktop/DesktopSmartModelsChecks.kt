@@ -7,7 +7,9 @@ import java.io.File
 import java.nio.file.Files
 
 /** Standalone executable checks. Pass model directory; append --speech for full Parakeet JNI inference. */
-fun main(args: Array<String>) = runBlocking {
+fun main(args: Array<String>) = runModelChecks(args)
+
+fun runModelChecks(args: Array<String>) = runBlocking {
     val models = File(args[0])
     val cache = Files.createTempDirectory("native-adapter-test-").toFile()
     try {

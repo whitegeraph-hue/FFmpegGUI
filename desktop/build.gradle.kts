@@ -17,6 +17,7 @@ dependencies {
 compose.desktop {
     application {
         mainClass = "com.cuscus.ffmpeggui.desktop.MainKt"
+        jvmArgs += listOf("-Xmx256m")
         nativeDistributions {
             targetFormats(TargetFormat.Deb, TargetFormat.Rpm)
             packageName = "ffmpeggui-linux"

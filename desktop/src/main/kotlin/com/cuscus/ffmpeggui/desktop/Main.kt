@@ -23,7 +23,9 @@ import java.awt.FileDialog
 import java.io.File
 import java.awt.Desktop
 
-fun main() = application {
+fun main() = if (System.getenv("FFMPEGGUI_MODEL_CHECKS") != null) {
+    runModelChecks(arrayOf(System.getenv("FFMPEGGUI_MODEL_CHECKS"),"--speech-first","--speech"))
+} else application {
     val scope=rememberCoroutineScope()
     val controller=remember { EditorController(scope) }
     Window(onCloseRequest={ controller.close(); exitApplication() }, title="FFmpegGUI · Linux development preview", state=rememberWindowState(width=1280.dp,height=850.dp)) {

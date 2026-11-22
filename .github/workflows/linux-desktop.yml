@@ -46,6 +46,14 @@ jobs:
         run: |
           gradle -p desktop packageDeb createDistributable --console=plain
           python3 desktop/scripts/package-deb.py desktop/build/compose/binaries/main/deb/*.deb
+      - name: Verify actual extracted Debian launcher
+        run: |
+          gradle --stop
+          mkdir -p /tmp/deb-check
+          dpkg-deb -x desktop/build/compose/binaries/main/deb/*.deb /tmp/deb-check
+          date -u
+          FFMPEGGUI_MODEL_CHECKS=/tmp/ffmpeggui-models /tmp/deb-check/opt/ffmpeggui-linux/bin/ffmpeggui-linux
+          date -u
       - uses: actions/upload-artifact@v4
         if: always()
         with:
