@@ -245,6 +245,39 @@ fun main(args:Array<String>)=runBlocking {
             check(center>0xdddddd){"Subject not centered at $at: $center"}
         }
     }
+    verify("clip-bound text rotation stretch blend and image animation") {
+        val timeline=Timeline(listOf(Clip("before",video.path,endMs=2000),Clip("bound",video.path,startMs=2000,endMs=4000)))
+        val sticker=media.probe(File(folder,"sticker.png").path)
+        val text=TextOverlay(text="BOUND",clipId="bound",rotationDegrees=15f,stretch=1.3f,blend=LayerBlend.SCREEN,size=.15f,y=.8f)
+        val keys=Keyframes().set(0,mapOf(KeyProperty.X to 0f,KeyProperty.Y to .2f,KeyProperty.SIZE to .2f)).set(1600,mapOf(KeyProperty.X to 1f,KeyProperty.Y to .2f,KeyProperty.SIZE to .2f))
+        val picture=DesktopPicture(sticker,ImagePlacement(clipId="bound",widthFraction=.2f,aspect=1f,keyframes=keys))
+        val project=p.copy(timeline=timeline,captions=listOf(text),pictures=listOf(picture))
+        val output=exporter.export(project,File(folder,"bound-layers.mp4"))
+        val plain=exporter.export(project.copy(captions=emptyList(),pictures=emptyList()),File(folder,"bound-plain.mp4"))
+        suspend fun changed(at:Long,x0:Int,x1:Int,y0:Int,y1:Int):Int {
+            val image=media.frame(output.path,at)!!;val base=media.frame(plain.path,at)!!;var n=0
+            for(y in y0 until y1)for(x in x0 until x1)if(image.getRGB(x,y)!=base.getRGB(x,y))n++
+            return n
+        }
+        check(changed(500,0,640,0,360)<4000)
+        check(changed(2500,50,590,220,350)>2000)
+        val early=media.frame(output.path,2040)!!;val late=media.frame(output.path,3600)!!
+        check((early.getRGB(15,90) and 0xffffff)>0xeeeeee && (late.getRGB(late.width-15,90) and 0xffffff)>0xeeeeee)
+        val saved=File(folder,"bound-layers.ffgui.json");DesktopProjects.save(project,saved);val read=DesktopProjects.load(saved,media)
+        check(read.captions==listOf(text) && read.pictures==listOf(picture))
+        javax.imageio.ImageIO.write(late,"png",File(folder,"bound-layers-late.png"))
+    }
+    verify("placed sound keyframes actual PCM clock and persistence") {
+        val source=media.probe(File(folder,"silence.wav").path)
+        val silent=media.probe(File(folder,"silent.mp4").path)
+        val keys=Keyframes().set(0,mapOf(KeyProperty.VOLUME to 0f)).set(500,mapOf(KeyProperty.VOLUME to 0f)).set(1000,mapOf(KeyProperty.VOLUME to 1f)).set(1800,mapOf(KeyProperty.VOLUME to 1f))
+        val sound=DesktopSound(source,PlacedSound(startMs=1000,trimEndMs=1800,keyframes=keys))
+        val project=DesktopProject.create(silent).copy(sounds=listOf(sound))
+        val output=exporter.export(project,File(folder,"sound-keys.mp4"));val pcm=media.samples(output.path)
+        check(pcm.sliceArray(0 until 20000).maxOf {kotlin.math.abs(it)}<.005f)
+        check(pcm.sliceArray(35000 until 42000).maxOf {kotlin.math.abs(it)}>.1f)
+        val saved=File(folder,"sound-keys.ffgui.json");DesktopProjects.save(project,saved);check(DesktopProjects.load(saved,media).sounds==listOf(sound))
+    }
     verify("cancel real process") {
         val start=System.currentTimeMillis()
         val job=launch { media.process.run(listOf("ffmpeg","-re","-f","lavfi","-i","testsrc2=size=640x360:rate=25","-t","30","-f","null","-")) }

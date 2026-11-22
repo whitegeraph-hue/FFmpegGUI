@@ -110,7 +110,7 @@ class DesktopProject(val sources: List<DesktopSource>, val timeline: Timeline,
     fun request(): ConversionRequest = ConversionRequest(format, File(sources.first().path).name,
         sources = sources.map { s -> s.info.let { SourceInfo(it.durationMs, it.width, it.height, it.hasAudio, it.isStill, it.hdr, it.frameRate, it.hasAlpha) } },
         segments = timeline.clips.map { c -> Segment(sources.indexOfFirst { it.path == c.sourceId }, c.startMs, c.endMs, c.effects, c.id) },
-        effects = effects, encoding = encoding, audioEffects=audioEffects,image=image,metadata=tags,canvas=canvas,canvasFit=canvasFit,normalizeAudio=normalize,imageOverlays=pictures.filter {!it.hidden}.map {it.placement},sounds=sounds.filter {!it.muted}.map {it.placed},textOverlays=captions.filter { !it.hidden && (it.clipId==null || timeline.clips.any {c->c.id==it.clipId}) }, followCrop = followCrop, subtitleStyle = subtitleStyle,
+        effects = effects, encoding = encoding, audioEffects=audioEffects,image=image,metadata=tags,canvas=canvas,canvasFit=canvasFit,normalizeAudio=normalize,imageOverlays=pictures.filter {it.activeOn(timeline)}.map {it.placement},sounds=sounds.filter {!it.muted}.map {it.placed},textOverlays=captions.filter { !it.hidden && (it.clipId==null || timeline.clips.any {c->c.id==it.clipId}) }, followCrop = followCrop, subtitleStyle = subtitleStyle,
         spokenWords = sources.mapIndexedNotNull {i,_->sourceWords(i).takeIf {it.isNotEmpty()}?.let {SourceWords(i,it)} })
     fun clock()=PreviewTimeline(timeline.clips.map {PreviewTimeline.SegmentTiming(it.lengthMs,it.effects.speed,it.effects.reversed,it.effects.curve,it.effects.keepPitch,it.effects.transition)},effects.speed,effects.reversed,effects.keepPitch)
     val outputDurationMs:Long get()=request().expectedOutputDurationMs() ?: timeline.durationMs
@@ -156,7 +156,7 @@ class DesktopExport(private val media: DesktopMedia = DesktopMedia()) {
     }
     fun command(project: DesktopProject, output: String): FfmpegCommand {
         val request=project.request()
-        return CommandBuilder(fonts).build(request,MediaPaths.aliasesFor(request).copy(inputs=project.sources.map { it.path },output=output,imageOverlays=project.pictures.filter {!it.hidden}.map {it.source.path},sounds=project.sounds.filter {!it.muted}.map {it.source.path}))
+        return CommandBuilder(fonts).build(request,MediaPaths.aliasesFor(request).copy(inputs=project.sources.map { it.path },output=output,imageOverlays=project.pictures.filter {it.activeOn(project.timeline)}.map {it.source.path},sounds=project.sounds.filter {!it.muted}.map {it.source.path}))
     }
     fun transcript(project:DesktopProject,format:OutputFormat):String {
         val request=project.request()
@@ -204,7 +204,7 @@ class DesktopExport(private val media: DesktopMedia = DesktopMedia()) {
                     writeText(AssSubtitles.write(SubtitleLayout.ofWords(words,style,request.subtitleFrameRatio,facts),style,request.subtitleFrameRatio,facts?.family ?: "DejaVu Sans"))
                 }
             } else null
-            val paths=MediaPaths(project.sources.map { it.path },temporary.path,imageOverlays=project.pictures.filter {!it.hidden}.map {it.source.path},sounds=project.sounds.filter {!it.muted}.map {it.source.path},subtitles=subtitles?.path,subtitleFonts=subtitles?.let { File(fonts.fontPath(style?.bold ?: false)).parent })
+            val paths=MediaPaths(project.sources.map { it.path },temporary.path,imageOverlays=project.pictures.filter {it.activeOn(project.timeline)}.map {it.source.path},sounds=project.sounds.filter {!it.muted}.map {it.source.path},subtitles=subtitles?.path,subtitleFonts=subtitles?.let { File(fonts.fontPath(style?.bold ?: false)).parent })
             media.process.checked(listOf("ffmpeg", "-nostdin") + CommandBuilder(fonts).build(request,paths).arguments)
             val result = media.probe(temporary.path)
             require(result.info.isStill || result.info.durationMs > 0) { "Export verification failed." }
@@ -213,3 +213,5 @@ class DesktopExport(private val media: DesktopMedia = DesktopMedia()) {
         } finally { temporary.delete();auxiliaries.deleteRecursively() }
     }
 }
+
+fun DesktopPicture.activeOn(timeline:Timeline)=!hidden && (placement.clipId==null || timeline.clips.any {it.id==placement.clipId})

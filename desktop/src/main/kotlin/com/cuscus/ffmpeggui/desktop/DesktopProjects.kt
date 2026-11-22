@@ -26,6 +26,7 @@ object DesktopProjects {
             put("pictures",buildJsonArray {project.pictures.forEach {picture->add(buildJsonObject {
                 put("path",picture.source.path);put("size",File(picture.source.path).length());put("hidden",picture.hidden)
                 val v=picture.placement
+                v.clipId?.let {put("clipId",it)};put("keys",core(ModelJson.write(Effects(keyframes=v.keyframes))))
                 put("x",v.x);put("y",v.y);put("width",v.widthFraction);put("opacity",v.opacity);put("rotation",v.rotationDegrees);put("layer",v.layer)
                 put("startMs",v.startMs);v.endMs?.let {put("endMs",it)};put("fadeIn",v.fadeInSeconds);put("fadeOut",v.fadeOutSeconds)
                 put("flipH",v.flipHorizontal);put("flipV",v.flipVertical);put("brightness",v.brightness);put("contrast",v.contrast);put("saturation",v.saturation)
@@ -34,6 +35,7 @@ object DesktopProjects {
             put("sounds",buildJsonArray {project.sounds.forEach { sound -> add(buildJsonObject {
                 put("path",sound.source.path);put("size",File(sound.source.path).length());put("durationMs",sound.source.info.durationMs);put("muted",sound.muted)
                 val s=sound.placed
+                put("keys",core(ModelJson.write(Effects(keyframes=s.keyframes))))
                 put("startMs",s.startMs);put("trimStartMs",s.trimStartMs);s.trimEndMs?.let {put("trimEndMs",it)}
                 put("volume",s.volume);put("speed",s.speed);put("keepPitch",s.keepPitch);put("pitch",s.pitchSemitones);put("repeats",s.repeats)
                 put("fadeIn",s.fadeInSeconds);put("fadeOut",s.fadeOutSeconds);put("normalize",s.normalize)
@@ -82,7 +84,7 @@ object DesktopProjects {
             val v=item.jsonObject;val source=media.probe(v["path"]!!.jsonPrimitive.content)
             require(source.info.isStill && File(source.path).length()==v["size"]!!.jsonPrimitive.long){"An image layer changed or is not a still picture."}
             fun f(k:String)=v[k]!!.jsonPrimitive.float
-            val placement=ImagePlacement(x=f("x"),y=f("y"),widthFraction=f("width"),opacity=f("opacity"),rotationDegrees=f("rotation"),layer=v["layer"]!!.jsonPrimitive.int,
+            val placement=ImagePlacement(clipId=v["clipId"]?.jsonPrimitive?.content,keyframes=v["keys"]?.let {ModelJson.effects(read(it)).keyframes} ?: Keyframes.NONE,x=f("x"),y=f("y"),widthFraction=f("width"),opacity=f("opacity"),rotationDegrees=f("rotation"),layer=v["layer"]!!.jsonPrimitive.int,
                 startMs=v["startMs"]!!.jsonPrimitive.long,endMs=v["endMs"]?.jsonPrimitive?.long,fadeInSeconds=f("fadeIn"),fadeOutSeconds=f("fadeOut"),
                 flipHorizontal=v["flipH"]!!.jsonPrimitive.boolean,flipVertical=v["flipV"]!!.jsonPrimitive.boolean,brightness=f("brightness"),contrast=f("contrast"),saturation=f("saturation"),
                 blend=LayerBlend.valueOf(v["blend"]!!.jsonPrimitive.content),stretch=f("stretch"),look=ModelJson.overlayLook(read(v["look"]!!)),aspect=source.info.width.toFloat()/source.info.height)
@@ -93,7 +95,7 @@ object DesktopProjects {
             require(source.info.hasAudio && source.info.durationMs==v["durationMs"]!!.jsonPrimitive.long && File(source.path).length()==v["size"]!!.jsonPrimitive.long){"A sound file changed or has no audio."}
             fun f(k:String)=v[k]!!.jsonPrimitive.float
             fun l(k:String)=v[k]!!.jsonPrimitive.long
-            val placed=PlacedSound(startMs=l("startMs"),trimStartMs=l("trimStartMs"),trimEndMs=v["trimEndMs"]?.jsonPrimitive?.long,
+            val placed=PlacedSound(keyframes=v["keys"]?.let {ModelJson.effects(read(it)).keyframes} ?: Keyframes.NONE,startMs=l("startMs"),trimStartMs=l("trimStartMs"),trimEndMs=v["trimEndMs"]?.jsonPrimitive?.long,
                 volume=f("volume"),speed=f("speed"),keepPitch=v["keepPitch"]!!.jsonPrimitive.boolean,pitchSemitones=f("pitch"),repeats=v["repeats"]!!.jsonPrimitive.int,
                 fadeInSeconds=f("fadeIn"),fadeOutSeconds=f("fadeOut"),normalize=v["normalize"]!!.jsonPrimitive.boolean,bassDb=f("bass"),midDb=f("mid"),trebleDb=f("treble"),effects=ModelJson.audioEffects(read(v["effects"]!!)))
             require(placed.startMs>=0 && placed.trimStartMs>=0 && (placed.trimEndMs ?: source.info.durationMs) in (placed.trimStartMs+1)..source.info.durationMs){"Invalid sound trim."}

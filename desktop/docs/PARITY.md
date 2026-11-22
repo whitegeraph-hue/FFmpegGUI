@@ -140,3 +140,11 @@ Follow clock correction: only subject track points map with real segment effects
 onto joined played time. Source edit actions stay on footage clock.31native
 assertions pass, including actual2x/reversed synthetic left/right subject crop
 with centred white pixels at0.2s and1.6s. This checks timing, not person quality.
+
+Binding coverage continuation:33native assertions now include real clip-bound
+rotated/stretched/screen-blended caption pixels, animated bound picture moving
+left to right, and placed-sound volume animation PCM timing. All these states
+roundtrip. Fixed newly found picture binding/keys and sound keys envelope
+persistence omission. Missing-clip pictures are excluded from request and paths
+consistently, while retaining the saved layer for undo/recovery like captions.
+Native chooser and broader mouse editing interaction remain unverified.
