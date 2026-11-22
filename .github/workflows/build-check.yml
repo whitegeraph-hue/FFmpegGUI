@@ -24,9 +24,9 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - uses: android-actions/setup-android@v3
-
-      # The same SDK packages the media build was verified with.
+      # The ubuntu-24.04 runner image already carries the Android SDK at
+      # $ANDROID_HOME; install only the packages the build needs (the same
+      # ones the media build was verified with).
       - name: Install the Android SDK packages
         run: |
           yes | sdkmanager --licenses > /dev/null
