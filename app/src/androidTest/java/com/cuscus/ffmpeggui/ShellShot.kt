@@ -72,11 +72,23 @@ object Ui {
         return false
     }
 
-    /** Clicks the node showing [text] (or its nearest clickable parent). */
+    /**
+     * Clicks the node showing [text]: through its nearest clickable ancestor
+     * when it has one, else with a real tap at the middle of its bounds (the
+     * CI tree showed Compose cards whose labels have no clickable ancestor in
+     * the accessibility tree; the click is merged elsewhere).
+     */
     fun click(text: String): Boolean {
-        var node = find(text) ?: return false
-        while (!node.isClickable) node = node.parent ?: return false
-        return node.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK)
+        val label = find(text) ?: return false
+        var node: android.view.accessibility.AccessibilityNodeInfo? = label
+        while (node != null && !node.isClickable) node = node.parent
+        if (node != null && node.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK)) return true
+        val r = android.graphics.Rect().also { label.getBoundsInScreen(it) }
+        if (r.isEmpty) return false
+        ui.executeShellCommand("input tap ${r.centerX()} ${r.centerY()}").use { pfd ->
+            java.io.FileInputStream(pfd.fileDescriptor).use { it.readBytes() }
+        }
+        return true
     }
 
     /** Clicks [text], swiping the tool strip left a few times to bring it in view. */
