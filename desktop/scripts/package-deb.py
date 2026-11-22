@@ -31,6 +31,9 @@ with tempfile.TemporaryDirectory() as folder:
   script=Path(folder)/'DEBIAN'/name
   if script.exists():
    script.write_text('\n'.join(line for line in script.read_text().splitlines() if not line.strip().startswith('xdg-desktop-menu '))+'\n')
+ for name in ('preinst','postinst','prerm','postrm'):
+  script=Path(folder)/'DEBIAN'/name
+  if script.exists():subprocess.run(['sh','-n',str(script)],check=True)
  built=path.with_name(path.name+'.repacked')
  try:
   subprocess.run(['dpkg-deb','--build','--root-owner-group',folder,str(built)],check=True)

@@ -14,7 +14,7 @@ The package includes Java. It declares `ffmpeg` and `fonts-dejavu-core` as apt
 dependencies, instead of silently expecting unspecified executables or fonts.
 A graphical package installer may need internet and administrator permission
 to install those dependencies. Actual editing and AI inference are offline.
-No media is uploaded. FFmpeg/ffprobe/ffplay use the distribution-maintained
+No media is uploaded. FFmpeg/ffprobe use the distribution-maintained
 packages so their security updates remain available. Unsupported filters are
 errors, never silently removed. The supported FFmpeg surface is still being
 tested, not every command the Android FFmpegKit runtime can generate.

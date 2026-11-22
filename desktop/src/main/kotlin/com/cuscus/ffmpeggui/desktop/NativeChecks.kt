@@ -92,6 +92,18 @@ fun main(args:Array<String>)=runBlocking {
         check(DesktopProjects.load(file,media).image==edit)
         check(image.getRGB(320,180)!=javax.imageio.ImageIO.read(File(source.path)).getRGB(320,180))
     }
+    verify("actual SVG ASCII ANSI export and original core settings") {
+        val source=media.probe(File(folder,"photo.png").path)
+        val photo=DesktopProject.create(source).copy(image=ImageEdit(trace=com.cuscus.ffmpeggui.core.vector.TraceSettings(colors=4,maxSide=128),textArt=com.cuscus.ffmpeggui.core.textart.TextArtSettings(columns=40)))
+        val svg=File(folder,"traced.svg");exporter.export(photo.copy(format=OutputFormat.SVG),svg)
+        val parsed=javax.xml.parsers.DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(svg)
+        check(parsed.documentElement.tagName=="svg" && parsed.getElementsByTagName("path").length>1)
+        val txt=File(folder,"ascii.txt");exporter.export(photo.copy(format=OutputFormat.ASCII),txt)
+        check(txt.readLines().size>5 && txt.readLines().all {it.length<=40} && txt.readText().any {!it.isWhitespace()})
+        val ansi=File(folder,"colours.ans");exporter.export(photo.copy(format=OutputFormat.ANSI),ansi)
+        check(ansi.readText().contains("\u001B["))
+        val project=File(folder,"art.ffgui.json");DesktopProjects.save(photo,project);check(DesktopProjects.load(project,media).image==photo.image)
+    }
     verify("cancel real process") {
         val start=System.currentTimeMillis()
         val job=launch { media.process.run(listOf("ffmpeg","-re","-f","lavfi","-i","testsrc2=size=640x360:rate=25","-t","30","-f","null","-")) }

@@ -149,6 +149,9 @@ class EditorController(val scope: CoroutineScope) {
     }
     fun preview() {
         val current=project ?: return
+        if(current.format==OutputFormat.SVG || current.format.isTextArt) {
+            status="SVG and text art can be exported. Their in-editor preview is still being ported.";return
+        }
         val p=if(current.format.isTranscript) current.copy(format=if(current.sources[0].info.isVideo) OutputFormat.MP4 else OutputFormat.MP3) else current
         player.stop()
         val file=File.createTempFile("ffmpeggui-preview-", ".${p.format.extension}").apply { delete() }

@@ -133,10 +133,19 @@ class DesktopExport(private val media: DesktopMedia = DesktopMedia()) {
     }
     suspend fun export(project: DesktopProject, output: File): DesktopSource {
         require(project.sources.none { File(it.path).canonicalFile == output.canonicalFile }) { "Choose a new output. Source files are never overwritten." }
-        require(!project.format.needsPlatformEncoder && project.format != OutputFormat.CUSTOM) { "This output needs an adapter that is still being ported." }
+        require(project.format != OutputFormat.WEBP && project.format != OutputFormat.CUSTOM) { "This output needs an adapter that is still being ported." }
         val temporary = File(output.parentFile, ".${output.nameWithoutExtension}-${UUID.randomUUID()}.${project.format.extension}")
         val auxiliaries=Files.createTempDirectory("ffmpeggui-export-").toFile()
         try {
+            if(project.format==OutputFormat.SVG || project.format.isTextArt) {
+                val png=File(auxiliaries,"art-source.png")
+                val image=if(project.format.isTextArt)project.image.forTextArt() else project.image
+                export(project.copy(format=OutputFormat.PNG,image=image),png)
+                DesktopArt.write(project,png,temporary)
+                require(temporary.length()>0) { "Art export was empty." }
+                Files.move(temporary.toPath(),output.toPath(),StandardCopyOption.REPLACE_EXISTING)
+                return DesktopSource(output.canonicalPath,project.sources[0].info)
+            }
             if(project.format.isTranscript) {
                 temporary.writeText(transcript(project,project.format))
                 Files.move(temporary.toPath(),output.toPath(),StandardCopyOption.REPLACE_EXISTING)

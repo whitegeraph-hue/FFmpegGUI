@@ -20,7 +20,7 @@ jobs:
         with:
           gradle-version: '8.14.3'
       - name: Install Linux media and packaging tools
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg xvfb fakeroot
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg xvfb fakeroot desktop-file-utils
       - name: Compile unchanged core and native desktop
         run: gradle -p desktop compileKotlin --console=plain
       - name: Run shared core tests
@@ -57,14 +57,24 @@ jobs:
           date -u
       - name: Install Debian package and launch desktop entry
         run: |
+          # Remove the runtime first so this step tests Depends resolution.
+          sudo apt-get remove -y ffmpeg fonts-dejavu-core
+          ! dpkg-query -W -f='${Status}' ffmpeg 2>/dev/null | grep -q 'install ok installed'
           sudo apt-get install -y ./desktop/build/compose/binaries/main/deb/*.deb
           dpkg-query -W ffmpeggui-linux
           dpkg -V ffmpeggui-linux
           desktop=$(dpkg -L ffmpeggui-linux | grep '/applications/.*[.]desktop$' | head -1)
           test -n "$desktop"
           cat "$desktop"
+          desktop-file-validate "$desktop"
+          for script in /var/lib/dpkg/info/ffmpeggui-linux.{preinst,postinst,prerm,postrm}; do test ! -f "$script" || sh -n "$script"; done
           FFMPEGGUI_OPEN=/tmp/ffmpeggui-fixtures/video.mp4 FFMPEGGUI_SCREENSHOT=/tmp/installed-editor.png xvfb-run -a -s "-screen 0 1440x1000x24" python3 desktop/scripts/launch-desktop-entry.py "$desktop"
           test -s /tmp/installed-editor.png
+          sudo apt-get remove -y ffmpeggui-linux
+          test ! -e /opt/ffmpeggui-linux/bin/ffmpeggui-linux
+          test ! -e "$desktop"
+          sudo apt-get purge -y ffmpeggui-linux
+          test ! -e /var/lib/dpkg/info/ffmpeggui-linux.postrm
       - uses: actions/upload-artifact@v4
         if: always()
         with:
