@@ -220,8 +220,12 @@ class DesktopExport(private val media: DesktopMedia = DesktopMedia()) {
                     writeText(AssSubtitles.write(SubtitleLayout.ofWords(words,style,request.subtitleFrameRatio,facts),style,request.subtitleFrameRatio,facts?.family ?: "DejaVu Sans"))
                 }
             } else null
-            val paths=MediaPaths(project.sources.map { DesktopStillInputs.resolve(it.path,auxiliaries) },temporary.path,imageOverlays=project.pictures.filter {it.activeOn(project.timeline)}.map {DesktopStillInputs.resolve(it.source.path,auxiliaries)}+listOfNotNull(drawing?.path),sounds=project.sounds.filter {!it.muted}.map {it.source.path},subtitles=subtitles?.path,subtitleFonts=subtitles?.let { File(fonts.fontPath(style?.bold ?: false)).parent })
+            val hdr=project.image.hdr?.takeIf {project.format==OutputFormat.JPG}
+            require(hdr==null || (hdr.mode==HdrMode.GENERATED && hdr.area==HdrArea.EVERYWHERE && project.image.canvas==null)) {"This HDR mode needs an adapter still being ported."}
+            val hdrPictures=hdr?.let {HdrPictures(File(auxiliaries,"hdr-final.png").path,File(auxiliaries,"hdr-plain.png").path)}
+            val paths=MediaPaths(project.sources.map { DesktopStillInputs.resolve(it.path,auxiliaries) },temporary.path,imageOverlays=project.pictures.filter {it.activeOn(project.timeline)}.map {DesktopStillInputs.resolve(it.source.path,auxiliaries)}+listOfNotNull(drawing?.path),sounds=project.sounds.filter {!it.muted}.map {it.source.path},hdrPictures=hdrPictures,subtitles=subtitles?.path,subtitleFonts=subtitles?.let { File(fonts.fontPath(style?.bold ?: false)).parent })
             media.process.checked(listOf("ffmpeg", "-nostdin") + CommandBuilder(fonts).build(request,paths).arguments)
+            if(hdr!=null && hdrPictures!=null)DesktopHdr.assemble(temporary,File(hdrPictures.finalPng),File(hdrPictures.plainPng),hdr)
             val result = media.probe(temporary.path)
             require(result.info.isStill || result.info.durationMs > 0) { "Export verification failed." }
             Files.move(temporary.toPath(), output.toPath(), StandardCopyOption.REPLACE_EXISTING)

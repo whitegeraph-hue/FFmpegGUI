@@ -414,6 +414,24 @@ fun main(args:Array<String>)=runBlocking {
         DesktopMasks.prune(emptySet());check(!kept.exists())
         val loaded=DesktopProjects.load(saved,media);check(File(loaded.image.key!!.mask!!).isFile)
     }
+    verify("generated Ultra HDR JPG embedded map SDR and protected drawing") {
+        val source=media.probe(File(folder,"sticker.png").path)
+        val project=DesktopProject.create(source).copy(format=OutputFormat.JPG,image=ImageEdit(hdr=ImageHdr(intensity=.7f),strokes=listOf(Stroke(listOf(.1f,.5f,.9f,.5f),0xffff0000L,.15f,shape=StrokeShape.LINE))))
+        val target=File(folder,"ultra-hdr.jpg");exporter.export(project,target)
+        val embedded=com.cuscus.ffmpeggui.core.hdr.UltraHdr.read(target.readBytes()) ?: error("Missing HDR map")
+        check(embedded.metadata.maxStops>0)
+        val map=javax.imageio.ImageIO.read(java.io.ByteArrayInputStream(embedded.gainMapJpeg))
+        check(map.width==50 && map.height==50)
+        // Drawing is protected from HDR amplification by the unmodified core's plain comparison.
+        val middle=map.getRGB(map.width/2,map.height/2) and 255
+        val corner=map.getRGB(map.width/4,map.height/8) and 255
+        check(middle<corner) {"Drawing gain $middle not below white photo $corner"}
+        val sdr=javax.imageio.ImageIO.read(target)
+        check(((sdr.getRGB(25,50) shr 16) and 255)>200)
+        val saved=File(folder,"ultra-hdr.ffgui.json");DesktopProjects.save(project,saved);check(DesktopProjects.load(saved,media).image==project.image)
+        javax.imageio.ImageIO.write(sdr,"png",File(folder,"ultra-hdr-sdr-proof.png"))
+        javax.imageio.ImageIO.write(map,"png",File(folder,"ultra-hdr-map-proof.png"))
+    }
     verify("cancel real process") {
         val start=System.currentTimeMillis()
         val job=launch { media.process.run(listOf("ffmpeg","-re","-f","lavfi","-i","testsrc2=size=640x360:rate=25","-t","30","-f","null","-")) }

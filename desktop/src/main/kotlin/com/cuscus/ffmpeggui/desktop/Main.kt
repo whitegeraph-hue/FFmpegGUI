@@ -397,8 +397,13 @@ private fun EditPanel(c: EditorController,p: DesktopProject) {
         ValueSlider("Maximum output side (0 keeps original)",e.output.maxSide.toFloat(),0f..3840f,!c.busy){edit(e.copy(output=e.output.copy(maxSide=if(it<64)0 else it.toInt())))}
         ValueSlider("Photo quality",e.output.quality,0f..1f,!c.busy){edit(e.copy(output=e.output.copy(quality=it)))}
         ValueSlider("Round corners",e.corners,0f..1f,!c.busy){edit(e.copy(corners=it))}
+        Row {Switch(e.hdr!=null,{on->edit(e.copy(hdr=if(on)ImageHdr()else null))},enabled=!c.busy);Text("Generated Ultra HDR JPG")}
+        e.hdr?.let {hdr->
+            ValueSlider("HDR intensity",hdr.intensity,0f..1f,!c.busy){edit(e.copy(hdr=hdr.copy(intensity=it)))}
+            Text("JPG only, up to 8 megapixels. Gain map is generated from the edited light, not AI. SDR screens keep the ordinary JPG. HDR hardware display is not verified. Original-camera gain maps and area masks are still being ported.")
+        }
         OutlinedButton(onClick={edit(ImageEdit())},enabled=!c.busy){Text("Reset photo settings")}
-        Text("Use the Drawing tab for brush and shapes. Masks, layer canvas and HDR output remain in progress.",style=MaterialTheme.typography.bodySmall)
+        Text("Drawing and subject-mask brushes have separate tabs. Photo-layer canvas and original/area HDR remain in progress.",style=MaterialTheme.typography.bodySmall)
     }
 }
 

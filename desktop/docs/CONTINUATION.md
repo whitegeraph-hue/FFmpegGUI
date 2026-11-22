@@ -273,3 +273,13 @@ Other live sessions and legacy flat mask files untouched. Saved projects embed
 mask and restore independently; pruning/recovery native test passes. No generic
 disk sweeper. Final exact package and Zorin target still owed. Large normalization
 test is synthetic, not evidence for every colour profile or real-person quality.
+
+Generated HDR checkpoint 2026-11-23 01:38 Cairo: original core GainMapBuilder,
+GreyJpeg and UltraHdr assemble generated whole-picture gain map for JPG from
+command builder's final/plain pair. Read bands, limit8MP output to bound core
+working arrays. Original-camera maps, area masks, HDR hardware display remain
+unverified/unported and are gated.43native checks pass including embedded map,
+metadata, ordinary SDR decode, protected drawing gain lower than photo white,
+saved ImageHdr roundtrip. SDR picture and grey map inspected. UI intensity and
+limitations inspected. Map is deterministic image processing, not AI generation.
+Package8b6stale relativeHDR checkpoint; no final delivery claim.8b6CIpending.
