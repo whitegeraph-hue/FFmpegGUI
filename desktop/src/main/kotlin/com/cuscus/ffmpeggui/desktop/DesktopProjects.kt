@@ -51,6 +51,7 @@ object DesktopProjects {
             put("keepHdr",project.encoding.keepHdr)
             put("audioBitrate",project.encoding.audio.bitrateKbps);put("audioSampleRate",project.encoding.audio.sampleRate);put("audioDepth",project.encoding.audio.bitDepth)
             put("timeline",core(ModelJson.write(project.timeline)))
+            put("wordsBySource",buildJsonObject {project.sources.indices.forEach {i->put(project.sources[i].path,buildJsonArray {project.sourceWords(i).forEach {w->add(buildJsonObject {put("startMs",w.startMs);put("endMs",w.endMs);put("text",w.text)})}})}})
             put("words",buildJsonArray { project.words.forEach { w -> add(buildJsonObject { put("startMs",w.startMs);put("endMs",w.endMs);put("text",w.text) }) } })
         }
         require((project.sources+project.sounds.map {it.source}+project.pictures.map {it.source}).none { File(it.path).canonicalFile==target.canonicalFile }) { "Cannot replace a source with a project." }
@@ -69,7 +70,7 @@ object DesktopProjects {
             require(File(source.path).length()==value["size"]!!.jsonPrimitive.long && source.info.durationMs==value["durationMs"]!!.jsonPrimitive.long) { "A source file changed. Open it as a new project instead." }
             source
         }
-        require(sources.size==1) { "This preview accepts one source per project. Multi-source analysis is not ready yet." }
+        require(sources.isNotEmpty() && sources.map {it.path}.distinct().size==sources.size){"Invalid or duplicate source list."}
         val timeline=ModelJson.timeline(read(data["timeline"]!!))
         require(timeline.clips.isNotEmpty() && timeline.clips.all { c ->
             val s=sources.firstOrNull { it.path==c.sourceId }
@@ -101,12 +102,14 @@ object DesktopProjects {
         val gif=data["gif"]?.jsonObject
         val gifSettings=gif?.let { GifSettings(it["width"]!!.jsonPrimitive.int,it["fps"]!!.jsonPrimitive.int,it["colors"]!!.jsonPrimitive.int,GifDither.valueOf(it["dither"]!!.jsonPrimitive.content),it["loops"]!!.jsonPrimitive.int,it["smaller"]!!.jsonPrimitive.boolean) } ?: GifSettings()
         val words=data["words"]!!.jsonArray.map { w -> w.jsonObject.let { SpokenWord(it["startMs"]!!.jsonPrimitive.long,it["endMs"]!!.jsonPrimitive.long,it["text"]!!.jsonPrimitive.content) } }
+        val perSource=data["wordsBySource"]?.jsonObject?.mapValues {(_,v)->v.jsonArray.map {w->w.jsonObject.let {SpokenWord(it["startMs"]!!.jsonPrimitive.long,it["endMs"]!!.jsonPrimitive.long,it["text"]!!.jsonPrimitive.content)}}} ?: emptyMap()
+        require(perSource.keys.all {key->sources.any {it.path==key}}){"Words refer to missing source."}
         return DesktopProject(sources,timeline,OutputFormat.valueOf(data["format"]!!.jsonPrimitive.content),effects=effects,words=words,
             encoding=EncodingSettings(resolution=data["resolution"]?.jsonPrimitive?.content?.let { Resolution.valueOf(it) } ?: Resolution.ORIGINAL, quality=data["quality"]?.jsonPrimitive?.float ?: .7f,
                 framerate=data["framerate"]?.jsonPrimitive?.content?.let { Framerate.valueOf(it) } ?: Framerate.ORIGINAL,
                 cpuSpeed=data["cpuSpeed"]?.jsonPrimitive?.content?.let { CpuEncoderSpeed.valueOf(it) } ?: CpuEncoderSpeed.BALANCED,
                 keepHdr=data["keepHdr"]?.jsonPrimitive?.boolean ?: true,gif=gifSettings,
                 audio=AudioEncoding(data["audioBitrate"]?.jsonPrimitive?.int ?: 192,data["audioSampleRate"]?.jsonPrimitive?.int ?: 0,data["audioDepth"]?.jsonPrimitive?.int ?: 16)),
-            followCrop=data["followCrop"]?.let { ModelJson.followCrop(read(it)) },subtitleStyle=data["subtitleStyle"]?.let { ModelJson.subtitleStyle(read(it)) },pictures=pictures,tags=data["tags"]?.let {ModelJson.metadataTags(read(it))} ?: MetadataTags(),canvas=data["canvas"]?.jsonPrimitive?.content?.let {CanvasRatio.valueOf(it)} ?: CanvasRatio.FIT,canvasFit=data["canvasFit"]?.jsonPrimitive?.content?.let {CanvasFit.valueOf(it)} ?: CanvasFit.FIT,normalize=data["normalize"]?.jsonPrimitive?.boolean ?: false,sounds=sounds,captions=data["captions"]?.jsonArray?.map { ModelJson.textOverlay(read(it)) ?: error("Invalid caption") } ?: emptyList(),image=data["image"]?.let {ModelJson.imageEdit(read(it))} ?: ImageEdit(),audioEffects=data["audioEffects"]?.let {ModelJson.audioEffects(read(it))} ?: AudioEffects.NONE)
+            followCrop=data["followCrop"]?.let { ModelJson.followCrop(read(it)) },subtitleStyle=data["subtitleStyle"]?.let { ModelJson.subtitleStyle(read(it)) },wordsBySource=perSource,pictures=pictures,tags=data["tags"]?.let {ModelJson.metadataTags(read(it))} ?: MetadataTags(),canvas=data["canvas"]?.jsonPrimitive?.content?.let {CanvasRatio.valueOf(it)} ?: CanvasRatio.FIT,canvasFit=data["canvasFit"]?.jsonPrimitive?.content?.let {CanvasFit.valueOf(it)} ?: CanvasFit.FIT,normalize=data["normalize"]?.jsonPrimitive?.boolean ?: false,sounds=sounds,captions=data["captions"]?.jsonArray?.map { ModelJson.textOverlay(read(it)) ?: error("Invalid caption") } ?: emptyList(),image=data["image"]?.let {ModelJson.imageEdit(read(it))} ?: ImageEdit(),audioEffects=data["audioEffects"]?.let {ModelJson.audioEffects(read(it))} ?: AudioEffects.NONE)
     }
 }

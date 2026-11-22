@@ -36,6 +36,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
     Window(onCloseRequest={ controller.close(); exitApplication() }, title="FFmpegGUI · Linux development preview", state=rememberWindowState(width=1280.dp,height=850.dp)) {
         LaunchedEffect(Unit) {
             System.getenv("FFMPEGGUI_OPEN")?.let { controller.open(it) }
+            System.getenv("FFMPEGGUI_PROJECT")?.let {path->controller.work("Opening project…"){controller.project=DesktopProjects.load(File(path),controller.media);controller.selectedSource=0;controller.seek(0);controller.status="Project opened."}}
             System.getenv("FFMPEGGUI_SCREENSHOT")?.let { path ->
                 delay(System.getenv("FFMPEGGUI_CAPTURE_DELAY")?.toLongOrNull() ?: 5000)
                 System.getenv("FFMPEGGUI_TAB")?.let { controller.tab=it }; delay(500)
@@ -59,7 +60,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                             Text("Linux development preview · shared Android editing core",style=MaterialTheme.typography.labelLarge,color=MaterialTheme.colorScheme.primary)
                         }
                         OutlinedButton(onClick={ pick()?.let { controller.open(it.path) } },enabled=!controller.busy) { Text("Open media") }
-                        OutlinedButton(onClick={ pick()?.let { file -> controller.work("Opening project…") { controller.player.stop();controller.rendered?.delete();controller.rendered=null;controller.previewFrame=null;controller.project=DesktopProjects.load(file,controller.media); controller.resetAnalysis(); controller.seek(0); controller.status="Project opened." } } },enabled=!controller.busy) { Text("Open project") }
+                        OutlinedButton(onClick={ pick()?.let { file -> controller.work("Opening project…") { controller.player.stop();controller.rendered?.delete();controller.rendered=null;controller.previewFrame=null;controller.project=DesktopProjects.load(file,controller.media);controller.selectedSource=0; controller.resetAnalysis(); controller.seek(0); controller.status="Project opened." } } },enabled=!controller.busy) { Text("Open project") }
                         OutlinedButton(onClick={ controller.project?.let { p -> pick(true,"project.ffgui.json")?.let { file -> controller.work("Saving project…") { DesktopProjects.save(p,file); controller.status="Project saved: ${file.path}" } } } },enabled=!controller.busy && controller.project!=null) { Text("Save project") }
                         OutlinedButton(onClick={ controller.undo() },enabled=!controller.busy && controller.project!=null) { Text("Undo") }
                         Button(onClick={ controller.project?.let { p ->
@@ -106,7 +107,10 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                                         OutlinedButton(onClick={ if(controller.player.playing) controller.player.pause() else controller.player.play(file) }) { Text(if(controller.player.playing) "Pause preview" else "Play preview") }
                                     }
                                 }
-                                Text("Timeline · ${project.timeline.clips.size} clips",style=MaterialTheme.typography.titleSmall)
+                                Row(verticalAlignment=Alignment.CenterVertically) {
+                                    Text("Timeline · ${project.timeline.clips.size} clips",style=MaterialTheme.typography.titleSmall,modifier=Modifier.weight(1f))
+                                    OutlinedButton(onClick={pick()?.let {controller.append(it.path)}},enabled=!controller.busy && !project.sources[0].info.isStill){Text("Add clip")}
+                                }
                                 LazyColumn(Modifier.heightIn(max=180.dp),verticalArrangement=Arrangement.spacedBy(5.dp)) {
                                     itemsIndexed(project.timeline.clips) { index,clip ->
                                         Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.surfaceContainerHigh).padding(horizontal=10.dp,vertical=3.dp),verticalAlignment=Alignment.CenterVertically) {
@@ -121,6 +125,9 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                             }
                             Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(10.dp)) {
                                 val tabs=listOf("Edit","Transcript","Pause cuts","Scenes","Beats","Follow crop","Models","Subtitles","Audio","Text layers","Sound tracks","Tags","Image layers")
+                                if(project.sources.size>1)FlowRowCompat {
+                                    project.sources.forEachIndexed {i,source->FilterChip(controller.selectedSource==i,{controller.selectSource(i)},label={Text("${i+1}: ${File(source.path).name.take(20)}")},enabled=!controller.busy)}
+                                }
                                 FlowRowCompat {
                                     tabs.forEach { title -> FilterChip(selected=controller.tab==title,onClick={ controller.tab=title },label={ Text(title) }) }
                                 }
@@ -223,10 +230,10 @@ private fun EditPanel(c: EditorController,p: DesktopProject) {
     PanelCard {
         Text("Transcript",style=MaterialTheme.typography.titleLarge)
         Text("Word taps seek the source on the current timeline. Line edits use the same cut/keep logic as Android.")
-        if(p.words.isEmpty()) Text("No lines yet. Import the speech model in Models, then listen to this file.")
-        Button(onClick={ c.listen() },enabled=!c.busy && p.sources[0].info.hasAudio) { Text(if(p.words.isEmpty()) "Listen to the video" else "Listen again") }
+        if(p.sourceWords(c.selectedSource).isEmpty()) Text("No lines yet. Import the speech model in Models, then listen to this file.")
+        Button(onClick={ c.listen() },enabled=!c.busy && p.sources[c.selectedSource].info.hasAudio) { Text(if(p.sourceWords(c.selectedSource).isEmpty()) "Listen to the video" else "Listen again") }
         Text("Native inference runs in an isolated local process. Stop ends that process.",style=MaterialTheme.typography.bodySmall)
-        val blocks=remember(p.words) { p.words.wordBlocks().second }
+        val blocks=remember(p.sourceWords(c.selectedSource)) { p.sourceWords(c.selectedSource).wordBlocks().second }
         blocks.forEach { block ->
             HorizontalDivider()
             Text("Line at ${time(block.startMs)}",style=MaterialTheme.typography.labelLarge)
@@ -235,7 +242,7 @@ private fun EditPanel(c: EditorController,p: DesktopProject) {
             }
             Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick={ c.transcriptCut(block,false) },enabled=!c.busy) { Text("Cut from video") }
-                OutlinedButton(onClick={ c.transcriptCut(block,true) },enabled=!c.busy) { Text("Keep only this") }
+                OutlinedButton(onClick={ c.transcriptCut(block,true) },enabled=!c.busy) { Text(if(p.sources.size>1)"Keep line in this source" else "Keep only this") }
             }
         }
     }
@@ -275,14 +282,14 @@ private fun EditPanel(c: EditorController,p: DesktopProject) {
     PanelCard {
         Text("Spoken subtitles",style=MaterialTheme.typography.titleLarge)
         Text("Listen in Transcript first. Subtitles follow cuts and speed through the original core. Render edited preview to see the actual result.")
-        Text("${p.words.size} source words. Export SRT or TXT from Edit without burning text into video.",style=MaterialTheme.typography.bodySmall)
+        Text("${p.sources.indices.sumOf {p.sourceWords(it).size}} source words. Export SRT or TXT from Edit without burning text into video.",style=MaterialTheme.typography.bodySmall)
         Row(verticalAlignment=Alignment.CenterVertically) {
-            Switch(p.subtitleStyle!=null,{ c.mutate(p.copy(subtitleStyle=if(it) style else null)) },enabled=!c.busy && p.words.isNotEmpty())
+            Switch(p.subtitleStyle!=null,{ c.mutate(p.copy(subtitleStyle=if(it) style else null)) },enabled=!c.busy && p.sources.indices.any {p.sourceWords(it).isNotEmpty()})
             Text("Burn subtitles into video")
         }
-        if(p.words.isEmpty()) Button(onClick={c.tab="Transcript"}) {Text("Open Transcript")}
+        if(p.sources.indices.none {p.sourceWords(it).isNotEmpty()}) Button(onClick={c.tab="Transcript"}) {Text("Open Transcript")}
         Text("Style presets")
-        FlowRowCompat { SubtitleStyle.PRESETS.forEach { preset -> FilterChip(SubtitlePreset.of(style)==preset,{c.mutate(p.copy(subtitleStyle=preset.apply(style)))},label={Text(preset.name.lowercase())},enabled=!c.busy && p.words.isNotEmpty()) } }
+        FlowRowCompat { SubtitleStyle.PRESETS.forEach { preset -> FilterChip(SubtitlePreset.of(style)==preset,{c.mutate(p.copy(subtitleStyle=preset.apply(style)))},label={Text(preset.name.lowercase())},enabled=!c.busy && p.sources.indices.any {p.sourceWords(it).isNotEmpty()}) } }
         if(p.subtitleStyle!=null) {
             ValueSlider("Text size",style.size,SubtitleStyle.MIN_SIZE..SubtitleStyle.MAX_SIZE,!c.busy) {c.mutate(p.copy(subtitleStyle=style.copy(size=it)))}
             ValueSlider("Horizontal position",style.x,0f..1f,!c.busy) {c.mutate(p.copy(subtitleStyle=style.copy(x=it)))}

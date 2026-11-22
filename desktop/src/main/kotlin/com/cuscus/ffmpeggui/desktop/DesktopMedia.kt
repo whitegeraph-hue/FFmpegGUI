@@ -71,7 +71,7 @@ class DesktopMedia(val process: DesktopProcess = DesktopProcess()) {
         val rotation = video?.get("side_data_list")?.jsonArray?.mapNotNull { it.jsonObject["rotation"]?.jsonPrimitive?.intOrNull }?.firstOrNull() ?: 0
         if (kotlin.math.abs(rotation) % 180 == 90) { val swap = w; w = h; h = swap }
         val rate = video?.get("avg_frame_rate")?.jsonPrimitive?.content?.split('/')?.let { if (it.size == 2 && it[1].toFloatOrNull() != 0f) (it[0].toFloatOrNull() ?: 0f) / (it[1].toFloatOrNull() ?: 1f) else 0f } ?: 0f
-        return DesktopSource(file.path, MediaInfo.of(duration, video != null, w, h, file.length(), audio, still, frameRate = rate))
+        return DesktopSource(file.path, MediaInfo.of(duration, video != null, w, h, file.length(), audio, still, frameRate = rate,hasAlpha=video?.get("pix_fmt")?.jsonPrimitive?.content?.let {it.startsWith("rgba") || it.startsWith("bgra") || it.startsWith("argb") || it.startsWith("abgr") || it.startsWith("yuva") || it.startsWith("gbrap") || it.startsWith("ya")} ?: false))
     }
     suspend fun frame(path: String, atMs: Long, filters: String? = null): BufferedImage? {
         val target = File.createTempFile("ffmpeggui-frame-", ".png")
@@ -100,16 +100,17 @@ class DesktopMedia(val process: DesktopProcess = DesktopProcess()) {
 class DesktopProject(val sources: List<DesktopSource>, val timeline: Timeline,
     val format: OutputFormat = OutputFormat.MP4, val effects: Effects = Effects(),
     val encoding: EncodingSettings = EncodingSettings(), val words: List<SpokenWord> = emptyList(),
-    val followCrop: FollowCropTrack? = null, val subtitleStyle: SubtitleStyle? = null, val audioEffects:AudioEffects=AudioEffects.NONE,val image:ImageEdit=ImageEdit(),val captions:List<TextOverlay> = emptyList(),val sounds:List<DesktopSound> = emptyList(),val tags:MetadataTags=MetadataTags(),val canvas:CanvasRatio=CanvasRatio.FIT,val canvasFit:CanvasFit=CanvasFit.FIT,val normalize:Boolean=false,val pictures:List<DesktopPicture> = emptyList()) {
-    fun copy(timeline: Timeline = this.timeline, format: OutputFormat = this.format,
+    val followCrop: FollowCropTrack? = null, val subtitleStyle: SubtitleStyle? = null, val audioEffects:AudioEffects=AudioEffects.NONE,val image:ImageEdit=ImageEdit(),val captions:List<TextOverlay> = emptyList(),val sounds:List<DesktopSound> = emptyList(),val tags:MetadataTags=MetadataTags(),val canvas:CanvasRatio=CanvasRatio.FIT,val canvasFit:CanvasFit=CanvasFit.FIT,val normalize:Boolean=false,val pictures:List<DesktopPicture> = emptyList(),val wordsBySource:Map<String,List<SpokenWord>> = emptyMap()) {
+    fun copy(sources:List<DesktopSource> = this.sources,timeline: Timeline = this.timeline, format: OutputFormat = this.format,
         effects: Effects = this.effects, encoding: EncodingSettings = this.encoding,
         words: List<SpokenWord> = this.words, followCrop: FollowCropTrack? = this.followCrop,
-        subtitleStyle: SubtitleStyle? = this.subtitleStyle,audioEffects:AudioEffects=this.audioEffects,image:ImageEdit=this.image,captions:List<TextOverlay> = this.captions,sounds:List<DesktopSound> = this.sounds,tags:MetadataTags=this.tags,canvas:CanvasRatio=this.canvas,canvasFit:CanvasFit=this.canvasFit,normalize:Boolean=this.normalize,pictures:List<DesktopPicture> = this.pictures) = DesktopProject(sources, timeline, format, effects, encoding, words, followCrop, subtitleStyle,audioEffects,image,captions,sounds,tags,canvas,canvasFit,normalize,pictures)
+        subtitleStyle: SubtitleStyle? = this.subtitleStyle,audioEffects:AudioEffects=this.audioEffects,image:ImageEdit=this.image,captions:List<TextOverlay> = this.captions,sounds:List<DesktopSound> = this.sounds,tags:MetadataTags=this.tags,canvas:CanvasRatio=this.canvas,canvasFit:CanvasFit=this.canvasFit,normalize:Boolean=this.normalize,pictures:List<DesktopPicture> = this.pictures,wordsBySource:Map<String,List<SpokenWord>> = this.wordsBySource) = DesktopProject(sources, timeline, format, effects, encoding, words, followCrop, subtitleStyle,audioEffects,image,captions,sounds,tags,canvas,canvasFit,normalize,pictures,wordsBySource)
     fun request(): ConversionRequest = ConversionRequest(format, File(sources.first().path).name,
         sources = sources.map { s -> s.info.let { SourceInfo(it.durationMs, it.width, it.height, it.hasAudio, it.isStill, it.hdr, it.frameRate, it.hasAlpha) } },
         segments = timeline.clips.map { c -> Segment(sources.indexOfFirst { it.path == c.sourceId }, c.startMs, c.endMs, c.effects, c.id) },
         effects = effects, encoding = encoding, audioEffects=audioEffects,image=image,metadata=tags,canvas=canvas,canvasFit=canvasFit,normalizeAudio=normalize,imageOverlays=pictures.filter {!it.hidden}.map {it.placement},sounds=sounds.filter {!it.muted}.map {it.placed},textOverlays=captions.filter { !it.hidden && (it.clipId==null || timeline.clips.any {c->c.id==it.clipId}) }, followCrop = followCrop, subtitleStyle = subtitleStyle,
-        spokenWords = if (words.isNotEmpty()) listOf(SourceWords(0, words)) else emptyList())
+        spokenWords = sources.mapIndexedNotNull {i,_->sourceWords(i).takeIf {it.isNotEmpty()}?.let {SourceWords(i,it)} })
+    fun sourceWords(index:Int):List<SpokenWord> = sources.getOrNull(index)?.path?.let {wordsBySource[it]} ?: if(index==0)words else emptyList()
     companion object {
         fun create(source: DesktopSource) = DesktopProject(listOf(source), Timeline(listOf(Clip(UUID.randomUUID().toString(), source.path, endMs = if (source.info.isStill) 5000 else source.info.durationMs))),
             format = if (source.info.isStill) OutputFormat.PNG else if (!source.info.isVideo) OutputFormat.MP3 else OutputFormat.MP4)

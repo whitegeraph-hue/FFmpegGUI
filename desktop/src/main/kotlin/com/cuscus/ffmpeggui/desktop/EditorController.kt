@@ -14,6 +14,7 @@ import java.io.File
 import java.util.UUID
 
 class EditorController(val scope: CoroutineScope) {
+    var selectedSource by mutableStateOf(0)
     var project by mutableStateOf<DesktopProject?>(null)
     var sourceFrame by mutableStateOf<ImageBitmap?>(null)
     var previewFrame by mutableStateOf<ImageBitmap?>(null)
@@ -51,21 +52,36 @@ class EditorController(val scope: CoroutineScope) {
     fun open(path: String) = work("Reading media locally…") {
         val source=media.probe(path)
         player.stop()
-        project=DesktopProject.create(source)
+        selectedSource=0;project=DesktopProject.create(source)
         history.clear(); resetAnalysis(); rendered?.delete();rendered=null;previewFrame=null; position=0
         status="${File(path).name} · ${source.info.durationFormatted} · ${source.info.width} × ${source.info.height}"
         seek(0)
+    }
+    fun selectSource(index:Int) {
+        val p=project ?: return
+        selectedSource=index.coerceIn(p.sources.indices);resetAnalysis()
+        p.timeline.clips.indexOfFirst {it.sourceId==p.sources[selectedSource].path}.takeIf {it>=0}?.let {seek(p.timeline.startOf(it))}
+    }
+    fun append(path:String)=work("Adding source…") {
+        val p=project ?: return@work
+        require(!p.sources[selectedSource].info.isStill){"Start a video timeline to combine files."}
+        val source=media.probe(path)
+        require(source.info.isVideo && !source.info.isStill){"Choose a video clip for this timeline. Still and audio-only timeline sources are still being ported."}
+        val sources=if(p.sources.any {it.path==source.path})p.sources else p.sources+source
+        mutate(p.copy(sources=sources,timeline=p.timeline.append(Clip(id(),source.path,endMs=source.info.durationMs)),followCrop=null))
+        selectedSource=sources.indexOfFirst {it.path==source.path};resetAnalysis();status="Source added: ${File(source.path).name}"
     }
     fun resetAnalysis() { pauseStatus=PauseCutsStatus.Idle; sceneStatus=SceneSplitsStatus.Idle; beatStatus=BeatsStatus.Idle; snap=false; followStatus=FollowCropStatus.Idle }
     fun mutate(next: DesktopProject) {
         project?.let { history.addLast(it); if (history.size>50) history.removeFirst() }
         project=next
+        selectedSource=selectedSource.coerceIn(next.sources.indices)
         player.stop();rendered?.delete(); rendered=null;previewFrame=null
         position=position.coerceAtMost(next.timeline.durationMs)
         pauseStatus=PauseCutsStatus.Idle; sceneStatus=SceneSplitsStatus.Idle
         seek(position)
     }
-    fun undo() { if (history.isNotEmpty()) { project=history.removeLast(); player.stop();rendered?.delete(); rendered=null;previewFrame=null; resetAnalysis(); seek(position) } }
+    fun undo() { if (history.isNotEmpty()) { project=history.removeLast(); selectedSource=selectedSource.coerceIn(project!!.sources.indices);player.stop();rendered?.delete(); rendered=null;previewFrame=null; resetAnalysis(); seek(position) } }
     fun seek(at: Long) {
         val p=project ?: return
         position=at.coerceIn(0,p.timeline.durationMs)
@@ -84,7 +100,7 @@ class EditorController(val scope: CoroutineScope) {
     }
     fun seekWord(word: SpokenWord) {
         val p=project ?: return
-        val at=mapToTimeline(word.startMs,word.endMs,p.request().segments,0).firstOrNull()?.first
+        val at=mapToTimeline(word.startMs,word.endMs,p.request().segments,selectedSource).firstOrNull()?.first
         if (at==null) status="This word is no longer on the edited timeline." else seek(at)
     }
     fun splitHere() {
@@ -98,21 +114,21 @@ class EditorController(val scope: CoroutineScope) {
     fun moveClip(index: Int, offset: Int) { val p=project ?: return; mutate(p.copy(timeline=p.timeline.move(p.timeline.clips[index].id,offset),followCrop=null)) }
     fun transcriptCut(block: WordBlock, keepOnly: Boolean) {
         val p=project ?: return
-        val sourceCuts=if (keepOnly) TranscriptEdits.keepOnly(p.words,block.firstIndex,block.lastIndex,p.sources[0].info.durationMs)
-            else listOfNotNull(p.words.cutRangeFor(block.firstIndex,block.lastIndex))
-        val cuts=sourceCuts.flatMap { c -> mapToTimeline(c.startMs,c.endMs,p.request().segments,0).map { CutRange(it.first,it.second,c.reason) } }
+        val sourceCuts=if (keepOnly) TranscriptEdits.keepOnly(p.sourceWords(selectedSource),block.firstIndex,block.lastIndex,p.sources[selectedSource].info.durationMs)
+            else listOfNotNull(p.sourceWords(selectedSource).cutRangeFor(block.firstIndex,block.lastIndex))
+        val cuts=sourceCuts.flatMap { c -> mapToTimeline(c.startMs,c.endMs,p.request().segments,selectedSource).map { CutRange(it.first,it.second,c.reason) } }
         mutate(p.copy(timeline=p.timeline.withoutRanges(cuts,id),followCrop=null))
-        status=if (keepOnly) "Kept the selected line on the timeline." else "Cut the selected line from the timeline."
+        status=if (keepOnly) "Kept this source line. Other sources are unchanged." else "Cut the selected line from the timeline."
     }
     fun findPauses() {
         val p=project ?: return
-        if (p.words.isEmpty()) { pauseStatus=PauseCutsStatus.NeedsWords; return }
+        if (p.sourceWords(selectedSource).isEmpty()) { pauseStatus=PauseCutsStatus.NeedsWords; return }
         pauseStatus=PauseCutsStatus.Working
         work("Finding pauses and hesitations locally…") {
             try {
-                val silence=media.silence(p.sources[0])
-                val cuts=PauseCuts.suggest(p.words,silence,p.sources[0].info.durationMs).flatMap { c ->
-                    mapToTimeline(c.startMs,c.endMs,p.request().segments,0).map { CutRange(it.first,it.second,c.reason) }
+                val silence=media.silence(p.sources[selectedSource])
+                val cuts=PauseCuts.suggest(p.sourceWords(selectedSource),silence,p.sources[selectedSource].info.durationMs).flatMap { c ->
+                    mapToTimeline(c.startMs,c.endMs,p.request().segments,selectedSource).map { CutRange(it.first,it.second,c.reason) }
                 }.normalized(p.timeline.durationMs,120)
                 pauseStatus=PauseCutsStatus.Ready(cuts,cuts.indices.toSet()); status="Review the suggestions, then choose Cut."
             } catch (e: Exception) { pauseStatus=PauseCutsStatus.Failed; throw e }
@@ -123,7 +139,7 @@ class EditorController(val scope: CoroutineScope) {
         sceneStatus=SceneSplitsStatus.Working
         work("Finding scene changes locally…") {
             try {
-                val points=media.scenes(p.sources[0]).flatMap { at -> mapToTimeline(at,at+1,p.request().segments,0).map { it.first } }.distinct()
+                val points=media.scenes(p.sources[selectedSource]).flatMap { at -> mapToTimeline(at,at+1,p.request().segments,selectedSource).map { it.first } }.distinct()
                 sceneStatus=SceneSplitsStatus.Ready(points,points.indices.toSet()); status="Review the scene boundaries, then choose Split."
             } catch (e: Exception) { sceneStatus=SceneSplitsStatus.Failed; throw e }
         }
@@ -133,9 +149,9 @@ class EditorController(val scope: CoroutineScope) {
         beatStatus=BeatsStatus.Working
         work("Finding musical beats locally…") {
             try {
-                val result=withContext(Dispatchers.Default) { BeatTrack.analyze(media.samples(p.sources[0].path),16000,p.sources[0].info.durationMs) }
+                val result=withContext(Dispatchers.Default) { BeatTrack.analyze(media.samples(p.sources[selectedSource].path),16000,p.sources[selectedSource].info.durationMs) }
                 check(result.tempoBpm!=null && result.beatsMs.isNotEmpty()) { "No steady beat found. Use at least five seconds of rhythmic music." }
-                val points=result.beatsMs.flatMap { at -> mapToTimeline(at,at+1,p.request().segments,0).map { it.first } }.distinct()
+                val points=result.beatsMs.flatMap { at -> mapToTimeline(at,at+1,p.request().segments,selectedSource).map { it.first } }.distinct()
                 beatStatus=BeatsStatus.Ready(result.onsetsMs,points,result.tempoBpm); status="Review the beats. Snapping also applies to Split here."
             } catch (e: Exception) { beatStatus=BeatsStatus.Failed; throw e }
         }
@@ -160,31 +176,32 @@ class EditorController(val scope: CoroutineScope) {
                 exporter.export(p,file)
                 rendered?.delete(); rendered=file
                 if (p.format.hasVideo || p.format.isImage) previewFrame=media.frame(file.path,0)?.toComposeImageBitmap()
-                status=if(p.sources[0].info.isStill) "Edited picture is ready. Source file is unchanged." else "Edited preview is ready. Play inside the editor to inspect audio and motion."
+                status=if(p.sources[selectedSource].info.isStill) "Edited picture is ready. Source file is unchanged." else "Edited preview is ready. Play inside the editor to inspect audio and motion."
             } catch (e: Exception) { file.delete(); throw e }
         }
     }
     fun listen() {
         val p=project ?: return
         work("Listening locally. Stop ends the isolated model process…") {
-            val words=models.transcribe(p.sources[0].path,DesktopModels.speechDirectory) { step ->
+            val words=models.transcribe(p.sources[selectedSource].path,DesktopModels.speechDirectory) { step ->
                 scope.launch { status="$step locally. Stop ends the isolated model process." }
             }
             check(words.isNotEmpty()) { "No speech found in this file." }
-            mutate(p.copy(words=words)); tab="Transcript";status="Heard ${words.size} words locally. Tap a word to seek."
+            mutate(p.copy(wordsBySource=p.wordsBySource+(p.sources[selectedSource].path to words))); tab="Transcript";status="Heard ${words.size} words locally. Tap a word to seek."
         }
     }
     fun follow() {
         val p=project ?: return
+        if(p.sources.size>1){error="Following crop across multiple sources is still being ported. Use per-clip framing for now.";return}
         if(!DesktopModels.cutoutFile.isFile) { followStatus=FollowCropStatus.NoModel;return }
         followStatus=FollowCropStatus.Working(0f)
         work("Following the subject locally. Stop ends the isolated model process…") {
             try {
-                val tracked=models.track(p.sources[0].path,p.sources[0].info.durationMs,DesktopModels.cutoutFile,progress={ value -> scope.launch { followStatus=FollowCropStatus.Working(value) } })
+                val tracked=models.track(p.sources[selectedSource].path,p.sources[selectedSource].info.durationMs,DesktopModels.cutoutFile,progress={ value -> scope.launch { followStatus=FollowCropStatus.Working(value) } })
                 val mapped=tracked.points.flatMap { point -> mapToTimeline(point.atMs,point.atMs+1,p.request().segments,0).map { point.copy(atMs=it.first) } }
                 check(mapped.isNotEmpty()) { "No track points on the current timeline." }
                 val size=FollowCropTrack.windowSize(tracked.frameWidth,tracked.frameHeight,9,16)
-                mutate(p.copy(followCrop=FollowCropTrack(mapped,tracked.frameWidth,tracked.frameHeight,size.first,size.second,p.sources[0].path)))
+                mutate(p.copy(followCrop=FollowCropTrack(mapped,tracked.frameWidth,tracked.frameHeight,size.first,size.second,p.sources[selectedSource].path)))
                 followStatus=FollowCropStatus.Idle;status="Following crop set. Render edited preview to inspect motion before export."
             } catch(e:CancellationException) { followStatus=FollowCropStatus.Idle;throw e }
             catch(e:Exception) { followStatus=FollowCropStatus.Failed;throw e }

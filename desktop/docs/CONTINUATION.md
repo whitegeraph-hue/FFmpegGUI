@@ -140,3 +140,13 @@ archive via source-bundle.py and processResources. Bundle build locally passed,
 but fresh clean package inspection remains needed. Notice collection is not
 legal certification. Weights are not in source. Native jars excluded with
 verified download instructions and hashes instead.
+
+## Checkpoint 2026-11-22 23:41 Cairo
+
+Latest migration adds multi-video timeline append and per-source transcript,
+pause/scene/beat mapping. 26 actual native integration assertions pass.
+Multi-source subject-follow is blocked explicitly, not silently misapplied.
+Still/audio-only timeline append remains absent. Source-selection/transcript
+UI inspected for both sources. Subtitle count corrected for per-source words.
+735 CI passed45072389399; fd CI45072878124 running at23:40.
+Current package still predates recent source. No delivery or completion.

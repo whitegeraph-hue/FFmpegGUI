@@ -108,3 +108,11 @@ checks include actual portrait output tags and time-gated image composite,
 roundtrips and image-source overwrite protection. Easing options now wrap.
 Sound-file chooser was clicked successfully for en.wav, controls inspected.
 Image-file chooser and wrapped easing final visual verification remain pending.
+
+Multi-source continuation: video append, source-selection chips, per-source
+speech words, transcript seek/cuts, pause/scene/beat mapping use source indexes.
+26native assertions include real video+silent-video join, decoded output,
+retimed per-source SRT and project roundtrip. Multi-source subject follow is
+explicitly blocked pending coherent tracks. Still/audio-only timeline source
+intake and transition editor remain missing. Project source count no longer
+artificially limited to one. Layer sound and still image paths are independent.

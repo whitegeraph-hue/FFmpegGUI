@@ -168,6 +168,15 @@ fun main(args:Array<String>)=runBlocking {
         val saved=File(folder,"pictures.ffgui.json");DesktopProjects.save(project,saved);check(DesktopProjects.load(saved,media).pictures==listOf(picture))
         check(runCatching {exporter.export(project,file)}.isFailure)
     }
+    verify("multi-source real sequence and per-source retimed words") {
+        val second=media.probe(File(folder,"silent.mp4").path)
+        val timeline=com.cuscus.ffmpeggui.core.timeline.Timeline(listOf(com.cuscus.ffmpeggui.core.timeline.Clip("a",video.path,endMs=2000),com.cuscus.ffmpeggui.core.timeline.Clip("b",second.path,startMs=1000,endMs=3000)))
+        val project=p.copy(sources=listOf(video,second),timeline=timeline,wordsBySource=mapOf(video.path to listOf(SpokenWord(200,800,"First source")),second.path to listOf(SpokenWord(1200,1800,"Second source"))))
+        val output=exporter.export(project,File(folder,"multi.mp4"));check(output.info.durationMs in 3900..4200 && output.info.hasAudio)
+        val transcript=exporter.transcript(project,OutputFormat.SRT);check(transcript.contains("First source") && transcript.contains("Second source") && transcript.contains("00:00:02,200"))
+        val saved=File(folder,"multi.ffgui.json");DesktopProjects.save(project,saved);val restored=DesktopProjects.load(saved,media);check(restored.sources==project.sources && restored.wordsBySource==project.wordsBySource && restored.timeline==timeline)
+        media.process.checked(listOf("ffmpeg","-v","error","-i",output.path,"-f","null","-"))
+    }
     verify("cancel real process") {
         val start=System.currentTimeMillis()
         val job=launch { media.process.run(listOf("ffmpeg","-re","-f","lavfi","-i","testsrc2=size=640x360:rate=25","-t","30","-f","null","-")) }
