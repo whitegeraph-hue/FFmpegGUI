@@ -4270,10 +4270,11 @@ class ConversionViewModel(
         val source = _settings.value.source(EditorSource.MAIN_ID) ?: return
         val info = source.info
         if (source.isStill || info == null || info.width <= 0 || info.height <= 0) return
-        // The joined video is framed to its FIRST file while the track knows the
-        // main one's size: with more than one file the window could not be placed
-        // safely, so the reframe is made for a one-file sequence only.
-        if (_settings.value.playingClips.map { it.sourceId }.distinct().size > 1) {
+        // Same gate as the panel and the export (see
+        // ConversionSettings.playsOnlyMainFile): the joined video is framed to
+        // its first file while the track knows the main one's size, so the
+        // reframe is made only while the sequence plays the main file alone.
+        if (!_settings.value.playsOnlyMainFile()) {
             _followCropStatus.value = FollowCropStatus.MultiSource
             return
         }

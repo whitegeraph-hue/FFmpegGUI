@@ -57,6 +57,15 @@ internal class EditFootage(
     val clipIds: Set<String> = segments.mapNotNull { it.clipId }.toSet()
 }
 
+/**
+ * True while the sequence's playing clips use only the main file (or none
+ * yet): the one case a follow crop can cover. The panel, the tracking start
+ * and the export all gate on this, so a crop that previews is a crop that
+ * exports.
+ */
+internal fun ConversionSettings.playsOnlyMainFile(): Boolean =
+    playingClips.all { it.sourceId == EditorSource.MAIN_ID }
+
 internal fun ConversionSettings.footage(): EditFootage {
     val clips = playingClips.filter { source(it.sourceId) != null }
     val files = clips.map { it.sourceId }.distinct().mapNotNull(::source)
@@ -165,10 +174,14 @@ private fun ConversionSettings.toRequestOf(
     // dropped rather than misapplied when the file it was tracked in is no
     // longer the project's main file.
     followCrop = followCrop?.takeIf { track ->
-        // One file only (see ConversionViewModel.trackSubjectForVerticalCrop),
-        // and the one the track was made from.
-        footage.files.size == 1 &&
-            (track.sourceKey.isEmpty() || footage.mainFileIndex?.let { footage.files[it].uri.toString() } == track.sourceKey)
+        // Same applicability the panel and tracking gate on (see
+        // ConversionSettings.playsOnlyMainFile): the exported sequence plays
+        // only the main file, the one the track was made from. footage.files
+        // holds the distinct files the playing clips use, so an imported file
+        // without playing clips changes nothing here.
+        val only = footage.files.singleOrNull()
+        only != null && only.id == EditorSource.MAIN_ID &&
+            (track.sourceKey.isEmpty() || only.uri.toString() == track.sourceKey)
     },
     audioEffects = audioEffects,
     canvas = projectRatio,

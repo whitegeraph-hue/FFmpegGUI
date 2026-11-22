@@ -73,6 +73,7 @@ import com.cuscus.ffmpeggui.settings.SettingsCategoryScreen
 import com.cuscus.ffmpeggui.settings.SettingsScreen
 import com.cuscus.ffmpeggui.settings.SmartFeaturesUi
 import com.cuscus.ffmpeggui.conversion.SpeechStatus
+import com.cuscus.ffmpeggui.conversion.playsOnlyMainFile
 import com.cuscus.ffmpeggui.conversion.VoiceStatus
 import com.cuscus.ffmpeggui.conversion.DubStatus
 import com.cuscus.ffmpeggui.settings.VoiceFeatureUi
@@ -387,7 +388,7 @@ class MainActivity : ComponentActivity() {
                         followCrop = followCropStatus,
                         followCropSet = s.followCrop != null,
                         followCropSamples = followCropSamples?.map { it.asImageBitmap() },
-                        followCropMultiSource = s.playingClips.map { it.sourceId }.distinct().size > 1,
+                        followCropNotMainOnly = !s.playsOnlyMainFile(),
                         onFindPauseCuts = { vm.findPauseCuts() },
                         onTogglePauseCut = vm::togglePauseCut,
                         onApplyPauseCuts = vm::applyPauseCuts,
