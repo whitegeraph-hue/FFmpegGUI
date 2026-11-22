@@ -292,3 +292,5 @@ Drawing size uses canvas geometry when active.44native checks include actual
 roundtrip. Actual render and scrolled controls inspected. Direct drag canvas
 interaction and rich native layer selection still missing. HDR+canvas explicitly
 rejected until its adapter exists. Latest full package8b6predatesHDR/canvas.
+
+01:50 EET: transition family controls use original non-companion kinds, 45 native checks pass including seven real family renders and reload/duration assertions. UI and rendered montage inspected. Companion assets still gated. Next: subtitle custom fonts/colours, original editor gaps and five-feature broader proof, then exact current packaging. Package remains 8b6 stale.

@@ -279,3 +279,8 @@ Drawing size uses canvas geometry when active.44native checks include actual
 roundtrip. Actual render and scrolled controls inspected. Direct drag canvas
 interaction and rich native layer selection still missing. HDR+canvas explicitly
 rejected until its adapter exists. Latest full package8b6predatesHDR/canvas.
+
+### 2026-11-23 01:50 EET: transition families
+- Clip editor now exposes all original transition kinds that do not require separately ported companion assets, using the unchanged core graph/expressions. Punch/punch-back and technical-difficulties remain gated.
+- Native check 45 actually renders seven representative families (flash, cube, RGB split, hearts, zoom blur, page turn and native wipe), decodes their midpoint, checks output time and project reload. Representative coverage is not all-kind visual proof. Solid-colour inputs cannot establish blur quality.
+- Transition controls and seven-render midpoint montage inspected. No Zorin compatibility or final-package claim. Current local package predates this change.

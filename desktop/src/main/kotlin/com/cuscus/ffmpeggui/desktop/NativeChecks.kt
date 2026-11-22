@@ -446,6 +446,21 @@ fun main(args:Array<String>)=runBlocking {
         val saved=File(folder,"photo-canvas.ffgui.json");DesktopProjects.save(project,saved);val loaded=DesktopProjects.load(saved,media)
         check(loaded.photoPlacement==project.photoPlacement && loaded.image==project.image)
     }
+    verify("custom transition families actual motion duration and saved state") {
+        val left=media.probe(File(folder,"scenes.mp4").path)
+        val first=Clip("family-left",left.path,endMs=2000)
+        val last=Clip("family-right",left.path,startMs=2000,endMs=4000)
+        for(kind in listOf(TransitionKind.FLASH,TransitionKind.CUBE_LEFT,TransitionKind.RGB_SPLIT,TransitionKind.HEARTS,TransitionKind.ZOOM_BLUR,TransitionKind.PAGE_TURN,TransitionKind.WIPE_UP)) {
+            val project=DesktopProject.create(left).copy(timeline=Timeline(listOf(first.copy(effects=Effects(transition=Transition(kind,700))),last)))
+            val result=exporter.export(project,File(folder,"transition-${kind.name}.mp4"))
+            check(kotlin.math.abs(result.info.durationMs-project.outputDurationMs)<180)
+            val mid=media.frame(result.path,1650)!!
+            var mixed=0
+            for(y in 0 until mid.height step 10)for(x in 0 until mid.width step 10){val rgb=mid.getRGB(x,y);val r=(rgb shr 16) and 255;val b=rgb and 255;if(r>20 && b>20)mixed++}
+            check(mixed>0 || kind in listOf(TransitionKind.CUBE_LEFT,TransitionKind.PAGE_TURN,TransitionKind.WIPE_UP,TransitionKind.HEARTS)) {"No transition pixels for $kind"}
+            val saved=File(folder,"transition-${kind.name}.ffgui.json");DesktopProjects.save(project,saved);check(DesktopProjects.load(saved,media).timeline==project.timeline)
+        }
+    }
     verify("cancel real process") {
         val start=System.currentTimeMillis()
         val job=launch { media.process.run(listOf("ffmpeg","-re","-f","lavfi","-i","testsrc2=size=640x360:rate=25","-t","30","-f","null","-")) }

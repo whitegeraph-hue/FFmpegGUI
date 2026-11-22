@@ -670,9 +670,9 @@ private fun EditPanel(c: EditorController,p: DesktopProject) {
         }
         if(index<p.timeline.clips.lastIndex) {
             Text("Transition into next clip",style=MaterialTheme.typography.titleMedium)
-            Text("Clips overlap by the transition length, limited to half either clip. Render preview to inspect the final cut.")
+            Text("Clips overlap by the transition length, limited to half either clip. Native and original custom-expression transitions are available. Punch and technical-difficulties companion assets are still being ported. Render to inspect the final cut.")
             OutlinedButton(onClick={change {it.copy(transition=null)}},enabled=!c.busy){Text("No transition")}
-            FlowRowCompat {listOf(TransitionKind.FADE,TransitionKind.WIPE_LEFT,TransitionKind.WIPE_RIGHT,TransitionKind.SLIDE_LEFT,TransitionKind.DISSOLVE).forEach {kind->FilterChip(f.transition?.kind==kind,{change {it.copy(transition=Transition(kind,f.transition?.durationMs ?: 500L))}},label={Text(kind.name)},enabled=!c.busy)}}
+            FlowRowCompat {TransitionKind.entries.filter {it.companionEffect==null && !it.tvBreak}.forEach {kind->FilterChip(f.transition?.kind==kind,{change {it.copy(transition=Transition(kind,f.transition?.durationMs ?: 500L))}},label={Text(kind.name)},enabled=!c.busy)}}
             f.transition?.let {tr->ValueSlider("Transition seconds",tr.durationMs/1000f,.1f..3f,!c.busy){v->change {it.copy(transition=tr.copy(durationMs=(v*1000).toLong()))}}}
         }
     }
