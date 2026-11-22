@@ -278,6 +278,17 @@ fun main(args:Array<String>)=runBlocking {
         check(pcm.sliceArray(35000 until 42000).maxOf {kotlin.math.abs(it)}>.1f)
         val saved=File(folder,"sound-keys.ffgui.json");DesktopProjects.save(project,saved);check(DesktopProjects.load(saved,media).sounds==listOf(sound))
     }
+    verify("video layer actual source frames trim time and decoration") {
+        val source=media.probe(File(folder,"scenes.mp4").path)
+        val picture=DesktopPicture(source,ImagePlacement(x=.5f,y=.5f,widthFraction=.4f,startMs=2000,endMs=5000,video=OverlayVideo(trimStartMs=2000,trimEndMs=4000),aspect=640f/360,look=OverlayLook(shape=OverlayShape.ROUNDED,borderWidth=.02f,shadowOpacity=.4f)))
+        val project=p.copy(pictures=listOf(picture))
+        val output=exporter.export(project,File(folder,"video-layer.mp4"))
+        val during=media.frame(output.path,3000)!!;val rgb=during.getRGB(during.width/2,during.height/2)
+        check((rgb and 255)>180 && ((rgb shr 16) and 255)<60)
+        val before=media.frame(output.path,1000)!!;check(before.getRGB(before.width/2,before.height/2)!=rgb)
+        val saved=File(folder,"video-layer.ffgui.json");DesktopProjects.save(project,saved);check(DesktopProjects.load(saved,media).pictures==listOf(picture))
+        javax.imageio.ImageIO.write(during,"png",File(folder,"video-layer-proof.png"))
+    }
     verify("cancel real process") {
         val start=System.currentTimeMillis()
         val job=launch { media.process.run(listOf("ffmpeg","-re","-f","lavfi","-i","testsrc2=size=640x360:rate=25","-t","30","-f","null","-")) }

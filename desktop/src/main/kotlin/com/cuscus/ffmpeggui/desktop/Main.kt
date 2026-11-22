@@ -542,8 +542,8 @@ private fun EditPanel(c: EditorController,p: DesktopProject) {
     if(!p.sources[0].info.isVideo){Text("Image layers need a video or picture.");return}
     PanelCard {
         Text("Image layers",style=MaterialTheme.typography.titleMedium)
-        Text("Add local still pictures, stickers and logos. Render to inspect the composite. Animated/video layers and direct dragging are still in progress.",style=MaterialTheme.typography.bodySmall)
-        Button(onClick={pick()?.let {path->c.work("Reading image layer…"){val source=c.media.probe(path);require(source.info.isStill){"Choose a still picture. Video layers are still being ported."};c.mutate(p.copy(pictures=p.pictures+DesktopPicture(source,ImagePlacement(aspect=source.info.width.toFloat()/source.info.height,layer=p.pictures.size+p.captions.size))));c.status="Image layer added."}}},enabled=!c.busy){Text("Add picture")}
+        Text("Add local pictures or video. Video layer sound is not included; add it separately as a sound track. Render to inspect the composite. Direct dragging remains in progress.",style=MaterialTheme.typography.bodySmall)
+        Button(onClick={pick()?.let {path->c.work("Reading image layer…"){val source=c.media.probe(path);require(source.info.isVideo){"Choose a picture or video."};c.mutate(p.copy(pictures=p.pictures+DesktopPicture(source,ImagePlacement(aspect=source.info.width.toFloat()/source.info.height,layer=p.pictures.size+p.captions.size,video=if(source.info.isStill)null else OverlayVideo(trimEndMs=source.info.durationMs)))));c.status="Image layer added."}}},enabled=!c.busy){Text("Add picture or video")}
     }
     p.pictures.forEachIndexed {index,picture->
         val v=picture.placement
@@ -561,7 +561,18 @@ private fun EditPanel(c: EditorController,p: DesktopProject) {
             ValueSlider("Brightness",v.brightness,-1f..1f,!c.busy){update(v.copy(brightness=it))}
             ValueSlider("Contrast",v.contrast,0f..2f,!c.busy){update(v.copy(contrast=it))}
             ValueSlider("Saturation",v.saturation,0f..2f,!c.busy){update(v.copy(saturation=it))}
-            LayerBinding(c,p,v.clipId){update(v.copy(clipId=it,keyframes=Keyframes.NONE))}
+            if(v.video==null)LayerBinding(c,p,v.clipId){update(v.copy(clipId=it,keyframes=Keyframes.NONE))} else Text("Video layers use the whole-output clock. Clip binding is not yet supported.")
+            v.video?.let {vid->
+                ValueSlider("Video trim start seconds",vid.trimStartMs/1000f,0f..picture.source.info.durationMs/1000f,!c.busy){update(v.copy(video=vid.copy(trimStartMs=(it*1000).toLong().coerceAtMost((vid.trimEndMs ?: picture.source.info.durationMs)-1))))}
+                ValueSlider("Video trim end seconds",(vid.trimEndMs ?: picture.source.info.durationMs)/1000f,0f..picture.source.info.durationMs/1000f,!c.busy){update(v.copy(video=vid.copy(trimEndMs=(it*1000).toLong().coerceAtLeast(vid.trimStartMs+1))))}
+                Row {Checkbox(vid.loop,{update(v.copy(video=vid.copy(loop=it)))},enabled=!c.busy);Text("Loop video layer")}
+            }
+            Text("Picture shape")
+            FlowRowCompat {OverlayShape.entries.forEach {shape->FilterChip(v.look.shape==shape,{update(v.copy(look=v.look.copy(shape=shape)))},label={Text(shape.name)},enabled=!c.busy)}}
+            ValueSlider("Round corners",v.look.cornerRadius,0f..1f,!c.busy){update(v.copy(look=v.look.copy(cornerRadius=it)))}
+            ValueSlider("Blur",v.look.blur,0f.. .2f,!c.busy){update(v.copy(look=v.look.copy(blur=it)))}
+            ValueSlider("White outline",v.look.borderWidth,0f.. .1f,!c.busy){update(v.copy(look=v.look.copy(borderWidth=it,borderColor=0xffffff)))}
+            ValueSlider("Shadow opacity",v.look.shadowOpacity,0f..1f,!c.busy){update(v.copy(look=v.look.copy(shadowOpacity=it)))}
             Text("Blend")
             FlowRowCompat {LayerBlend.entries.forEach {b->FilterChip(v.blend==b,{update(v.copy(blend=b))},label={Text(b.name)},enabled=!c.busy)}}
             if(!p.sources[0].info.isStill && v.clipId==null){

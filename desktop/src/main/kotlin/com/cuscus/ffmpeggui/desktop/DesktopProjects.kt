@@ -26,6 +26,7 @@ object DesktopProjects {
             put("pictures",buildJsonArray {project.pictures.forEach {picture->add(buildJsonObject {
                 put("path",picture.source.path);put("size",File(picture.source.path).length());put("hidden",picture.hidden)
                 val v=picture.placement
+                v.video?.let {vid->put("video",buildJsonObject {put("trimStartMs",vid.trimStartMs);vid.trimEndMs?.let {put("trimEndMs",it)};put("loop",vid.loop)})}
                 v.clipId?.let {put("clipId",it)};put("keys",core(ModelJson.write(Effects(keyframes=v.keyframes))))
                 put("x",v.x);put("y",v.y);put("width",v.widthFraction);put("opacity",v.opacity);put("rotation",v.rotationDegrees);put("layer",v.layer)
                 put("startMs",v.startMs);v.endMs?.let {put("endMs",it)};put("fadeIn",v.fadeInSeconds);put("fadeOut",v.fadeOutSeconds)
@@ -82,9 +83,11 @@ object DesktopProjects {
         }) { "Project timeline refers to missing or invalid footage." }
         val pictures=data["pictures"]?.jsonArray?.map {item->
             val v=item.jsonObject;val source=media.probe(v["path"]!!.jsonPrimitive.content)
-            require(source.info.isStill && File(source.path).length()==v["size"]!!.jsonPrimitive.long){"An image layer changed or is not a still picture."}
+            require(source.info.isVideo && File(source.path).length()==v["size"]!!.jsonPrimitive.long){"An image layer changed or is not picture/video."}
             fun f(k:String)=v[k]!!.jsonPrimitive.float
-            val placement=ImagePlacement(clipId=v["clipId"]?.jsonPrimitive?.content,keyframes=v["keys"]?.let {ModelJson.effects(read(it)).keyframes} ?: Keyframes.NONE,x=f("x"),y=f("y"),widthFraction=f("width"),opacity=f("opacity"),rotationDegrees=f("rotation"),layer=v["layer"]!!.jsonPrimitive.int,
+            val vid=v["video"]?.jsonObject?.let {OverlayVideo(it["trimStartMs"]!!.jsonPrimitive.long,it["trimEndMs"]?.jsonPrimitive?.long,it["loop"]!!.jsonPrimitive.boolean)}
+            require(source.info.isStill || (vid!=null && v["clipId"]==null)){"Video layers require whole-output timing."}
+            val placement=ImagePlacement(video=vid,clipId=v["clipId"]?.jsonPrimitive?.content,keyframes=v["keys"]?.let {ModelJson.effects(read(it)).keyframes} ?: Keyframes.NONE,x=f("x"),y=f("y"),widthFraction=f("width"),opacity=f("opacity"),rotationDegrees=f("rotation"),layer=v["layer"]!!.jsonPrimitive.int,
                 startMs=v["startMs"]!!.jsonPrimitive.long,endMs=v["endMs"]?.jsonPrimitive?.long,fadeInSeconds=f("fadeIn"),fadeOutSeconds=f("fadeOut"),
                 flipHorizontal=v["flipH"]!!.jsonPrimitive.boolean,flipVertical=v["flipV"]!!.jsonPrimitive.boolean,brightness=f("brightness"),contrast=f("contrast"),saturation=f("saturation"),
                 blend=LayerBlend.valueOf(v["blend"]!!.jsonPrimitive.content),stretch=f("stretch"),look=ModelJson.overlayLook(read(v["look"]!!)),aspect=source.info.width.toFloat()/source.info.height)

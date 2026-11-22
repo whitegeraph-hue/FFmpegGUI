@@ -148,3 +148,10 @@ roundtrip. Fixed newly found picture binding/keys and sound keys envelope
 persistence omission. Missing-clip pictures are excluded from request and paths
 consistently, while retaining the saved layer for undo/recovery like captions.
 Native chooser and broader mouse editing interaction remain unverified.
+
+Video layer continuation: whole-output local video layers, source trim/loop,
+shape/rounded corners/blur/outline/shadow exposed and persisted.34native checks
+pass including actual timed blue frames from a trimmed second video, decorated
+pixels and save/load. Inspected actual rendered frame and image-layer controls.
+Video layer audio must be added independently as sound, explicitly disclosed in
+UI; clip-bound video layers remain blocked. Chooser navigation still unverified.
