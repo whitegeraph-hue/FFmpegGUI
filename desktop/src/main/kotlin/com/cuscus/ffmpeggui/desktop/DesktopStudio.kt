@@ -57,7 +57,11 @@ class DesktopStudio(private val media:DesktopMedia) {
         val temporary=File(target.parentFile,".studio-${UUID.randomUUID()}.$ext")
         try {
             val resolved=ManualCommandResolver().resolve(text,aliases(p),temporary.path.removeSuffix(".$ext")) as? ManualCommandResolver.Result.Resolved ?: error("Missing output alias")
-            media.process.checked(listOf("ffmpeg","-nostdin","-y","-protocol_whitelist","file,pipe")+resolved.command.arguments)
+            val args=resolved.command.arguments.toMutableList()
+            val outputIndex=args.indexOf(resolved.outputPath)
+            val durations=args.indices.filter {args[it]=="-t"}.mapNotNull {i->args.getOrNull(i+1)?.split(':')?.fold(0.0){acc,part->acc*60+(part.toDoubleOrNull() ?: error("Use a numeric time limit."))}}
+            args.addAll(outputIndex,listOf("-t",minOf(1800.0,durations.minOrNull() ?: 1800.0).toString(),"-fs","1073741824"))
+            media.process.checked(listOf("ffmpeg","-nostdin","-y","-protocol_whitelist","file,pipe")+args)
             val result=media.probe(temporary.path)
             require(result.info.isStill || result.info.durationMs>0){"Command did not produce usable media."}
             Files.move(temporary.toPath(),target.toPath(),StandardCopyOption.REPLACE_EXISTING)

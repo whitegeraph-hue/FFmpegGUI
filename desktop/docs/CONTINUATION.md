@@ -179,3 +179,14 @@ Current exact local packagef617 is now stale. It had matching806file source
 archive and actual launcher worker tests, hash f1eacd9fe0d76739368f1d7663eb712505c83f34fcdd4a88a080103c9c5f44bf.
 No user delivery. Remaining broad parity still active, including AI adapters,
 photo drawing/masks/HDR, richer timeline, full live preview and actual target.
+
+## Checkpoint 2026-11-23 00:31 Cairo
+
+Tip next commit bounds manual command execution.37native checks pass, including
+loop cancellation/temp cleanup, ramp+transition+output-time image pixels.
+Manual output cap30min/1GiB keeps shorter -t. Existing-target studio save asks
+confirmation in Main.kt. Both filter whitelist and deny check retained.
+8e342b5 ramp and6ec6b26 studio pushed. Final exact package stillf617, stale.
+Chooser proof actual second sticker.png entry now inspected, sent to parent.
+Next: check settled clean CI and current package; broader original tools still
+not done. No delivery, tag/release or master changes. Token deleted after push.

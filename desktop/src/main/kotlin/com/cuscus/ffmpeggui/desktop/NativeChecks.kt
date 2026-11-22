@@ -312,6 +312,20 @@ fun main(args:Array<String>)=runBlocking {
         media.process.checked(listOf("ffmpeg","-v","error","-i",result.path,"-f","null","-"))
         val saved=File(folder,"speed-ramp.ffgui.json");DesktopProjects.save(project,saved);check(DesktopProjects.load(saved,media).timeline==project.timeline)
     }
+    verify("ramp transition timed layer and loop command cancellation") {
+        val curve=SpeedCurve(listOf(SpeedPoint(0f,.5f),SpeedPoint(.5f,2f),SpeedPoint(1f,1f)))
+        val timeline=Timeline(listOf(Clip("ramp-a",video.path,endMs=4000,effects=Effects(speedCurve=curve,transition=Transition(TransitionKind.FADE,500))),Clip("ramp-b",video.path,startMs=4000,endMs=6000)))
+        val sticker=media.probe(File(folder,"sticker.png").path)
+        val project=p.copy(timeline=timeline,pictures=listOf(DesktopPicture(sticker,ImagePlacement(x=.5f,y=.5f,widthFraction=.3f,startMs=1000,endMs=2000,aspect=1f))))
+        val output=exporter.export(project,File(folder,"ramp-transition-layer.mp4"))
+        check(kotlin.math.abs(output.info.durationMs-project.outputDurationMs)<180)
+        val active=media.frame(output.path,1400)!!;check((active.getRGB(active.width/2,active.height/2) and 0xffffff)>0xeeeeee)
+        val studio=DesktopStudio(media)
+        val target=File(folder,"cancelled-loop.mp4");target.delete()
+        val job=launch {studio.export(p,"ffmpeg -stream_loop -1 -i input.mp4 -c:v libx264 -preset veryslow -c:a aac output.mp4",target)}
+        delay(400);job.cancelAndJoin();check(!target.exists())
+        check(folder.listFiles()!!.none {it.name.startsWith(".studio-")})
+    }
     verify("cancel real process") {
         val start=System.currentTimeMillis()
         val job=launch { media.process.run(listOf("ffmpeg","-re","-f","lavfi","-i","testsrc2=size=640x360:rate=25","-t","30","-f","null","-")) }

@@ -170,3 +170,10 @@ audio/video decode and roundtrip. Ramp controls visually inspected. Custom
 node insertion/removal and curve drawing remain missing. Image native chooser
 finally selected sticker.png with focused GTK location field and second Return;
 status confirms image added, broader subsequent edit interactions still pending.
+
+Studio bounded execution:37native assertions pass. Manual runs cap output to
+30minutes and1GiB, preserving a shorter requested -t. A loop with veryslow
+encoding was cancelled and left no target or temporary file. An earlier copy
+loop completed the30minute cap before cancellation, so that was not counted as
+a cancellation pass. Existing output prompts confirmation before studio run.
+Ramp+fade+timed picture regression checks predicted duration and actual pixels.

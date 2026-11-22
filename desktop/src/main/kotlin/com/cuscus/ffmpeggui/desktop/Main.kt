@@ -676,7 +676,7 @@ private fun EditPanel(c: EditorController,p: DesktopProject) {
     val lint=remember(c.studioText,c.studioCatalog,p){com.cuscus.ffmpeggui.core.command.studio.CommandLint(c.studioCatalog,aliases).check(c.studioText)}
     PanelCard {
         Text("Command studio",style=MaterialTheme.typography.titleLarge)
-        Text("Commands run locally as FFmpeg arguments, never through a shell. This single-output adapter permits listed input aliases and selected filters only. Generated subtitles/AI marks, arbitrary file paths, network and numbered outputs are not yet supported. Manual commands do not automatically apply editor effects.")
+        Text("Commands run locally as FFmpeg arguments, never through a shell. This single-output adapter permits listed input aliases and selected filters only. Generated subtitles/AI marks, arbitrary file paths, network and numbered outputs are not yet supported. Manual commands do not automatically apply editor effects. Execution stops at 30 minutes or 1 GiB; Stop cancels a running job.")
         Text("Inputs: "+c.studio.aliases(p).keys.joinToString(", "))
         FlowRowCompat {
             OutlinedButton(onClick={c.studioText=com.cuscus.ffmpeggui.core.command.FfmpegCommand(c.exporter.command(p,"output.${p.format.extension}").arguments.map {arg->c.studio.aliases(p).entries.fold(arg){v,e->v.replace(e.value,e.key)}}).toDisplayString()},enabled=!c.busy){Text("Copy generated edit")}
