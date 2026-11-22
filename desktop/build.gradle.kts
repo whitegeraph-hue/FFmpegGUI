@@ -95,3 +95,6 @@ val verifyNativeJars by tasks.registering {
     }
 }
 tasks.named("compileKotlin") { dependsOn(verifyNativeJars) }
+tasks.register("writeRuntimeClasspath") {
+    doLast { layout.buildDirectory.file("runtime-classpath.txt").get().asFile.writeText(sourceSets.main.get().runtimeClasspath.asPath) }
+}
