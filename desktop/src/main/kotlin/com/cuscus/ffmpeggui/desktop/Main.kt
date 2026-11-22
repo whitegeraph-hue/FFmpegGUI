@@ -388,6 +388,21 @@ private fun EditPanel(c: EditorController,p: DesktopProject) {
         Text("Subject cutout runs offline with the imported subject model. PNG keeps removed background transparent; other formats may flatten it.")
         OutlinedButton(onClick={c.cutoutPicture()},enabled=!c.busy){Text("Cut out subject")}
         if(e.key!=null)OutlinedButton(onClick={edit(e.copy(key=null))},enabled=!c.busy){Text("Remove cutout")}
+        Row {Switch(e.canvas!=null,{on->edit(e.copy(canvas=if(on)PictureCanvas()else null))},enabled=!c.busy);Text("Picture canvas")}
+        e.canvas?.let {canvas->
+            ValueSlider("Canvas width",canvas.width.toFloat(),64f..3840f,!c.busy){edit(e.copy(canvas=canvas.copy(width=it.toInt())))}
+            ValueSlider("Canvas height",canvas.height.toFloat(),64f..3840f,!c.busy){edit(e.copy(canvas=canvas.copy(height=it.toInt())))}
+            FlowRowCompat {listOf<Long?>(null,0xffffffffL,0xff000000L,0xff8090a0L).forEach {color->OutlinedButton(onClick={edit(e.copy(canvas=canvas.copy(background=color)))},enabled=!c.busy){Text(if(color==null)"Transparent"else "#%06X".format(color and 0xffffff))}}}
+            val v=p.photoPlacement ?: com.cuscus.ffmpeggui.core.image.fittedPhoto(canvas,p.sources.first().info.width,p.sources.first().info.height)
+            fun placed(value:ImagePlacement)=c.mutate(p.copy(photoPlacement=value))
+            ValueSlider("Photo X",v.x,-1f..1f,!c.busy){placed(v.copy(x=it))}
+            ValueSlider("Photo Y",v.y,-1f..1f,!c.busy){placed(v.copy(y=it))}
+            ValueSlider("Photo width",v.widthFraction,.05f..2f,!c.busy){placed(v.copy(widthFraction=it))}
+            ValueSlider("Photo opacity",v.opacity,0f..1f,!c.busy){placed(v.copy(opacity=it))}
+            ValueSlider("Photo rotation",v.rotationDegrees,-180f..180f,!c.busy){placed(v.copy(rotationDegrees=it))}
+            ValueSlider("Photo stack",v.layer.toFloat(),-10f..10f,!c.busy){placed(v.copy(layer=it.toInt()))}
+            OutlinedButton(onClick={c.mutate(p.copy(photoPlacement=null))},enabled=!c.busy){Text("Fit photo automatically")}
+        }
         Text("Photo filter")
         Row(Modifier.horizontalScroll(rememberScrollState())) {ImageFilter.entries.forEach {f->FilterChip(e.filter==f,{edit(e.copy(filter=f))},label={Text(f.name)},enabled=!c.busy)}}
         ValueSlider("Filter strength",e.filterAmount,0f..1f,!c.busy){edit(e.copy(filterAmount=it))}
@@ -402,8 +417,8 @@ private fun EditPanel(c: EditorController,p: DesktopProject) {
             ValueSlider("HDR intensity",hdr.intensity,0f..1f,!c.busy){edit(e.copy(hdr=hdr.copy(intensity=it)))}
             Text("JPG only, up to 8 megapixels. Gain map is generated from the edited light, not AI. SDR screens keep the ordinary JPG. HDR hardware display is not verified. Original-camera gain maps and area masks are still being ported.")
         }
-        OutlinedButton(onClick={edit(ImageEdit())},enabled=!c.busy){Text("Reset photo settings")}
-        Text("Drawing and subject-mask brushes have separate tabs. Photo-layer canvas and original/area HDR remain in progress.",style=MaterialTheme.typography.bodySmall)
+        OutlinedButton(onClick={c.mutate(p.copy(image=ImageEdit(),photoPlacement=null))},enabled=!c.busy){Text("Reset photo settings")}
+        Text("Drawing and subject-mask brushes have separate tabs. Original/area HDR and richer layer gestures remain in progress.",style=MaterialTheme.typography.bodySmall)
     }
 }
 

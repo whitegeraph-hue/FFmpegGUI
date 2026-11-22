@@ -432,6 +432,20 @@ fun main(args:Array<String>)=runBlocking {
         javax.imageio.ImageIO.write(sdr,"png",File(folder,"ultra-hdr-sdr-proof.png"))
         javax.imageio.ImageIO.write(map,"png",File(folder,"ultra-hdr-map-proof.png"))
     }
+    verify("picture canvas placement transparency and save") {
+        val source=media.probe(File(folder,"sticker.png").path)
+        val project=DesktopProject.create(source).copy(image=ImageEdit(canvas=PictureCanvas(320,180,0xff0000ffL)),photoPlacement=ImagePlacement(x=.25f,y=.1f,widthFraction=.3f,rotationDegrees=15f,aspect=1f))
+        val target=File(folder,"photo-canvas.png");exporter.export(project,target)
+        val image=javax.imageio.ImageIO.read(target)
+        check(image.width==320 && image.height==180)
+        check((image.getRGB(10,10) and 255)>245)
+        check((image.getRGB(120,60) and 0xffffff)>0xeeeeee)
+        val transparent=project.copy(image=project.image.copy(canvas=PictureCanvas(320,180,null)))
+        val alpha=File(folder,"photo-canvas-alpha.png");exporter.export(transparent,alpha)
+        check((javax.imageio.ImageIO.read(alpha).getRGB(10,10) ushr 24)<10)
+        val saved=File(folder,"photo-canvas.ffgui.json");DesktopProjects.save(project,saved);val loaded=DesktopProjects.load(saved,media)
+        check(loaded.photoPlacement==project.photoPlacement && loaded.image==project.image)
+    }
     verify("cancel real process") {
         val start=System.currentTimeMillis()
         val job=launch { media.process.run(listOf("ffmpeg","-re","-f","lavfi","-i","testsrc2=size=640x360:rate=25","-t","30","-f","null","-")) }

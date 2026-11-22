@@ -270,3 +270,12 @@ metadata, ordinary SDR decode, protected drawing gain lower than photo white,
 saved ImageHdr roundtrip. SDR picture and grey map inspected. UI intensity and
 limitations inspected. Map is deterministic image processing, not AI generation.
 Package8b6stale relativeHDR checkpoint; no final delivery claim.8b6CIpending.
+
+Photo canvas checkpoint 2026-11-23 01:45 Cairo: PictureCanvas controls, fill/
+transparent, source layer X/Y/width/opacity/rotation/stack and automatic fit.
+photoPlacement persisted in desktop envelope and passed to original builder.
+Drawing size uses canvas geometry when active.44native checks include actual
+320x180blue canvas, white rotated photo, transparent corner, placement+canvas
+roundtrip. Actual render and scrolled controls inspected. Direct drag canvas
+interaction and rich native layer selection still missing. HDR+canvas explicitly
+rejected until its adapter exists. Latest full package8b6predatesHDR/canvas.
