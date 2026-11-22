@@ -57,7 +57,7 @@ class EditorController(val scope: CoroutineScope) {
         val source=media.probe(path)
         player.stop()
         selectedSource=0;drawingFrame=null;project=DesktopProject.create(source)
-        history.clear(); resetAnalysis(); rendered?.delete();rendered=null;previewFrame=null; position=0
+        history.clear();pruneMasks(); resetAnalysis(); rendered?.delete();rendered=null;previewFrame=null; position=0
         status="${File(path).name} · ${source.info.durationFormatted} · ${source.info.width} × ${source.info.height}"
         seek(0)
     }
@@ -75,6 +75,7 @@ class EditorController(val scope: CoroutineScope) {
         mutate(p.copy(sources=sources,timeline=p.timeline.append(Clip(id(),source.path,endMs=source.info.durationMs)),followCrop=null))
         selectedSource=sources.indexOfFirst {it.path==source.path};resetAnalysis();status="Source added: ${File(source.path).name}"
     }
+    private fun pruneMasks(){DesktopMasks.prune((history.toList()+listOfNotNull(project)).mapNotNull {it.image.key?.mask}.toSet())}
     fun resetAnalysis() { pauseStatus=PauseCutsStatus.Idle; sceneStatus=SceneSplitsStatus.Idle; beatStatus=BeatsStatus.Idle; snap=false; followStatus=FollowCropStatus.Idle }
     fun mutate(next: DesktopProject) {
         project?.let { history.addLast(it); if (history.size>50) history.removeFirst() }
@@ -84,8 +85,9 @@ class EditorController(val scope: CoroutineScope) {
         position=position.coerceAtMost(next.timeline.durationMs)
         pauseStatus=PauseCutsStatus.Idle; sceneStatus=SceneSplitsStatus.Idle
         seek(position)
+        pruneMasks()
     }
-    fun undo() { if (history.isNotEmpty()) { project=history.removeLast(); selectedSource=selectedSource.coerceIn(project!!.sources.indices);player.stop();rendered?.delete(); rendered=null;previewFrame=null; resetAnalysis(); seek(position) } }
+    fun undo() { if (history.isNotEmpty()) { project=history.removeLast(); selectedSource=selectedSource.coerceIn(project!!.sources.indices);player.stop();rendered?.delete(); rendered=null;previewFrame=null; resetAnalysis(); seek(position);pruneMasks() } }
     fun seek(at: Long) {
         val p=project ?: return
         position=at.coerceIn(0,p.timeline.durationMs)
@@ -232,7 +234,7 @@ class EditorController(val scope: CoroutineScope) {
         val p=project ?: return@work
         require(p.sources.first().info.isStill) {"Subject cutout currently needs a still picture."}
         val image=models.cutout(p.sources.first().path,DesktopModels.cutoutFile)
-        val directory=File(DesktopModels.root.parentFile,"masks").apply {mkdirs()}
+        val directory=DesktopMasks.directory()
         val file=File(directory,"${UUID.randomUUID()}.png")
         try {
             check(javax.imageio.ImageIO.write(image,"png",file))

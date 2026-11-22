@@ -259,3 +259,17 @@ quality claim. Native inputs above32MP reject before Java decode. JPEG only
 EXIF parser; other formats' orientation support not established. Mask disk
 retention cleanup remains next, preserving Undo and embedded saved projects.
 Current package4dcstale; need clean/exact final package regression later.
+
+Memory/cache checkpoint 2026-11-23 01:26 Cairo: JPEG upright adapter now reads
+bounded source strips into one3byte/pixel upright raster, no second full source
+raster. OOM is translated into ordinary visible I/O failure.24MP6000x4000 EXIF6
+passed under256MB maxHeap with32MiB reserved headroom, expected4000x6000 and
+blue corner, original hash unchanged,2.45s. New largeStillChecks CI task uses
+same heap.42native checks and expanded isolated model/cancel/retry checks pass
+after change.
+Masks now in owned session cache: prune only outside current+50history states,
+shutdown hook clears session, next launch removes dead-process session dirs.
+Other live sessions and legacy flat mask files untouched. Saved projects embed
+mask and restore independently; pruning/recovery native test passes. No generic
+disk sweeper. Final exact package and Zorin target still owed. Large normalization
+test is synthetic, not evidence for every colour profile or real-person quality.

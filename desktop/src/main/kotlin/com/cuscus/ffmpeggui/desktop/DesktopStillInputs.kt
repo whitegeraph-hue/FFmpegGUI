@@ -6,6 +6,7 @@ import java.awt.image.BufferedImage
 import javax.imageio.ImageIO
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.ensureActive
 
 /** Read JPEG EXIF orientation without decoding pixels. Original files are never changed. */
 object DesktopStillInputs {
@@ -46,26 +47,46 @@ object DesktopStillInputs {
         val orientation=orientation(file)
         if(orientation==1)return@withContext path
         val stream=ImageIO.createImageInputStream(file)
-        stream.use {input->
-            val readers=ImageIO.getImageReaders(input);require(readers.hasNext()) {"Cannot decode oriented picture"}
-            val reader=readers.next()
-            try {reader.input=input;require(reader.getWidth(0).toLong()*reader.getHeight(0)<=32_000_000) {"Oriented pictures are limited to 32 megapixels"}} finally {reader.dispose()}
-        }
-        val image=ImageIO.read(file) ?: error("Cannot decode oriented picture")
-        val w=image.width;val h=image.height;val swap=orientation>=5
-        val output=BufferedImage(if(swap)h else w,if(swap)w else h,BufferedImage.TYPE_INT_RGB)
         try {
-            for(y in 0 until h)for(x in 0 until w){
-                val (dx,dy)=when(orientation){
-                    2->w-1-x to y;3->w-1-x to h-1-y;4->x to h-1-y
-                    5->y to x;6->h-1-y to x;7->h-1-y to w-1-x;8->y to w-1-x
-                    else->x to y
-                }
-                output.setRGB(dx,dy,image.getRGB(x,y))
+            stream.use {input->
+                val readers=ImageIO.getImageReaders(input);require(readers.hasNext()) {"Cannot decode oriented picture"}
+                val reader=readers.next()
+                try {
+                    reader.input=input
+                    val w=reader.getWidth(0);val h=reader.getHeight(0)
+                    require(w.toLong()*h<=32_000_000) {"Oriented pictures are limited to 32 megapixels"}
+                    val swap=orientation>=5
+                    // Three bytes/pixel plus a bounded source strip, not two full four-byte rasters.
+                    val output=BufferedImage(if(swap)h else w,if(swap)w else h,BufferedImage.TYPE_3BYTE_BGR)
+                    try {
+                        var top=0
+                        val stripHeight=maxOf(1,minOf(256,1_000_000/w))
+                        while(top<h) {
+                            kotlinx.coroutines.currentCoroutineContext().ensureActive()
+                            val height=minOf(stripHeight,h-top)
+                            val params=reader.defaultReadParam.apply {sourceRegion=java.awt.Rectangle(0,top,w,height)}
+                            val strip=reader.read(0,params)
+                            try {
+                                for(sy in 0 until height)for(x in 0 until w){
+                                    val y=top+sy
+                                    val (dx,dy)=when(orientation){
+                                        2->w-1-x to y;3->w-1-x to h-1-y;4->x to h-1-y
+                                        5->y to x;6->h-1-y to x;7->h-1-y to w-1-x;8->y to w-1-x
+                                        else->x to y
+                                    }
+                                    output.setRGB(dx,dy,strip.getRGB(x,sy))
+                                }
+                            } finally {strip.flush()}
+                            top+=height
+                        }
+                        directory.mkdirs()
+                        val target=File.createTempFile("upright-",".png",directory)
+                        try {check(ImageIO.write(output,"png",target));target.path} catch(e:Throwable){target.delete();throw e}
+                    } finally {output.flush()}
+                } finally {reader.dispose()}
             }
-            directory.mkdirs()
-            val target=File.createTempFile("upright-",".png",directory)
-            try {check(ImageIO.write(output,"png",target));target.path} catch(e:Throwable){target.delete();throw e}
-        } finally {image.flush();output.flush()}
+        } catch(e:OutOfMemoryError) {
+            throw java.io.IOException("Not enough memory to turn this picture upright. Try a smaller copy; the original is unchanged.",e)
+        }
     }
 }

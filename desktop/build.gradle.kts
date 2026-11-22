@@ -72,6 +72,12 @@ dependencies {
     implementation(files("libs/sherpa-onnx-jvm-2.0.3.jar", "libs/sherpa-onnx-native-lib-linux-x64-2.0.3.jar"))
     implementation("com.microsoft.onnxruntime:onnxruntime:1.28.0")
 }
+tasks.register<JavaExec>("largeStillChecks") {
+    classpath = sourceSets.main.get().runtimeClasspath
+    mainClass.set("com.cuscus.ffmpeggui.desktop.DesktopStillChecks")
+    maxHeapSize = "256m"
+    args = listOf(project.findProperty("largeStillDir")?.toString() ?: "/tmp/ffmpeggui-large-still")
+}
 val prepareModelDefinitions by tasks.registering(Copy::class) {
     from("../app/src/main/java/com/cuscus/ffmpeggui/speech/SpeechModel.kt")
     from("../app/src/main/java/com/cuscus/ffmpeggui/cutout/CutoutModel.kt")

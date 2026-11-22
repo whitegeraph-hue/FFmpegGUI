@@ -130,7 +130,7 @@ object DesktopProjects {
             val mask=javax.imageio.ImageIO.read(java.io.ByteArrayInputStream(bytes)) ?: error("Invalid subject mask")
             try {require(mask.width==sources.first().info.width && mask.height==sources.first().info.height) {"Subject mask geometry does not match source"}} finally {mask.flush()}
             val hash=java.security.MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") {"%02x".format(it)}
-            val directory=File(DesktopModels.root.parentFile,"masks").apply {mkdirs()}
+            val directory=DesktopMasks.directory()
             val target=File(directory,"$hash.png")
             if(!target.isFile || !target.readBytes().contentEquals(bytes)) {
                 val tmp=File.createTempFile("subject-",".png",directory)

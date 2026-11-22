@@ -402,6 +402,18 @@ fun main(args:Array<String>)=runBlocking {
         check(target.info.durationMs>0)
         javax.imageio.ImageIO.write(media.frame(target.path,0),"png",File(folder,"exif-layer-proof.png"))
     }
+    verify("owned mask pruning retains history set and embedded recovery") {
+        val directory=DesktopMasks.directory()
+        val kept=File(directory,"kept.png");val discarded=File(directory,"discarded.png")
+        val bitmap=java.awt.image.BufferedImage(100,100,java.awt.image.BufferedImage.TYPE_INT_ARGB)
+        javax.imageio.ImageIO.write(bitmap,"png",kept);javax.imageio.ImageIO.write(bitmap,"png",discarded)
+        val source=media.probe(File(folder,"sticker.png").path)
+        val project=DesktopProject.create(source).copy(image=ImageEdit(key=ColorKey(mode=KeyMode.SUBJECT,mask=kept.path)))
+        val saved=File(folder,"pruned-mask.ffgui.json");DesktopProjects.save(project,saved)
+        DesktopMasks.prune(setOf(kept.path));check(kept.isFile && !discarded.exists())
+        DesktopMasks.prune(emptySet());check(!kept.exists())
+        val loaded=DesktopProjects.load(saved,media);check(File(loaded.image.key!!.mask!!).isFile)
+    }
     verify("cancel real process") {
         val start=System.currentTimeMillis()
         val job=launch { media.process.run(listOf("ffmpeg","-re","-f","lavfi","-i","testsrc2=size=640x360:rate=25","-t","30","-f","null","-")) }
