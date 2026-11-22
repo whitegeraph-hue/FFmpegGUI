@@ -26,6 +26,9 @@ object DesktopProjects {
             project.subtitleStyle?.let { put("subtitleStyle",core(ModelJson.write(it))) }
             put("resolution",project.encoding.resolution.name)
             put("quality",project.encoding.quality)
+            put("framerate",project.encoding.framerate.name);put("cpuSpeed",project.encoding.cpuSpeed.name)
+            put("keepHdr",project.encoding.keepHdr)
+            put("audioBitrate",project.encoding.audio.bitrateKbps);put("audioSampleRate",project.encoding.audio.sampleRate);put("audioDepth",project.encoding.audio.bitDepth)
             put("timeline",core(ModelJson.write(project.timeline)))
             put("words",buildJsonArray { project.words.forEach { w -> add(buildJsonObject { put("startMs",w.startMs);put("endMs",w.endMs);put("text",w.text) }) } })
         }
@@ -55,7 +58,11 @@ object DesktopProjects {
         val effects=ModelJson.effects(read(data["effects"]!!))
         val words=data["words"]!!.jsonArray.map { w -> w.jsonObject.let { SpokenWord(it["startMs"]!!.jsonPrimitive.long,it["endMs"]!!.jsonPrimitive.long,it["text"]!!.jsonPrimitive.content) } }
         return DesktopProject(sources,timeline,OutputFormat.valueOf(data["format"]!!.jsonPrimitive.content),effects=effects,words=words,
-            encoding=EncodingSettings(resolution=data["resolution"]?.jsonPrimitive?.content?.let { Resolution.valueOf(it) } ?: Resolution.ORIGINAL, quality=data["quality"]?.jsonPrimitive?.float ?: .7f),
+            encoding=EncodingSettings(resolution=data["resolution"]?.jsonPrimitive?.content?.let { Resolution.valueOf(it) } ?: Resolution.ORIGINAL, quality=data["quality"]?.jsonPrimitive?.float ?: .7f,
+                framerate=data["framerate"]?.jsonPrimitive?.content?.let { Framerate.valueOf(it) } ?: Framerate.ORIGINAL,
+                cpuSpeed=data["cpuSpeed"]?.jsonPrimitive?.content?.let { CpuEncoderSpeed.valueOf(it) } ?: CpuEncoderSpeed.BALANCED,
+                keepHdr=data["keepHdr"]?.jsonPrimitive?.boolean ?: true,
+                audio=AudioEncoding(data["audioBitrate"]?.jsonPrimitive?.int ?: 192,data["audioSampleRate"]?.jsonPrimitive?.int ?: 0,data["audioDepth"]?.jsonPrimitive?.int ?: 16)),
             followCrop=data["followCrop"]?.let { ModelJson.followCrop(read(it)) },subtitleStyle=data["subtitleStyle"]?.let { ModelJson.subtitleStyle(read(it)) })
     }
 }

@@ -16,6 +16,7 @@ import androidx.compose.ui.window.*
 import com.cuscus.ffmpeggui.*
 import com.cuscus.ffmpeggui.core.editing.wordBlocks
 import com.cuscus.ffmpeggui.core.model.*
+import com.cuscus.ffmpeggui.core.subtitles.*
 import com.cuscus.ffmpeggui.ui.expressive.PanelCard
 import com.cuscus.ffmpeggui.ui.theme.TealDarkColorScheme
 import kotlinx.coroutines.*
@@ -119,13 +120,14 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                                 }
                             }
                             Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(10.dp)) {
-                                val tabs=listOf("Edit","Transcript","Pause cuts","Scenes","Beats","Follow crop","Models")
+                                val tabs=listOf("Edit","Transcript","Pause cuts","Scenes","Beats","Follow crop","Models","Subtitles")
                                 FlowRowCompat {
                                     tabs.forEach { title -> FilterChip(selected=controller.tab==title,onClick={ controller.tab=title },label={ Text(title) }) }
                                 }
                                 Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(12.dp)) {
                                     when(controller.tab) {
                                         "Edit" -> EditPanel(controller,project)
+                                        "Subtitles" -> SubtitlesPanel(controller,project)
                                         "Pause cuts" -> PauseCutsPanel(controller.smartUi())
                                         "Scenes" -> SceneSplitsPanel(controller.smartUi())
                                         "Beats" -> BeatsPanel(controller.smartUi())
@@ -169,12 +171,13 @@ private fun EditPanel(c: EditorController,p: DesktopProject) {
     PanelCard {
         Text("Export format",style=MaterialTheme.typography.titleMedium)
         val formats=when { p.sources[0].info.isStill -> listOf(OutputFormat.JPG,OutputFormat.PNG,OutputFormat.BMP,OutputFormat.TIFF)
-            !p.sources[0].info.isVideo -> listOf(OutputFormat.MP3,OutputFormat.M4A,OutputFormat.OGG,OutputFormat.OPUS,OutputFormat.FLAC,OutputFormat.WAV)
-            else -> listOf(OutputFormat.MP4,OutputFormat.MKV,OutputFormat.AVI,OutputFormat.GIF,OutputFormat.MP3,OutputFormat.WAV) }
+            !p.sources[0].info.isVideo -> listOf(OutputFormat.MP3,OutputFormat.M4A,OutputFormat.OGG,OutputFormat.OPUS,OutputFormat.FLAC,OutputFormat.WAV,OutputFormat.SRT,OutputFormat.TXT)
+            else -> listOf(OutputFormat.MP4,OutputFormat.MKV,OutputFormat.AVI,OutputFormat.GIF,OutputFormat.MP3,OutputFormat.WAV,OutputFormat.SRT,OutputFormat.TXT) }
         Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(6.dp)) {
             formats.forEach { format -> FilterChip(p.format==format,{ c.mutate(p.copy(format=format)) },label={ Text(format.name) },enabled=!c.busy) }
         }
     }
+    EncodingPanel(c,p)
     PanelCard {
         Text("Picture and sound",style=MaterialTheme.typography.titleMedium)
         ValueSlider("Speed",p.effects.speed,.25f..4f,!c.busy) { c.mutate(p.copy(effects=p.effects.copy(speed=it))) }
@@ -228,4 +231,46 @@ private fun EditPanel(c: EditorController,p: DesktopProject) {
 @OptIn(ExperimentalLayoutApi::class)
 @Composable private fun FlowRowCompat(content: @Composable () -> Unit) {
     FlowRow(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(6.dp),verticalArrangement=Arrangement.spacedBy(0.dp)) { content() }
+}
+
+@Composable private fun EncodingPanel(c:EditorController,p:DesktopProject) {
+    PanelCard {
+        Text("Encoding",style=MaterialTheme.typography.titleMedium)
+        Text("Quality and size use the original Android command settings. CPU encoding only.",style=MaterialTheme.typography.bodySmall)
+        ValueSlider("Quality",p.encoding.quality,0f..1f,!c.busy) { c.mutate(p.copy(encoding=p.encoding.copy(quality=it))) }
+        if(p.format.hasVideo) {
+            Text("Output height")
+            FlowRowCompat { Resolution.entries.forEach { r -> FilterChip(p.encoding.resolution==r,{ c.mutate(p.copy(encoding=p.encoding.copy(resolution=r))) },label={ Text(if(r==Resolution.ORIGINAL) "Original" else "${r.height}p") },enabled=!c.busy) } }
+            Text("Frame rate")
+            FlowRowCompat { Framerate.entries.forEach { r -> FilterChip(p.encoding.framerate==r,{ c.mutate(p.copy(encoding=p.encoding.copy(framerate=r))) },label={ Text(if(r==Framerate.ORIGINAL) "Original" else "${r.value} fps") },enabled=!c.busy) } }
+            Text("CPU speed / file size")
+            FlowRowCompat { CpuEncoderSpeed.entries.forEach { r -> FilterChip(p.encoding.cpuSpeed==r,{ c.mutate(p.copy(encoding=p.encoding.copy(cpuSpeed=r))) },label={ Text(r.name.lowercase()) },enabled=!c.busy) } }
+        }
+        if(p.format.isLossyAudio) ValueSlider("Audio bitrate (kbps)",p.encoding.audio.bitrateKbps.toFloat(),64f..320f,!c.busy) { c.mutate(p.copy(encoding=p.encoding.copy(audio=p.encoding.audio.copy(bitrateKbps=it.toInt())))) }
+        if(p.format.isLosslessAudio) Row { listOf(16,24).forEach { depth -> FilterChip(p.encoding.audio.bitDepth==depth,{ c.mutate(p.copy(encoding=p.encoding.copy(audio=p.encoding.audio.copy(bitDepth=depth)))) },label={Text("$depth bit")},enabled=!c.busy) } }
+    }
+}
+@Composable private fun SubtitlesPanel(c:EditorController,p:DesktopProject) {
+    val style=p.subtitleStyle ?: SubtitleStyle()
+    PanelCard {
+        Text("Spoken subtitles",style=MaterialTheme.typography.titleLarge)
+        Text("Listen in Transcript first. Subtitles follow cuts and speed through the original core. Render edited preview to see the actual result.")
+        Text("${p.words.size} source words. Export SRT or TXT from Edit without burning text into video.",style=MaterialTheme.typography.bodySmall)
+        Row(verticalAlignment=Alignment.CenterVertically) {
+            Switch(p.subtitleStyle!=null,{ c.mutate(p.copy(subtitleStyle=if(it) style else null)) },enabled=!c.busy && p.words.isNotEmpty())
+            Text("Burn subtitles into video")
+        }
+        if(p.words.isEmpty()) Button(onClick={c.tab="Transcript"}) {Text("Open Transcript")}
+        Text("Style presets")
+        FlowRowCompat { SubtitleStyle.PRESETS.forEach { preset -> FilterChip(SubtitlePreset.of(style)==preset,{c.mutate(p.copy(subtitleStyle=preset.apply(style)))},label={Text(preset.name.lowercase())},enabled=!c.busy && p.words.isNotEmpty()) } }
+        if(p.subtitleStyle!=null) {
+            ValueSlider("Text size",style.size,SubtitleStyle.MIN_SIZE..SubtitleStyle.MAX_SIZE,!c.busy) {c.mutate(p.copy(subtitleStyle=style.copy(size=it)))}
+            ValueSlider("Horizontal position",style.x,0f..1f,!c.busy) {c.mutate(p.copy(subtitleStyle=style.copy(x=it)))}
+            ValueSlider("Vertical position",style.y,0f..1f,!c.busy) {c.mutate(p.copy(subtitleStyle=style.copy(y=it)))}
+            FlowRowCompat { WordHighlight.entries.forEach { highlight -> FilterChip(style.highlight==highlight,{c.mutate(p.copy(subtitleStyle=style.copy(highlight=highlight)))},label={Text(highlight.name.lowercase())},enabled=!c.busy) } }
+            FlowRowCompat { SubtitleLook.entries.forEach { look -> FilterChip(style.look==look,{c.mutate(p.copy(subtitleStyle=style.copy(look=look)))},label={Text(look.name.lowercase())},enabled=!c.busy) } }
+            Row(verticalAlignment=Alignment.CenterVertically) { Checkbox(style.bold,{c.mutate(p.copy(subtitleStyle=style.copy(bold=it)))},enabled=!c.busy);Text("Bold");Checkbox(style.uppercase,{c.mutate(p.copy(subtitleStyle=style.copy(uppercase=it)))},enabled=!c.busy);Text("Uppercase") }
+            Text("Linux currently uses DejaVu Sans. Custom font and colour pickers remain unported.",style=MaterialTheme.typography.bodySmall)
+        }
+    }
 }

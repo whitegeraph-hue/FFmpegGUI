@@ -55,6 +55,16 @@ jobs:
           FFMPEGGUI_MODEL_CHECKS=/tmp/ffmpeggui-models /tmp/deb-check/opt/ffmpeggui-linux/bin/ffmpeggui-linux
           FFMPEGGUI_ISOLATED_CHECKS=/tmp/ffmpeggui-models /tmp/deb-check/opt/ffmpeggui-linux/bin/ffmpeggui-linux
           date -u
+      - name: Install Debian package and launch desktop entry
+        run: |
+          sudo apt-get install -y ./desktop/build/compose/binaries/main/deb/*.deb
+          dpkg-query -W ffmpeggui-linux
+          dpkg -V ffmpeggui-linux
+          desktop=$(dpkg -L ffmpeggui-linux | grep '/applications/.*[.]desktop$' | head -1)
+          test -n "$desktop"
+          cat "$desktop"
+          FFMPEGGUI_OPEN=/tmp/ffmpeggui-fixtures/video.mp4 FFMPEGGUI_SCREENSHOT=/tmp/installed-editor.png xvfb-run -a -s "-screen 0 1440x1000x24" python3 desktop/scripts/launch-desktop-entry.py "$desktop"
+          test -s /tmp/installed-editor.png
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -66,3 +76,4 @@ jobs:
             desktop/shared-core/build/test-results/**
             /tmp/linux-output.mp4
             /tmp/linux-editor.png
+            /tmp/installed-editor.png

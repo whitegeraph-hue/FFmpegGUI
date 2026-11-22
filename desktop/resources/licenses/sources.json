@@ -1,0 +1,42 @@
+[
+  {
+    "file": "u2net/LICENSE",
+    "url": "https://raw.githubusercontent.com/xuebinqin/U-2-Net/master/LICENSE"
+  },
+  {
+    "file": "rembg/LICENSE",
+    "url": "https://raw.githubusercontent.com/danielgatis/rembg/main/LICENSE.txt"
+  },
+  {
+    "file": "skiko/LICENSE",
+    "url": "https://raw.githubusercontent.com/JetBrains/skiko/v0.9.4.2/LICENSE"
+  },
+  {
+    "file": "compose/LICENSE",
+    "url": "https://raw.githubusercontent.com/JetBrains/compose-multiplatform/v1.8.2/LICENSE.txt"
+  },
+  {
+    "file": "datetime/LICENSE",
+    "url": "https://raw.githubusercontent.com/Kotlin/kotlinx-datetime/v0.6.0/LICENSE.txt"
+  },
+  {
+    "file": "jetbrains-annotations/LICENSE",
+    "url": "https://raw.githubusercontent.com/JetBrains/java-annotations/23.0.0/LICENSE.txt"
+  },
+  {
+    "file": "atomicfu/LICENSE.txt",
+    "url": "https://raw.githubusercontent.com/Kotlin/kotlinx-atomicfu/0.23.2/LICENSE.txt"
+  },
+  {
+    "file": "atomicfu/NOTICE.txt",
+    "url": "https://raw.githubusercontent.com/Kotlin/kotlinx-atomicfu/0.23.2/license/NOTICE.txt"
+  },
+  {
+    "file": "skiko/NOTICE",
+    "url": "https://raw.githubusercontent.com/JetBrains/skiko/v0.9.4.2/NOTICE"
+  },
+  {
+    "file": "skia/LICENSE",
+    "url": "https://raw.githubusercontent.com/google/skia/main/LICENSE"
+  }
+]

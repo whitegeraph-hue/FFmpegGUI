@@ -3,6 +3,7 @@ package com.cuscus.ffmpeggui.desktop
 import com.cuscus.ffmpeggui.core.editing.*
 import com.cuscus.ffmpeggui.core.model.*
 import com.cuscus.ffmpeggui.core.timeline.*
+import com.cuscus.ffmpeggui.core.subtitles.*
 import kotlinx.coroutines.*
 import java.io.File
 import java.util.UUID
@@ -35,6 +36,26 @@ fun main(args:Array<String>)=runBlocking {
     verify("silent-video export") { val s=media.probe(File(folder,"silent.mp4").path);val result=exporter.export(DesktopProject.create(s),File(folder,"silent-copy.mp4"));check(!result.info.hasAudio && result.info.isVideo) }
     verify("original-overwrite blocked") { check(runCatching { exporter.export(p,File(video.path)) }.isFailure) }
     verify("project save and load shared models") { val file=File(folder,"project.ffgui.json");DesktopProjects.save(p,file);val restored=DesktopProjects.load(file,media);check(restored.timeline==p.timeline && restored.effects==p.effects && restored.sources==p.sources) }
+    val captioned=p.copy(words=listOf(SpokenWord(500,1800,"Hello Linux"),SpokenWord(2500,3800,"Timed subtitles")),subtitleStyle=SubtitleStyle())
+    verify("real subtitle burn-in and retimed text") {
+        val result=exporter.export(captioned,File(folder,"subtitled.mp4"))
+        val plain=media.frame(video.path,1000)!!;val lit=media.frame(result.path,1000)!!
+        var differs=0
+        for(y in 230 until 350)for(x in 50 until 590)if(plain.getRGB(x,y)!=lit.getRGB(x,y))differs++
+        check(differs>1000)
+        val edited=captioned.copy(timeline=captioned.timeline.withoutRanges(listOf(CutRange(0,2000))) { UUID.randomUUID().toString() },effects=Effects(speed=2f))
+        val text=exporter.transcript(edited,OutputFormat.SRT)
+        check("Hello Linux" !in text && "Timed subtitles" in text && "00:00:00,250" in text)
+        exporter.export(edited.copy(format=OutputFormat.SRT),File(folder,"subtitles.srt"))
+        exporter.export(edited.copy(format=OutputFormat.TXT),File(folder,"transcript.txt"))
+        check(File(folder,"subtitles.srt").readText()==text)
+    }
+    verify("encoding controls persisted and applied") {
+        val edited=p.copy(encoding=EncodingSettings(resolution=Resolution.P240,framerate=Framerate.FPS15,cpuSpeed=CpuEncoderSpeed.FAST,quality=.5f,audio=AudioEncoding(128,44100,24)),subtitleStyle=SubtitlePreset.BOXED.apply(SubtitleStyle()))
+        val file=File(folder,"encoding.ffgui.json");DesktopProjects.save(edited,file)
+        val restored=DesktopProjects.load(file,media);check(restored.encoding==edited.encoding && restored.subtitleStyle==edited.subtitleStyle)
+        val output=exporter.export(edited,File(folder,"encoded.mp4"));check(output.info.height==240 && kotlin.math.abs(output.info.frameRate-15f)<.1f)
+    }
     verify("cancel real process") {
         val start=System.currentTimeMillis()
         val job=launch { media.process.run(listOf("ffmpeg","-re","-f","lavfi","-i","testsrc2=size=640x360:rate=25","-t","30","-f","null","-")) }

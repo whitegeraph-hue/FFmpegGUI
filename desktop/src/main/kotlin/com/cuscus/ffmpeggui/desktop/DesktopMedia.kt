@@ -120,17 +120,44 @@ class DesktopExport(private val media: DesktopMedia = DesktopMedia()) {
         val candidates = listOf(File(System.getProperty("compose.application.resources.dir", "resources"), "fonts/$name"), File("/usr/share/fonts/truetype/dejavu/$name"))
         (candidates.firstOrNull { it.isFile } ?: error("Required font is missing: $name")).path
     }
-    fun command(project: DesktopProject, output: String): FfmpegCommand = CommandBuilder(fonts).build(project.request(), MediaPaths(project.sources.map { it.path }, output))
+    fun command(project: DesktopProject, output: String): FfmpegCommand {
+        val request=project.request()
+        return CommandBuilder(fonts).build(request,MediaPaths.aliasesFor(request).copy(inputs=project.sources.map { it.path },output=output))
+    }
+    fun transcript(project:DesktopProject,format:OutputFormat):String {
+        val request=project.request()
+        val words=request.timedWords()
+        require(words.isNotEmpty()) { "Listen to the file first. No words remain on this edited timeline." }
+        return if(format==OutputFormat.SRT) SrtSubtitles.write(SubtitleLayout.ofWords(words,project.subtitleStyle ?: SubtitleStyle(),request.subtitleFrameRatio),project.effects.effectiveSpeed)
+        else TranscriptText.write(words,project.effects.effectiveSpeed)
+    }
     suspend fun export(project: DesktopProject, output: File): DesktopSource {
         require(project.sources.none { File(it.path).canonicalFile == output.canonicalFile }) { "Choose a new output. Source files are never overwritten." }
-        require(!project.format.needsPlatformEncoder && !project.format.isTranscript && project.format != OutputFormat.CUSTOM) { "This output needs an adapter that is still being ported." }
+        require(!project.format.needsPlatformEncoder && project.format != OutputFormat.CUSTOM) { "This output needs an adapter that is still being ported." }
         val temporary = File(output.parentFile, ".${output.nameWithoutExtension}-${UUID.randomUUID()}.${project.format.extension}")
+        val auxiliaries=Files.createTempDirectory("ffmpeggui-export-").toFile()
         try {
-            media.process.checked(listOf("ffmpeg", "-nostdin") + command(project, temporary.path).arguments)
+            if(project.format.isTranscript) {
+                temporary.writeText(transcript(project,project.format))
+                Files.move(temporary.toPath(),output.toPath(),StandardCopyOption.REPLACE_EXISTING)
+                return DesktopSource(output.canonicalPath,project.sources[0].info)
+            }
+            val request=project.request()
+            val words=request.timedWords()
+            val style=project.subtitleStyle
+            val subtitles=if(request.hasSpokenSubtitles && words.isNotEmpty() && style!=null) {
+                val fontFile=File(fonts.fontPath(style.bold))
+                val facts=FontFacts.read(fontFile)
+                File(auxiliaries,"subtitles.ass").apply {
+                    writeText(AssSubtitles.write(SubtitleLayout.ofWords(words,style,request.subtitleFrameRatio,facts),style,request.subtitleFrameRatio,facts?.family ?: "DejaVu Sans"))
+                }
+            } else null
+            val paths=MediaPaths(project.sources.map { it.path },temporary.path,subtitles=subtitles?.path,subtitleFonts=subtitles?.let { File(fonts.fontPath(style?.bold ?: false)).parent })
+            media.process.checked(listOf("ffmpeg", "-nostdin") + CommandBuilder(fonts).build(request,paths).arguments)
             val result = media.probe(temporary.path)
             require(result.info.isStill || result.info.durationMs > 0) { "Export verification failed." }
             Files.move(temporary.toPath(), output.toPath(), StandardCopyOption.REPLACE_EXISTING)
             return result.copy(path = output.canonicalPath)
-        } finally { temporary.delete() }
+        } finally { temporary.delete();auxiliaries.deleteRecursively() }
     }
 }

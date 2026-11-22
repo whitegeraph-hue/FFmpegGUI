@@ -13,11 +13,11 @@ Status is implementation evidence, not a promise that unchecked behavior works.
 | Scene splits | SceneDetect + original panel | Real FFmpeg scene detection passed at known 2s and 4s boundaries. Panel apply and manual UI tests pending. |
 | Beat-synced splits | BeatTrack + original panel | Real audio analysis passed 120 BPM fixture. Split/snapping wired. UI test pending. |
 | Subject-following crop | FollowCropTrack/SubjectModelIo + original panel | Synthetic moving crop export passed. Native U2-NetP inference/model import wired and compiled; final app runtime/UI checks pending. |
-| Preview | Source frame adapter | Honest labelled source-frame seek; render edited preview includes effects/audio via real export and ffplay. Android live-preview parity not done. |
-| Audio editor/mastering | DSP/models/builder preserved | Basic speed/volume and formats only. Waveforms, ten-band EQ, compressor, reverb, stems/tracks still need UI/adapters and tests. |
+| Preview | Source frame adapter | Honest labelled source-frame seek; render edited preview includes effects/audio via real export and integrated sample-clock playback. Android live-preview parity not done. |
+| Audio editor/mastering | DSP/models/builder preserved | Speed/volume, audio bitrate/bitdepth and formats exposed. Waveforms, ten-band EQ, compressor, reverb, stems/tracks still need UI/adapters and tests. |
 | Photo editor | Image/vector/text-art logic preserved | Basic still export path exposed. Detailed crop/perspective, layers, shapes, brush, masks, HDR, SVG editor, ASCII/ANSI tools still need porting. |
 | GIF editor | GIF settings/builder preserved | Basic output only. Palette/dither/frame controls and exact preview missing. |
-| Subtitles/style/lyrics | Full core preserved | Transcript UI only initially. Subtitle generation/burn-in/style and lyrics workflows pending. |
+| Subtitles/style/lyrics | Full core preserved | Transcript UI only initially. SRT/TXT retimed export and ASS burn-in/style controls implemented;14 native integration checks include actual burnt pixels and240p15fps. Custom fonts/colours, external subtitle import and lyrics workflows pending. |
 | Offline AI cutout/erase/translation/dub/stems | Core algorithms/model definitions preserved | Runtime adapters, model gates and integrity import, licences, speech memory limits, source separation, marking gates still need porting. No generative output exposed without required provenance marks. |
 | Project files | Original ModelJson | Linux envelope save/open implemented. Source validation; Android project envelope interoperability not yet supported. Need include all editor state once exposed. |
 | Command studio | Parser/catalog/lint/recipes preserved | Read-only generated command initially. Editable commands, lint, recipes and file aliases still missing UI. |
@@ -53,3 +53,9 @@ remapping; rerun tracking after edits. Single-source project loading is enforced
 until multi-source word/track association is ported. Beat sample buffering is
 limited to ten minutes to fit the bounded Java heap; streaming analysis remains
 work to do. ORT's shipped native x64 library sets a GLIBC 2.27 minimum.
+
+Subtitle and encoding continuation: mouse-driven Listen, Subtitles tab and burn
+switch produced17words and visible style controls. Actual ASS render pixels
+inspected (Hello Linux, outlined yellow, bottom centre). SRT removes cut words
+and retimes2x correctly in native test. Custom font/colour and external subtitle
+file import still unported. Original core stays unchanged.

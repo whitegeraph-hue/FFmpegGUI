@@ -148,7 +148,8 @@ class EditorController(val scope: CoroutineScope) {
         }
     }
     fun preview() {
-        val p=project ?: return
+        val current=project ?: return
+        val p=if(current.format.isTranscript) current.copy(format=if(current.sources[0].info.isVideo) OutputFormat.MP4 else OutputFormat.MP3) else current
         player.stop()
         val file=File.createTempFile("ffmpeggui-preview-", ".${p.format.extension}").apply { delete() }
         work("Rendering an exact edited preview. This includes cuts and effects…") {
