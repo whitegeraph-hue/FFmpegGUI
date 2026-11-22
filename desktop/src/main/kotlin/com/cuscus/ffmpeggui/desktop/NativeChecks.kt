@@ -303,6 +303,15 @@ fun main(args:Array<String>)=runBlocking {
         check(runCatching {studio.validate(p,"ffmpeg -i input.mp4 output_%03d.png")}.isFailure)
         check(com.cuscus.ffmpeggui.core.command.studio.CommandLint(catalogue,studio.paths(p).aliasEntries()).check("ffmpeg -i input.mp4").any {it.code==com.cuscus.ffmpeggui.core.command.studio.LintCode.NO_OUTPUT})
     }
+    verify("speed ramp actual duration clock persistence and decode") {
+        val curve=SpeedCurve(listOf(SpeedPoint(0f,.5f),SpeedPoint(.5f,2f),SpeedPoint(1f,.5f)))
+        val project=p.copy(timeline=Timeline(listOf(Clip("ramp",video.path,endMs=4000,effects=Effects(speedCurve=curve)))))
+        val result=exporter.export(project,File(folder,"speed-ramp.mp4"))
+        check(kotlin.math.abs(result.info.durationMs-project.outputDurationMs)<180)
+        check(project.outputAt(1000)>1000L)
+        media.process.checked(listOf("ffmpeg","-v","error","-i",result.path,"-f","null","-"))
+        val saved=File(folder,"speed-ramp.ffgui.json");DesktopProjects.save(project,saved);check(DesktopProjects.load(saved,media).timeline==project.timeline)
+    }
     verify("cancel real process") {
         val start=System.currentTimeMillis()
         val job=launch { media.process.run(listOf("ffmpeg","-re","-f","lavfi","-i","testsrc2=size=640x360:rate=25","-t","30","-f","null","-")) }

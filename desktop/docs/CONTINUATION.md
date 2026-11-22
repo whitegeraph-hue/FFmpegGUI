@@ -167,3 +167,15 @@ editor work per PARITY. Image native chooser still unverified. No release/tag.
 Follow points corrected separately to real-effects joined clock.31native checks
 pass actual2x/reversed synthetic subject centre at0.2/1.6s. Final adapter changes
 in23d passed30checks before that. Build a current committed package next.
+
+## Checkpoint 2026-11-23 00:24 Cairo
+
+Latest migrations c7b1ef2 binding persistence+33tests, a41a36c video layers+34,
+6ec6b26 guarded command studio+35. Now speed ramp controls+36tests pass locally.
+All core unchanged. Image native chooser successfully added sticker.png after
+focusing actual GTK dialog before ctrl+l, then two Returns. Earlier misses
+were script focus, not app rejection. Ramp controls visually inspected.
+Current exact local packagef617 is now stale. It had matching806file source
+archive and actual launcher worker tests, hash f1eacd9fe0d76739368f1d7663eb712505c83f34fcdd4a88a080103c9c5f44bf.
+No user delivery. Remaining broad parity still active, including AI adapters,
+photo drawing/masks/HDR, richer timeline, full live preview and actual target.

@@ -612,6 +612,16 @@ private fun EditPanel(c: EditorController,p: DesktopProject) {
             ValueSlider("Source out (seconds)",(clip.endMs ?: source.info.durationMs)/1000f,(clip.startMs+120)/1000f..source.info.durationMs/1000f,!c.busy){c.mutate(p.copy(timeline=p.timeline.trim(clip.id,clip.startMs,(it*1000).toLong(),source.info.durationMs),followCrop=null))}
         }
         ValueSlider("Clip speed",f.speed,.25f..4f,!c.busy){v->change {it.copy(speed=v)}}
+        Text("Speed ramp",style=MaterialTheme.typography.titleMedium)
+        Row {Switch(f.speedCurve!=null,{v->change {it.copy(speedCurve=if(v)SpeedCurve(listOf(SpeedPoint(0f,1f),SpeedPoint(.5f,2f),SpeedPoint(1f,1f))) else null)}},enabled=!c.busy);Text("Vary clip speed")}
+        f.speedCurve?.let {curve->
+            Text("Positions are fractions of the footage in playing order. The constant-speed slider is ignored while the ramp is on.")
+            curve.nodes.forEachIndexed {i,node->ValueSlider("Ramp ${i+1} at ${(node.at*100).toInt()}%",node.speed,.25f..4f,!c.busy){v->change {it.copy(speedCurve=SpeedCurve(curve.nodes.mapIndexed {j,n->if(i==j)n.copy(speed=v)else n}))}}}
+            FlowRowCompat {
+                OutlinedButton(onClick={change {it.copy(speedCurve=SpeedCurve(listOf(SpeedPoint(0f,.5f),SpeedPoint(.5f,2f),SpeedPoint(1f,.5f))))}},enabled=!c.busy){Text("Slow-fast-slow")}
+                OutlinedButton(onClick={change {it.copy(speedCurve=SpeedCurve(listOf(SpeedPoint(0f,2f),SpeedPoint(.5f,.5f),SpeedPoint(1f,2f))))}},enabled=!c.busy){Text("Fast-slow-fast")}
+            }
+        }
         Row { Switch(f.reversed,{v->change {it.copy(reversed=v)}},enabled=!c.busy);Text("Reverse");Switch(f.keepPitch,{v->change {it.copy(keepPitch=v)}},enabled=!c.busy);Text("Keep pitch") }
         Row {Switch(f.muted,{v->change {it.copy(muted=v)}},enabled=!c.busy);Text("Mute clip")}
         ValueSlider("Clip volume",f.volume,0f..2f,!c.busy){v->change {it.copy(volume=v)}}

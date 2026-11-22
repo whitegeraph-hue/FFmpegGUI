@@ -162,3 +162,11 @@ output rejection. Local execution is argv-only, selected filters/options and
 input aliases, one new media output. Other commands remain edit/lint only.
 No network, shell or arbitrary file destinations. Generated subtitle/AI-mark
 manual adapters remain explicitly unavailable; manual commands bypass edits.
+
+Speed ramp continuation: per-node speed values and two original-curve presets
+exposed; original SpeedCurve passed to clip, clock, export and project JSON.
+36native assertions include actual ramp output duration matching predicted clock,
+audio/video decode and roundtrip. Ramp controls visually inspected. Custom
+node insertion/removal and curve drawing remain missing. Image native chooser
+finally selected sticker.png with focused GTK location field and second Return;
+status confirms image added, broader subsequent edit interactions still pending.
