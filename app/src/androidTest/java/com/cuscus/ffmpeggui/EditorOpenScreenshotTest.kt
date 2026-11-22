@@ -37,9 +37,7 @@ class EditorOpenScreenshotTest {
 
     private fun saveShot(name: String) {
         rule.waitForIdle()
-        val bitmap = instrumentation.uiAutomation.takeScreenshot() ?: error("takeScreenshot returned null")
-        val dir = File(context.getExternalFilesDir(null), "ci-shots").apply { mkdirs() }
-        FileOutputStream(File(dir, "$name.png")).use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        ShellShot.take(name)
     }
 
     /** The bundled deterministic video, copied into MediaStore as the app itself. */

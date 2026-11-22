@@ -61,9 +61,7 @@ class SmartPanelsScreenshotTest {
 
     private fun shot(name: String) {
         rule.waitForIdle()
-        val bitmap = InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
-            ?: error("takeScreenshot returned null")
-        saveShot(name, bitmap)
+        ShellShot.take(name)
     }
 
     private fun subtitleEditing(seeks: MutableList<Pair<String, Long>>) = SubtitleEditing(
