@@ -52,6 +52,12 @@ fun main(args:Array<String>)=runBlocking {
     }
     verify("external SRT ASS source clocks styling embedded project and stripped attachments") {
         val file=File(folder,"source subtitles.srt").apply {writeText("1\n00:00:00,500 --> 00:00:01,500\nExternal caption\n\n2\n00:00:02,500 --> 00:00:03,500\nSecond caption\n")}
+        val utf16=File(folder,"utf16.srt").apply {writeBytes(byteArrayOf(0xff.toByte(),0xfe.toByte())+file.readText().toByteArray(Charsets.UTF_16LE))}
+        check(DesktopSubtitles.import(utf16,0).content.contains("External caption"))
+        val badEncoding=File(folder,"cp1252.srt").apply {writeBytes(byteArrayOf(0x96.toByte()))}
+        check(runCatching {DesktopSubtitles.import(badEncoding,0)}.exceptionOrNull()?.message?.contains("encoding")==true)
+        val huge=File(folder,"huge.srt");java.io.RandomAccessFile(huge,"rw").use {it.setLength(2_000_001)}
+        check(runCatching {DesktopSubtitles.import(huge,0)}.isFailure)
         val imported=DesktopSubtitles.import(file,0)
         check(exporter.transcript(captioned.copy(externalSubtitles=imported),OutputFormat.TXT).contains("Hello Linux"))
         val edited=p.copy(timeline=Timeline(listOf(Clip("external",video.path,startMs=2000,endMs=4000,effects=Effects(speed=2f)))),externalSubtitles=imported,subtitleStyle=SubtitleStyle(size=.12f,highlight=WordHighlight.NONE))
@@ -61,6 +67,14 @@ fun main(args:Array<String>)=runBlocking {
         val lit=media.frame(output.path,500)!!;val plain=media.frame(no.path,500)!!
         var changed=0;for(y in 230 until lit.height)for(x in 50 until 590)if(lit.getRGB(x,y)!=plain.getRGB(x,y))changed++
         check(changed>500)
+        val joined=p.copy(timeline=Timeline(listOf(Clip("sub-a",video.path,endMs=2000,effects=Effects(transition=Transition(TransitionKind.FADE,600))),Clip("sub-b",video.path,startMs=2000,endMs=4000))),effects=Effects(speed=2f),externalSubtitles=imported,subtitleStyle=SubtitleStyle(size=.12f,highlight=WordHighlight.NONE))
+        val joinedCues=DesktopSubtitles.cuesOnTimeline(imported,joined.request());check(joinedCues.size==2)
+        val joinedOutput=exporter.export(joined,File(folder,"external-global-transition.mp4"));check(kotlin.math.abs(joinedOutput.info.durationMs-joined.outputDurationMs)<180)
+        val joinedPlain=exporter.export(joined.copy(externalSubtitles=null,subtitleStyle=null),File(folder,"external-global-transition-plain.mp4"))
+        val secondAt=(joinedCues[1].startMs+joinedCues[1].endMs)/4
+        val joinedLit=media.frame(joinedOutput.path,secondAt)!!;val joinedNo=media.frame(joinedPlain.path,secondAt)!!
+        var diff=0;for(y in 230 until joinedLit.height)for(x in 50 until 590)if(joinedLit.getRGB(x,y)!=joinedNo.getRGB(x,y))diff++
+        check(diff>500)
         val saved=File(folder,"external-subtitles.ffgui.json");DesktopProjects.save(edited,saved);file.delete();val loaded=DesktopProjects.load(saved,media);check(loaded.externalSubtitles==imported)
         val plainSrt=exporter.export(edited.copy(subtitleStyle=null),File(folder,"external-default.mp4"));check(plainSrt.info.durationMs==output.info.durationMs)
         val reversed=edited.copy(effects=Effects(reversed=true));val reversedCues=DesktopSubtitles.cuesOnTimeline(imported,reversed.request());check(reversedCues.size==1)
@@ -499,6 +513,13 @@ fun main(args:Array<String>)=runBlocking {
         check((javax.imageio.ImageIO.read(alpha).getRGB(10,10) ushr 24)<10)
         val saved=File(folder,"photo-canvas.ffgui.json");DesktopProjects.save(project,saved);val loaded=DesktopProjects.load(saved,media)
         check(loaded.photoPlacement==project.photoPlacement && loaded.image==project.image)
+    }
+    verify("real two-pass stabilization joined clip effects and project persistence") {
+        val edited=p.copy(timeline=Timeline(listOf(Clip("stable-a",video.path,endMs=1800,effects=Effects(speed=1.5f)),Clip("stable-b",video.path,startMs=3000,endMs=4500,effects=Effects(reversed=true)))),stabilization=Stabilization(7,12))
+        val output=exporter.export(edited,File(folder,"stabilized.mp4"))
+        check(kotlin.math.abs(output.info.durationMs-edited.outputDurationMs)<180)
+        check(media.frame(output.path,500)!=null)
+        val file=File(folder,"stabilized.ffgui.json");DesktopProjects.save(edited,file);check(DesktopProjects.load(file,media).stabilization==edited.stabilization)
     }
     verify("custom transition families actual motion duration and saved state") {
         val left=media.probe(File(folder,"scenes.mp4").path)

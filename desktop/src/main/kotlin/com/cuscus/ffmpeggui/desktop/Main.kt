@@ -140,7 +140,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                                         "Subject cutout" -> SubjectPanel(controller,project)
                                         "Drawing" -> DrawingPanel(controller,project)
                                         "Command studio" -> StudioPanel(controller,project){name->pick(true,name)}
-                                        "Clip editor" -> ClipEditorPanel(controller,project)
+                                        "Clip editor" -> {StabilizationPanel(controller,project);ClipEditorPanel(controller,project)}
                                         "Subtitles" -> SubtitlesPanel(controller,project){pick()}
                                         "Image layers" -> PictureLayersPanel(controller,project){pick()?.path}
                                         "Tags" -> TagsPanel(controller,project)
@@ -292,6 +292,7 @@ private fun EditPanel(c: EditorController,p: DesktopProject) {
         Button(onClick={pick()?.let {file->c.work("Reading subtitle file…"){val imported=DesktopSubtitles.import(file,c.selectedSource);c.mutate(p.copy(externalSubtitles=imported));c.status="Subtitle file imported. Render preview to inspect timing."}}},enabled=!c.busy){Text("Import SRT / ASS / SSA")}
         p.externalSubtitles?.let {v->
             Text("${v.name}, source ${v.sourceIndex+1}")
+            if(v.enabled && DesktopSubtitles.cuesOnTimeline(v,p.request()).isEmpty())Text("No imported cues remain on this edit. Export will contain no imported subtitles.",color=MaterialTheme.colorScheme.error)
             Row(verticalAlignment=Alignment.CenterVertically) {Switch(v.enabled,{c.mutate(p.copy(externalSubtitles=v.copy(enabled=it)))},enabled=!c.busy);Text("Use imported subtitles");TextButton(onClick={c.mutate(p.copy(externalSubtitles=null))},enabled=!c.busy){Text("Remove")}}
         }
         val canStyle=p.externalSubtitles?.enabled==true || p.sources.indices.any {p.sourceWords(it).isNotEmpty()}
@@ -331,6 +332,18 @@ private fun EditPanel(c: EditorController,p: DesktopProject) {
     Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
         Box(Modifier.size(24.dp).background(Color(value.toInt())))
         OutlinedTextField(text,{text=it.take(8);if(text.matches(Regex("[0-9a-fA-F]{8}")))update(text.toLong(16))},label={Text(label+" (AARRGGBB)")},enabled=enabled,isError=!valid,singleLine=true)
+    }
+}
+
+@Composable private fun StabilizationPanel(c:EditorController,p:DesktopProject) {
+    PanelCard {
+        Text("Video stabilization",style=MaterialTheme.typography.titleLarge)
+        Text("Two local passes use the original vid.stab command builder. First analyses the edited joined footage, second smooths it. Requires vidstabdetect/vidstabtransform in installed FFmpeg. Auto zoom may crop edges. Render preview to inspect.",style=MaterialTheme.typography.bodySmall)
+        Row(verticalAlignment=Alignment.CenterVertically){Switch(p.stabilization!=null,{c.mutate(p.copy(stabilization=if(it)Stabilization() else null))},enabled=!c.busy && p.sources.all {it.info.isVideo && !it.info.isStill});Text("Stabilize video")}
+        p.stabilization?.let {v->
+            ValueSlider("Shakiness",v.shakiness.toFloat(),1f..10f,!c.busy){c.mutate(p.copy(stabilization=v.copy(shakiness=it.toInt())))}
+            ValueSlider("Smoothing frames",v.smoothing.toFloat(),0f..100f,!c.busy){c.mutate(p.copy(stabilization=v.copy(smoothing=it.toInt())))}
+        }
     }
 }
 
