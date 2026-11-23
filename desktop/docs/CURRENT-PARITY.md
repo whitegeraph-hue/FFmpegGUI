@@ -1,9 +1,27 @@
 # Current Linux preview status
 
-Audited 2026-11-23 through delivered 0978ed9. PARITY.md remains execution history. The original full
+Audited 2026-11-23 through qualified 121b4d7; latest delivered build remains 0978ed9. PARITY.md remains execution history. The original full
 Linux request remains open.
 
 ## Current checkpoint
+
+- Qualified, not yet delivered: 121b4d7 adds one previous-manual-save backup
+  and precise text/picture alignment. All four exact-SHA CI green, 933 shared
+  tests, 91 unique native groups in exact Debian and clean Arch packages.
+  Actual Debian and installed non-root Arch Apply/Undo and backup-recovery
+  workflows checked. Manual backup is not autosave, history or power-loss
+  recovery; physical target limits below still apply.
+- Later source acceptance from a blank 1366x768 launch imported two videos,
+  split and trimmed a selected occurrence, exercised reorder/Undo, added text,
+  source-bound imported SRT and a soundtrack, saved, reopened in a fresh launch,
+  played the rendered edit and exported through the native chooser. Independent
+  H.264/AAC output probe and full decode pass; sampled frames show caption on
+  both sources and the retimed SRT. This session exposed shared tool scrolling
+  hiding subtitle import. The local fix resets on tool changes, including return
+  visits, but retains scroll during same-tool editing. Actual before/after pixels
+  confirm both behaviors. This combined source session is not yet exact-package
+  qualification. PCM decoding confirms audio data, not physical listening or
+  subjective mix quality.
 
 - Delivered 0978ed9 after fixture-order repair: all four exact-SHA CI green,
   933 shared tests, Arch clean unfiltered90 native checks. Independent exact
@@ -23,8 +41,8 @@ Linux request remains open.
   No claim of physical Arch audio, Wayland, touchpad or HiDPI qualification.
 - Bundled launcher checks cover responsive controls, Undo/Redo, focused field
   history isolation, source peaks and Save/Save as destination. Save overwrites
-  without backup in the delivered build. A previous-manual-save backup is in
-  local development, not yet qualified or delivered. Save as switches the destination. History is 50 in-memory
+  without backup in the latest delivered build. A previous-manual-save backup
+  is qualified in 121b4d7 but not yet delivered. Save as switches the destination. History is 50 in-memory
   entries, not autosave or crash recovery.
 - Delivered keyboard/reorder batch: buttons use the same occurrence-preserving
   move as drag; Left/Right refer to visible direction under global reverse.

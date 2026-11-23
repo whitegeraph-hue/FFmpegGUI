@@ -181,7 +181,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                                 Surface(Modifier.width(if(compact)320.dp else 360.dp).fillMaxHeight(),shape=RoundedCornerShape(28.dp),color=MaterialTheme.colorScheme.surfaceContainerLow) {
                                     Column(Modifier.padding(14.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
                                         Text(controller.tab,style=MaterialTheme.typography.titleLarge)
-                                        ScrollArea(Modifier.weight(1f)) {
+                                        ScrollArea(Modifier.weight(1f),resetKey=controller.tab) {
                                             if(controller.tab in listOf("Pause cuts","Scenes","Beats","Transcript","Scene stems","Audio"))DesktopScopePicker(controller,project)
                                     when(controller.tab) {
                                         "Edit" -> EditPanel(controller,project,window)
@@ -294,8 +294,8 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
     }
 }
 
-@Composable private fun ScrollArea(modifier:Modifier=Modifier,spacing:Int=12,content:@Composable ColumnScope.()->Unit) {
-    val scroll=rememberScrollState()
+@Composable private fun ScrollArea(modifier:Modifier=Modifier,spacing:Int=12,resetKey:Any?=null,content:@Composable ColumnScope.()->Unit) {
+    val scroll=key(resetKey) {rememberScrollState()}
     Box(modifier) {
         Column(Modifier.fillMaxWidth().padding(end=10.dp).verticalScroll(scroll),verticalArrangement=Arrangement.spacedBy(spacing.dp),content=content)
         VerticalScrollbar(rememberScrollbarAdapter(scroll),Modifier.align(Alignment.CenterEnd).fillMaxHeight().width(7.dp))
