@@ -60,8 +60,11 @@ object Ui {
         nodes.forEach { android.util.Log.i("CI-A11Y", "${it.className} click=${it.isClickable} '${label(it)}'") }
     }
 
-    private fun find(text: String): android.view.accessibility.AccessibilityNodeInfo? =
-        all().firstOrNull { label(it).contains(text, ignoreCase = true) }
+    private fun find(text: String): android.view.accessibility.AccessibilityNodeInfo? {
+        val nodes=all()
+        return nodes.firstOrNull { it.text?.toString()?.equals(text,ignoreCase=true)==true || it.contentDescription?.toString()?.equals(text,ignoreCase=true)==true }
+            ?: nodes.firstOrNull { label(it).contains(text,ignoreCase=true) }
+    }
 
     fun waitFor(text: String, timeoutMs: Long): Boolean {
         val end = System.currentTimeMillis() + timeoutMs

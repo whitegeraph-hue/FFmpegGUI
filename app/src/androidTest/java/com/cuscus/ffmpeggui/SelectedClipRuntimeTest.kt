@@ -71,6 +71,8 @@ class SelectedClipRuntimeTest {
             assertTrue("stale results survived scope switch", vm.sceneSplits.value is SceneSplitsStatus.Idle)
             instrumentation.runOnMainSync { vm.applySceneSplits() }
             assertEquals(before, vm.settings.value.timeline)
+            instrumentation.runOnMainSync { vm.setSmartClipScope(second);vm.keepSpokenRangeOnly(before.clips[1].sourceId,1000,2000) }
+            assertEquals(before,vm.settings.value.timeline)
             instrumentation.runOnMainSync { vm.setSmartClipScope(second);vm.cutSpokenRange(before.clips[1].sourceId,4000,4500) }
             assertEquals(before.clips[0],vm.settings.value.timeline.clips[0])
             assertEquals(5500L,vm.settings.value.timeline.durationMs)

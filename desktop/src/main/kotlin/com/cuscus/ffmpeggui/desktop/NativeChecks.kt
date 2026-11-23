@@ -46,6 +46,8 @@ fun main(args:Array<String>)=runBlocking {
         val controller=EditorController(workerScope)
         try {
             controller.project=initial;controller.selectSmartClip(second.id)
+            val outside=WordBlock(0,0,listOf(SpokenWord(3000,3500,"Outside clip")))
+            controller.transcriptCut(outside,true);check(controller.project!!.timeline==initial.timeline)
             val block=WordBlock(0,0,words)
             controller.transcriptCut(block,false)
             check(controller.project!!.timeline.clips.first()==first)

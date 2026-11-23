@@ -4398,6 +4398,8 @@ class ConversionViewModel(
      */
     fun keepSpokenRangeOnly(sourceId: String, startMs: Long, endMs: Long) {
         if (endMs <= startMs) return
+        val selected=smartClipId?.let {id->_settings.value.timeline.clips.firstOrNull {it.id==id}}
+        if(selected!=null && (selected.sourceId!=sourceId || endMs<=selected.startMs || startMs>=(selected.endMs ?: selected.startMs)))return
         val durationMs = _settings.value.source(sourceId)?.info?.durationMs ?: return
         val file = listOfNotNull(
             if (startMs > 0L) CutRange(0L, startMs, TranscriptEdits.REASON_TRANSCRIPT) else null,

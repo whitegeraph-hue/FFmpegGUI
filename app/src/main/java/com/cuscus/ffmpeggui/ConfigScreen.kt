@@ -598,6 +598,7 @@ fun ConfigScreen(
     /** Gives the focus to clip [clipId] (null = the whole video); a selected sound lets go. */
     val selectClip: (String?) -> Unit = { clipId ->
         selectedClipId = clipId
+        smartEdit.onClipScope(clipId)
         selectedSoundId = null
         selectedOverlayId = null
         videoSelected = false
@@ -655,6 +656,7 @@ fun ConfigScreen(
     /** Opens [tool] for [clipId] (null = the whole video), showing that clip if the playhead is elsewhere. */
     val openTool: (EditorTool, String?) -> Unit = { tool, clipId ->
         selectedClipId = clipId
+        smartEdit.onClipScope(clipId)
         selectedSoundId = null
         selectedOverlayId = null
         selectedTool = tool
@@ -1686,7 +1688,7 @@ fun ConfigScreen(
             modifier = if (tool != selectedTool) Modifier.ignoringTouches() else Modifier,
             rounded = side,
         ) {
-            if(tool in listOf(EditorTool.SMART_CUTS,EditorTool.SMART_SCENES,EditorTool.SMART_BEATS)) {
+            if(tool in listOf(EditorTool.SMART_CUTS,EditorTool.SMART_SCENES,EditorTool.SMART_BEATS,EditorTool.SUBTITLE)) {
                 Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                     FilterChip(selected=scopeClipId==null,onClick={selectClip(null)},label={Text(stringResource(R.string.scope_whole))})
                     timeline.clips.forEachIndexed {i,clip->
@@ -1694,6 +1696,7 @@ fun ConfigScreen(
                     }
                 }
             }
+            if(tool==EditorTool.SUBTITLE && scopeClipId!=null) Text("Transcript cuts and Keep affect this clip only. A line outside this clip makes no change.",style=MaterialTheme.typography.bodySmall)
             when (tool) {
                 EditorTool.TRIM_ALL -> WholeTrimPanel(
                     timeline = timeline,

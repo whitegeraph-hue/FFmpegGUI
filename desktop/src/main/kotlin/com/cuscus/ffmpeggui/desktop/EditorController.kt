@@ -129,6 +129,8 @@ class EditorController(val scope: CoroutineScope) {
     fun moveClip(index: Int, offset: Int) { val p=project ?: return; mutate(p.copy(timeline=p.timeline.move(p.timeline.clips[index].id,offset),followCrop=null)) }
     fun transcriptCut(block: WordBlock, keepOnly: Boolean) {
         val p=project ?: return
+        val selected=p.timeline.clips.firstOrNull {it.id==smartClipId}
+        if(selected!=null && (selected.sourceId!=p.sources[selectedSource].path || block.endMs<=selected.startMs || block.startMs>=(selected.endMs ?: selected.startMs))) {status="That line is outside the selected clip. No change made.";return}
         val sourceCuts=if (keepOnly) TranscriptEdits.keepOnly(p.sourceWords(selectedSource),block.firstIndex,block.lastIndex,p.sources[selectedSource].info.durationMs)
             else listOfNotNull(p.sourceWords(selectedSource).cutRangeFor(block.firstIndex,block.lastIndex))
         val cuts=ClipToolScope.cuts(p.timeline,smartClipId,p.sources[selectedSource].path,sourceCuts)
