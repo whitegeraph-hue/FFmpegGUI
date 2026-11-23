@@ -59,6 +59,22 @@ fun main(args:Array<String>)=runBlocking {
             controller.undo();check(controller.project!!.timeline==initial.timeline)
         }finally {controller.close();workerScope.cancel()}
     }
+    verify("selected clip audio isolation renders one occurrence and cleans up") {
+        val a=Clip("audio-neighbour",video.path,0,2000,Effects(volume=.1f))
+        val b=Clip("audio-selected",video.path,2000,6000,Effects(speed=2f,reversed=true,volume=.5f,fadeInSeconds=.1f,transition=Transition(TransitionKind.FADE,500)))
+        val initial=DesktopProject.create(video).copy(timeline=Timeline(listOf(a,b)),audioEffects=AudioEffects(pitchSemitones=7f))
+        val snapshot=DesktopClipAudio.snapshot(initial,b.id)
+        check(snapshot.timeline.clips.size==1 && snapshot.audioEffects==AudioEffects.NONE)
+        check(snapshot.timeline.clips.single().effects==b.effects.copy(transition=null))
+        var temporary=""
+        DesktopClipAudio.use(initial,b.id,media) {path->
+            temporary=path;val info=media.probe(path).info
+            check(info.hasAudio && !info.isVideo && kotlin.math.abs(info.durationMs-2000)<50)
+            check(initial.timeline.clips==listOf(a,b))
+        }
+        check(!File(temporary).exists())
+        check(runCatching {DesktopClipAudio.use(initial,"gone",media) {}}.isFailure)
+    }
     verify("probe actual streams") { check(video.info.durationMs in 7900..8100 && video.info.width==640 && video.info.hasAudio) }
     verify("seek actual pixels") { val a=media.frame(video.path,500)!!;val b=media.frame(video.path,3500)!!;check(a.width>0 && a.getRGB(100,100)!=b.getRGB(100,100)) }
     verify("real scene detector") { val s=media.probe(File(folder,"scenes.mp4").path); val points=media.scenes(s);println("SCENES $points");check(points.size==2 && kotlin.math.abs(points[0]-2000)<100 && kotlin.math.abs(points[1]-4000)<100) }

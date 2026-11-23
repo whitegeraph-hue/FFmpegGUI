@@ -150,13 +150,13 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                                     tabs.forEach { title -> FilterChip(selected=controller.tab==title,onClick={ controller.tab=title },label={ Text(title) }) }
                                 }
                                 Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-                                    if(controller.tab in listOf("Pause cuts","Scenes","Beats","Transcript"))PanelCard {
+                                    if(controller.tab in listOf("Pause cuts","Scenes","Beats","Transcript","Scene stems"))PanelCard {
                                         Text("Tool scope",style=MaterialTheme.typography.titleMedium)
                                         FlowRowCompat {
                                             FilterChip(controller.smartClipId==null,{controller.selectSmartClip(null)},label={Text("Selected source, all clips")},enabled=!controller.busy)
                                             project.timeline.clips.forEachIndexed {i,clip->FilterChip(controller.smartClipId==clip.id,{controller.selectSmartClip(clip.id)},label={Text("Clip ${i+1}")},enabled=!controller.busy)}
                                         }
-                                        Text(if(controller.smartClipId==null)"All occurrences of the selected source can change. Choose Clip N to limit the tool." else "Only this clip occurrence is changed. Existing clip effects stay; cuts shift later content earlier. Originals are unchanged.")
+                                        Text(if(controller.tab=="Scene stems") {if(controller.smartClipId==null)"Exports stems from the selected original source. Choose Clip N for only that clip's played sound. No timeline changes." else "Exports only this clip's played sound. Other clips and the timeline are unchanged."} else if(controller.smartClipId==null)"All occurrences of the selected source can change. Choose Clip N to limit the tool." else "Only this clip occurrence is changed. Existing clip effects stay; cuts shift later content earlier. Originals are unchanged.")
                                     }
 
                                     when(controller.tab) {
@@ -182,7 +182,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                                         "Compression" -> CompressionPanel(controller,project)
                                         "Scene stems" -> PanelCard {
                                             Text("Dialogue, music and effects",style=MaterialTheme.typography.titleLarge)
-                                            Text("Separate the selected original file offline with the original pinned Bandit int8 model. This exports three stereo 48 kHz WAV files, not the edited timeline. Source edits and existing tracks are not changed.")
+                                            Text(if(controller.smartClipId==null)"Separate the selected original file offline with the pinned Bandit int8 model. Choose Clip N to separate only an existing clip." else "Separate only the selected clip's played sound, including its speed, reverse, volume and fades. Whole-project mastering and added tracks are excluded. Exports start at zero; the timeline stays unchanged.")
                                             Text("Files over 10 minutes are rejected. A 10-minute synthetic resource test passed, not a general audio-quality test. At least 2 GiB free RAM is required. Results can contain bleed or missing sound. Review them before using them. Instrument splitting is not yet ported.")
                                             Text("Import the 40 MB model in Models first. Licence and attribution travel with the exported folder.")
                                             Button(onClick={
@@ -191,7 +191,9 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                                                 dialog.file?.let {name->
                                                     val destination=File(dialog.directory,name)
                                                     controller.work("Starting isolated scene separation…") {
-                                                        controller.models.stems(project.sources[controller.selectedSource].path,DesktopModels.stemsFile,destination) {controller.status=it}
+                                                        val selected=controller.smartClipId
+                                                        if(selected==null)controller.models.stems(project.sources[controller.selectedSource].path,DesktopModels.stemsFile,destination) {controller.status=it}
+                                                        else DesktopClipAudio.use(project,selected,controller.media) {path->controller.models.stems(path,DesktopModels.stemsFile,destination) {controller.status=it}}
                                                         controller.status="Three stems saved with licences: ${destination.absolutePath}. Review the audio before use."
                                                     }
                                                 }
