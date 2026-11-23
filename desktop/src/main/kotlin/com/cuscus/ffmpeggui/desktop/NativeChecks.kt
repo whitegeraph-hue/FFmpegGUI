@@ -75,6 +75,19 @@ fun main(args:Array<String>)=runBlocking {
         check(!File(temporary).exists())
         check(runCatching {DesktopClipAudio.use(initial,"gone",media) {}}.isFailure)
     }
+    verify("sub100ms selected edge residues export with audio and decode") {
+        val first=Clip("edge-neighbour",video.path,0,2000)
+        val selected=Clip("edge-selected",video.path,2000,4000)
+        val initial=DesktopProject.create(video).copy(timeline=Timeline(listOf(first,selected)))
+        val mapped=ClipToolScope.cuts(initial.timeline,selected.id,video.path,listOf(CutRange(2050,3950)))
+        val changed=initial.copy(timeline=ClipToolScope.remove(initial.timeline,mapped){UUID.randomUUID().toString()})
+        check(changed.timeline.clips.first()==first && changed.timeline.clips.drop(1).all {it.lengthMs==50L})
+        val output=exporter.export(changed,File(folder,"scope-two-50ms-residues.mp4"))
+        check(output.info.hasAudio && kotlin.math.abs(output.info.durationMs-2100)<100)
+        media.process.checked(listOf("ffmpeg","-v","error","-i",output.path,"-f","null","-"))
+        val a=media.frame(video.path,500)!!;val b=media.frame(output.path,500)!!
+        try {var total=0L;for(y in 0 until a.height step 16)for(x in 0 until a.width step 16)total+=kotlin.math.abs((a.getRGB(x,y) and 255)-(b.getRGB(x,y) and 255));check(total<30000)}finally {a.flush();b.flush()}
+    }
     verify("probe actual streams") { check(video.info.durationMs in 7900..8100 && video.info.width==640 && video.info.hasAudio) }
     verify("seek actual pixels") { val a=media.frame(video.path,500)!!;val b=media.frame(video.path,3500)!!;check(a.width>0 && a.getRGB(100,100)!=b.getRGB(100,100)) }
     verify("real scene detector") { val s=media.probe(File(folder,"scenes.mp4").path); val points=media.scenes(s);println("SCENES $points");check(points.size==2 && kotlin.math.abs(points[0]-2000)<100 && kotlin.math.abs(points[1]-4000)<100) }
