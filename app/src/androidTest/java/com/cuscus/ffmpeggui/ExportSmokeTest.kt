@@ -1,6 +1,9 @@
 package com.cuscus.ffmpeggui
 
 import android.graphics.Bitmap
+import com.cuscus.ffmpeggui.core.model.Effects
+import com.cuscus.ffmpeggui.core.model.Transition
+import com.cuscus.ffmpeggui.core.model.TransitionKind
 import android.media.MediaMetadataRetriever
 import androidx.test.platform.app.InstrumentationRegistry
 import com.cuscus.ffmpeggui.core.command.CommandBuilder
@@ -87,6 +90,33 @@ class ExportSmokeTest {
         } finally {
             mmr.release()
         }
+    }
+
+    @Test
+    fun mixedStillTransitionUsesBundledRuntime() = runBlocking {
+        val input=File(context.cacheDir,"ci-mixed-input.mp4")
+        testAssets.open("ci-test-video.mp4").use {src->input.outputStream().use {src.copyTo(it)}}
+        val picture=File(context.cacheDir,"ci-mixed-white.png")
+        val bitmap=Bitmap.createBitmap(320,180,Bitmap.Config.ARGB_8888)
+        bitmap.eraseColor(android.graphics.Color.WHITE)
+        picture.outputStream().use {bitmap.compress(Bitmap.CompressFormat.PNG,100,it)}
+        bitmap.recycle()
+        val output=File(context.cacheDir,"ci-mixed-transition.mp4");output.delete()
+        val request=ConversionRequest(format=OutputFormat.MP4,inputFileName=input.name,
+            sources=listOf(SourceInfo(durationMs=8000,width=640,height=360,hasAudio=true,frameRate=25f),SourceInfo(durationMs=0,width=320,height=180,hasAudio=false,isStill=true)),
+            segments=listOf(Segment(0,0,1000,Effects(transition=Transition(TransitionKind.FADE,400))),Segment(1,0,1500,Effects(transition=Transition(TransitionKind.FADE,400))),Segment(0,1000,2000)))
+        val command=CommandBuilder {_ -> "/fonts/Regular.ttf"}.build(request,MediaPaths(inputs=listOf(input.path,picture.path),output=output.path))
+        assertEquals(ExecutionResult.Success,FfmpegKitExecutor().execute(command){})
+        val mmr=MediaMetadataRetriever()
+        try {
+            mmr.setDataSource(output.path)
+            val duration=mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: -1
+            assertTrue("mixed duration $duration",duration in 2600..2850)
+            val frame=requireNotNull(mmr.getFrameAtTime(1350000,MediaMetadataRetriever.OPTION_CLOSEST))
+            val pixel=frame.getPixel(frame.width/2,frame.height/2)
+            assertTrue("middle of still is not white",android.graphics.Color.red(pixel)>235 && android.graphics.Color.green(pixel)>235 && android.graphics.Color.blue(pixel)>235)
+            frame.recycle()
+        }finally {mmr.release()}
     }
 
     private fun channelAverages(frame: Bitmap?): Pair<Float, Float> {

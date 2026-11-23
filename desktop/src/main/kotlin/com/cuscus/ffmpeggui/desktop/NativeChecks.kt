@@ -415,6 +415,12 @@ fun main(args:Array<String>)=runBlocking {
         check(output.info.hasAudio && output.info.durationMs in 3400..3650)
         val frame=media.frame(output.path,1750)!!
         try {check((frame.getRGB(frame.width/2,frame.height/2) and 0xffffff)>0xeeeeee)}finally {frame.flush()}
+        val transitions=project.copy(timeline=Timeline(timeline.clips.mapIndexed {i,c->if(i<2)c.copy(effects=Effects(transition=Transition(TransitionKind.FADE,400)))else c}))
+        val overlap=withTimeout(30000){exporter.export(transitions,File(folder,"video-still-transitions.mp4"))}
+        check(overlap.info.hasAudio && overlap.info.durationMs in 2600..2850){"mixed transition duration ${overlap.info.durationMs}"}
+        val middle=media.frame(overlap.path,1350)!!
+        try {check((middle.getRGB(middle.width/2,middle.height/2) and 0xffffff)>0xeeeeee)}finally {middle.flush()}
+        media.process.checked(listOf("ffmpeg","-v","error","-i",overlap.path,"-f","null","-"))
         val sound=media.samples(output.path)
         check((18000 until 38000).maxOf {kotlin.math.abs(sound[it])}<.001f) {"Still clip did not get silence"}
         media.process.checked(listOf("ffmpeg","-v","error","-i",output.path,"-f","null","-"))
