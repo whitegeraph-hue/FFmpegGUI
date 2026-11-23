@@ -57,8 +57,8 @@ android {
         }
         debug {
             isMinifyEnabled = false
-            applicationIdSuffix = ".debug"
-            versionNameSuffix = "-debug"
+            applicationIdSuffix = ".cliptest20261123"
+            versionNameSuffix = "-clip-test"
         }
     }
     compileOptions {
