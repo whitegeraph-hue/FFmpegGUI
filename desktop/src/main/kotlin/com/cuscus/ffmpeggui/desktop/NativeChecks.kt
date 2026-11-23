@@ -14,6 +14,18 @@ fun main(args:Array<String>)=runBlocking {
     var passed=0
     suspend fun verify(name:String,block:suspend ()->Unit) { block(); passed++;println("PASS $name") }
     val video=media.probe(File(folder,"video.mp4").path)
+    verify("desktop output ruler spans speed reverse whole reverse and transition overlap") {
+        val first=Clip("geometry-first",video.path,0,4000,Effects(speed=2f,reversed=true,transition=Transition(TransitionKind.FADE,500)))
+        val second=Clip("geometry-last",video.path,4000,8000)
+        val p=pendingScopeProject(video,Timeline(listOf(first,second))).copy(effects=Effects(speed=2f))
+        val spans=p.outputClipSpans()
+        check(spans[0]==DesktopClipSpan(0,0,1000,true)){spans}
+        check(spans[1]==DesktopClipSpan(1,750,2750,false)){spans}
+        val reversed=p.copy(effects=p.effects.copy(reversed=true)).outputClipSpans()
+        check(reversed[0]==DesktopClipSpan(0,1750,2750,false)){reversed}
+        check(reversed[1]==DesktopClipSpan(1,0,2000,true)){reversed}
+        check(p.clock().mediaMsForOutput(500)==2000L)
+    }
     verify("desktop visible playback Split and preview step use edited clock") {
         val first=Clip("clock-first",video.path,0,4000,Effects(speed=2f,reversed=true,transition=Transition(TransitionKind.FADE,500)))
         val last=Clip("clock-last",video.path,4000,8000)

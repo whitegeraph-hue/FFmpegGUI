@@ -60,11 +60,11 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
     var lightTheme by remember {mutableStateOf(preferences.getBoolean("lightTheme",false))}
     var showSettings by remember {mutableStateOf(false)}
     var showExport by remember {mutableStateOf(false)}
-    Window(onCloseRequest={ controller.close(); exitApplication() }, title="FFmpegGUI · Linux development preview", state=rememberWindowState(width=1280.dp,height=850.dp),onPreviewKeyEvent={event->
+    Window(onCloseRequest={ controller.close(); exitApplication() }, title="FFmpegGUI · Linux development preview", state=rememberWindowState(width=1280.dp,height=850.dp),onKeyEvent={event->
         if(event.type==KeyEventType.KeyDown && !showSettings && !showExport) {
             when {
                 event.isCtrlPressed && event.key==Key.Z -> {if(!controller.busy)controller.undo();true}
-                event.key==Key.Escape -> {controller.selectSmartClip(null);true}
+                event.key==Key.Escape -> {controller.selectSmartClip(null);controller.status="Clip selection cleared. Tools now apply to the whole output or selected source, as shown in Apply to.";true}
                 else -> false
             }
         }else false
@@ -136,7 +136,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                                         if(controller.rendered!=null)TextButton(onClick={controller.preview()},enabled=!controller.busy){Text("Re-render")}
                                         TextButton(onClick={controller.splitHere()},enabled=!controller.busy && !project.sources[0].info.isStill){Text("Split")}
                                         Spacer(Modifier.weight(1f))
-                                        Text(time(if(controller.player.engaged)controller.player.positionMs else project.outputAt(controller.position))+" · 25fps preview",style=MaterialTheme.typography.labelSmall)
+                                        Text(time(if(controller.player.engaged)controller.player.positionMs else project.outputAt(controller.position))+" output · 25fps",style=MaterialTheme.typography.labelSmall)
                                     }
                                     controller.player.failure?.let {Text(it,color=MaterialTheme.colorScheme.error,style=MaterialTheme.typography.labelSmall)}
                                 }
@@ -302,10 +302,13 @@ private val desktopGroups=linkedMapOf(
 }
 @Composable private fun DesktopTimeline(c:EditorController,p:DesktopProject,onAdd:()->Unit) {
     Surface(Modifier.fillMaxWidth().height(164.dp),shape=RoundedCornerShape(24.dp),color=MaterialTheme.colorScheme.surfaceContainer) {
+        var zoom by remember {mutableStateOf(1f)}
         Column(Modifier.padding(horizontal=14.dp,vertical=6.dp),verticalArrangement=Arrangement.spacedBy(2.dp)) {
             Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                Text("Timeline",style=MaterialTheme.typography.titleMedium)
+                Text(c.smartClipId?.let {id->"Clip "+(p.timeline.clips.indexOfFirst {it.id==id}+1)} ?: "Timeline",style=MaterialTheme.typography.titleMedium)
                 Text("${p.timeline.clips.size} clips · ${time(p.timeline.durationMs)} footage / ${time(p.outputDurationMs)} output",style=MaterialTheme.typography.labelSmall,modifier=Modifier.weight(1f))
+                TextButton(onClick={zoom=(zoom/2).coerceAtLeast(.25f)}){Text("−")}
+                TextButton(onClick={zoom=(zoom*2).coerceAtMost(16f)}){Text("Zoom +")}
                 val index=p.timeline.clips.indexOfFirst {it.id==c.smartClipId}
                 TextButton(onClick={c.moveClip(index,-1)},enabled=!c.busy && index>0){Text("Move left")}
                 TextButton(onClick={c.moveClip(index,1)},enabled=!c.busy && index>=0 && index<p.timeline.clips.lastIndex){Text("Move right")}
@@ -313,53 +316,53 @@ private val desktopGroups=linkedMapOf(
                 FilledTonalButton(onClick=onAdd,enabled=!c.busy && !p.sources[0].info.isStill){Text("+ Add clip")}
             }
             val scroll=rememberScrollState()
-            val width=maxOf(1300f,p.timeline.durationMs/10f)
+            val duration=p.outputDurationMs.coerceAtLeast(1)
+            val spans=p.outputClipSpans()
+            val width=maxOf(1300f,duration/10f)*zoom
             val density=androidx.compose.ui.platform.LocalDensity.current.density
             LaunchedEffect(c.smartClipId,p.timeline.clips) {
                 val index=p.timeline.clips.indexOfFirst {it.id==c.smartClipId}
                 if(index>=0) {
-                    val x=(width*p.timeline.startOf(index)/p.timeline.durationMs.coerceAtLeast(1)*density).toInt()
+                    val x=(width*spans[index].startMs/duration*density).toInt()
                     if(x<scroll.value || x>scroll.value+scroll.viewportSize-60)scroll.animateScrollTo((x-40).coerceIn(0,scroll.maxValue))
                 }
             }
             LaunchedEffect(c.player.playing) {
                 while(c.player.playing) {
-                    val x=(width*c.visibleFootagePosition()/p.timeline.durationMs.coerceAtLeast(1)*density).toInt()
+                    val out=if(c.player.engaged)c.player.positionMs else p.outputAt(c.position)
+                    val x=(width*out/duration*density).toInt()
                     if(x<scroll.value || x>scroll.value+scroll.viewportSize-30)scroll.scrollTo((x-60).coerceIn(0,scroll.maxValue))
                     delay(250)
                 }
             }
             Column(Modifier.weight(1f).horizontalScroll(scroll)) {
-                Box(Modifier.width(width.dp).height(22.dp).pointerInput(p.timeline.durationMs){detectTapGestures {at->if(!c.busy){c.player.stop();c.seek((at.x/size.width*p.timeline.durationMs).toLong())}}}) {
-                    val step=maxOf(1000L,(p.timeline.durationMs/12/1000)*1000)
+                Box(Modifier.width(width.dp).height(22.dp).pointerInput(p){detectTapGestures {at->if(!c.busy)c.seek(p.clock().mediaMsForOutput((at.x/size.width*duration).toLong()))}}) {
+                    val step=maxOf(1000L,(duration/12/1000)*1000)
                     var t=0L
-                    while(t<=p.timeline.durationMs) {
-                        Text(time(t),Modifier.offset(x=(width*t/p.timeline.durationMs.coerceAtLeast(1)).dp),style=MaterialTheme.typography.labelSmall)
+                    while(t<=duration) {
+                        Text(time(t),Modifier.offset(x=(width*t/duration).dp),style=MaterialTheme.typography.labelSmall)
                         t+=step
                     }
                 }
                 Box(Modifier.width(width.dp).weight(1f)) {
-                    Row(Modifier.fillMaxSize(),horizontalArrangement=Arrangement.spacedBy(0.dp)) {
-                        p.timeline.clips.forEachIndexed {i,clip->
-                            val selected=c.smartClipId==clip.id
-                            Surface(onClick={c.player.stop();c.selectSmartClip(clip.id);c.seek(p.timeline.startOf(i))},enabled=!c.busy,shape=RoundedCornerShape(10.dp),color=if(selected)MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerHighest,modifier=Modifier.width((width*clip.lengthMs/p.timeline.durationMs.coerceAtLeast(1)).dp).fillMaxHeight().padding(end=3.dp),border=if(selected)BorderStroke(2.dp,MaterialTheme.colorScheme.primary)else null) {
-                                Column(Modifier.padding(8.dp),verticalArrangement=Arrangement.Center) {
-                                    Text("Clip ${i+1}",maxLines=1,style=MaterialTheme.typography.labelLarge)
-                                    Text(time(clip.lengthMs),maxLines=1,style=MaterialTheme.typography.labelSmall)
-                                }
-                            }
+                    spans.forEach {span->
+                        val i=span.index
+                        val selected=c.smartClipId==p.timeline.clips[i].id
+                        val lane=if(spans.zipWithNext().any {(a,b)->a.endMs>b.startMs})i%2 else 0
+                        Surface(onClick={c.selectSmartClip(p.timeline.clips[i].id);c.seek(p.clock().mediaMsForOutput(span.startMs+1))},enabled=!c.busy,shape=RoundedCornerShape(8.dp),color=if(selected)MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerHighest,modifier=Modifier.offset(x=(width*span.startMs/duration).dp,y=(lane*26).dp).width((width*(span.endMs-span.startMs)/duration).dp).height(if(lane==0 && spans.none {it.index!=i && it.startMs<span.endMs && it.endMs>span.startMs})52.dp else 26.dp).padding(end=2.dp),border=if(selected)BorderStroke(2.dp,MaterialTheme.colorScheme.primary)else null) {
+                            Text("${i+1}${if(span.backwards)" ←" else ""} · ${time(span.endMs-span.startMs)}",Modifier.padding(horizontal=6.dp,vertical=3.dp),maxLines=1,overflow=TextOverflow.Ellipsis,style=MaterialTheme.typography.labelSmall)
                         }
                     }
                     Canvas(Modifier.fillMaxSize()) {
-                        val at=c.visibleFootagePosition()
-                        val x=size.width*at/p.timeline.durationMs.coerceAtLeast(1)
+                        val at=if(c.player.engaged)c.player.positionMs else p.outputAt(c.position)
+                        val x=size.width*at/duration
                         drawLine(Color(0xff82d5c7),Offset(x,0f),Offset(x,size.height),3f)
                         drawCircle(Color(0xff82d5c7),5f,Offset(x,4f))
                     }
                 }
             }
             HorizontalScrollbar(rememberScrollbarAdapter(scroll),Modifier.fillMaxWidth().height(7.dp))
-            Text("Footage time · click a clip to select · ruler seeks · scroll horizontally →",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("Output time · overlaps use two lanes · click to select · Zoom + for tiny clips · scroll →",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -371,7 +374,7 @@ private fun EditPanel(c: EditorController,p: DesktopProject,window:java.awt.Fram
         val formats=when { p.sources[0].info.isStill -> listOf(OutputFormat.JPG,OutputFormat.PNG,OutputFormat.WEBP,OutputFormat.BMP,OutputFormat.TIFF,OutputFormat.SVG,OutputFormat.ASCII,OutputFormat.ANSI)
             !p.sources[0].info.isVideo -> listOf(OutputFormat.MP3,OutputFormat.M4A,OutputFormat.OGG,OutputFormat.OPUS,OutputFormat.FLAC,OutputFormat.WAV,OutputFormat.SRT,OutputFormat.TXT)
             else -> listOf(OutputFormat.MP4,OutputFormat.MKV,OutputFormat.AVI,OutputFormat.GIF,OutputFormat.MP3,OutputFormat.WAV,OutputFormat.SRT,OutputFormat.TXT) }
-        Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(6.dp)) {
+        FlowRowCompat {
             formats.forEach { format -> FilterChip(p.format==format,{ c.mutate(p.copy(format=format)) },label={ Text(format.name) },enabled=!c.busy) }
         }
     }
@@ -443,8 +446,8 @@ private fun EditPanel(c: EditorController,p: DesktopProject,window:java.awt.Fram
 @Composable private fun EncodingPanel(c:EditorController,p:DesktopProject) {
     PanelCard {
         Text("Encoding",style=MaterialTheme.typography.titleMedium)
-        Text("Quality and size use the original Android command settings. CPU encoding only.",style=MaterialTheme.typography.bodySmall)
-        ValueSlider("Quality",p.encoding.quality,0f..1f,!c.busy) { c.mutate(p.copy(encoding=p.encoding.copy(quality=it))) }
+        Text("Export runs locally. Higher quality makes larger files. Lossless formats preserve quality without a quality slider.",style=MaterialTheme.typography.bodySmall)
+        if(p.format in listOf(OutputFormat.MP4,OutputFormat.MKV,OutputFormat.AVI))ValueSlider("Quality",p.encoding.quality,0f..1f,!c.busy) { c.mutate(p.copy(encoding=p.encoding.copy(quality=it))) }
         if(p.format==OutputFormat.GIF) {
             val g=p.encoding.gif
             ValueSlider("GIF width",g.width.toFloat(),120f..960f,!c.busy) {c.mutate(p.copy(encoding=p.encoding.copy(gif=g.copy(width=it.toInt()))))}
@@ -539,7 +542,9 @@ private fun EditPanel(c: EditorController,p: DesktopProject,window:java.awt.Fram
         }
         Text("The original ten-band EQ and mastering filter chain. Render edited preview to hear the actual result. Live DSP preview and waveform editing remain unported; sound tracks are edited separately.",style=MaterialTheme.typography.bodySmall)
         OutlinedButton(onClick={change(AudioEffects.NONE)},enabled=!c.busy) {Text(if(selected==null)"Reset mastering" else "Reset clip effects")}
-        AudioEffects.EQ_BANDS_HZ.forEachIndexed { index,hz -> ValueSlider("$hz Hz (dB)",a.equalizerGains[index],-12f..12f,!c.busy) { value ->change(a.copy(equalizer=a.equalizerGains.toMutableList().also {it[index]=value}))} }
+        var showEq by remember {mutableStateOf(false)}
+        TextButton(onClick={showEq=!showEq}){Text(if(showEq)"Hide 10-band equalizer" else "Show 10-band equalizer")}
+        if(showEq)AudioEffects.EQ_BANDS_HZ.forEachIndexed { index,hz -> ValueSlider("$hz Hz (dB)",a.equalizerGains[index],-12f..12f,!c.busy) { value ->change(a.copy(equalizer=a.equalizerGains.toMutableList().also {it[index]=value}))} }
         ValueSlider("Low cut Hz (0 = off)",a.lowCutHz.toFloat(),0f..500f,!c.busy) {change(a.copy(lowCutHz=it.toInt()))}
         ValueSlider("High cut Hz (0 = off)",a.highCutHz.toFloat(),0f..20000f,!c.busy) {change(a.copy(highCutHz=it.toInt()))}
         ValueSlider("Pitch semitones",a.pitchSemitones,-12f..12f,!c.busy) {change(a.copy(pitchSemitones=it))}
@@ -901,7 +906,7 @@ private fun EditPanel(c: EditorController,p: DesktopProject,window:java.awt.Fram
     fun change(update:(Effects)->Effects){c.mutate(p.copy(timeline=p.timeline.updateEffects(clip.id,update),followCrop=null))}
     PanelCard {
         Text("Clip ${index+1}: ${File(clip.sourceId).name}",style=MaterialTheme.typography.titleLarge)
-        Text("Select a clip with its timeline Seek button. Source timeline uses file time. Render edited preview for final speed, transitions and sound.")
+        Text("Click a timeline clip to select it. The ruler shows footage time, before speed and transitions. Play edit shows the final output.")
         FlowRowCompat {
             OutlinedButton(onClick={c.mutate(p.copy(timeline=p.timeline.duplicate(clip.id,java.util.UUID.randomUUID().toString()),followCrop=null))},enabled=!c.busy){Text("Duplicate clip")}
             OutlinedButton(onClick={change {Effects.NONE}},enabled=!c.busy){Text("Reset clip effects")}
