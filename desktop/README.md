@@ -103,3 +103,32 @@ in333seconds, three600s outputs, sampled peak1,453,416KiB worker RSS. The
 free-memory gate was raised to2GiB to leave headroom above this higher peak.
 This does not prove all content/platform memory or sound separation quality.
 Source run: https://github.com/whitegeraph-hue/FFmpegGUI/actions/runs/45093189855
+
+### Subtitle translation
+
+Translation tab imports five trusted direct-pair Marian/Opus-MT files, records
+SHA-256 at import and checks hashes before every use. These are local integrity
+records, not publisher-authenticated pins. Use files from a trusted source.
+No automatic downloads. Original SentencePiece/Marian/greedy decoding and
+subtitle rewrite are reused inside an isolated worker with700MiB freeRAM
+preflight,500cues/100000characters per request and30minute process limit.
+Direct pairs only: multilingual and English-pivot routes remain unported.
+A cue over1000characters or256tokens rejects; decoder length/repetition
+limit rejects instead of replacing subtitles with a known partial result.
+These bounds do not guarantee linguistic completeness or correctness.
+
+Import SRT/ASS/SSA first. Translation retains cue times/source binding,
+embeds the new subtitles in the project and supports Undo. Inline styling
+can change. Review every translation before export. Spoken words stay
+separate. Opus-MT authors are University of Helsinki, Jorg Tiedemann and
+contributors, ONNX conversions by Xenova. Model licences vary. The tested
+en-fr base card lists Apache2.0, not the blanketCC-BY4.0 description in the
+original Android model registry. No translation weights are redistributed.
+Sources: https://huggingface.co/Helsinki-NLP/opus-mt-en-fr/raw/main/README.md
+and https://huggingface.co/Xenova/opus-mt-en-fr/raw/main/README.md .
+
+Opt-in FFMPEGGUI_TRANSLATION_CHECKS accepts a directory with the five en-fr
+files; use a fresh XDG_DATA_HOME. Actual test download revision was
+28726206f80896b90035bd99cccd5cc1e151f916. Short English/French inference,
+clock retention, file-corruption rejection, cancel/retry and oversize cue
+checks pass, not broad language/corpus quality proof.

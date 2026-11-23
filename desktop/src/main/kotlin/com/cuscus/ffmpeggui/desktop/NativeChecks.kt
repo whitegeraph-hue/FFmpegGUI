@@ -615,6 +615,19 @@ fun main(args:Array<String>)=runBlocking {
         check(protected.readText()=="keep existing output")
         check(folder.listFiles()!!.none {it.name.startsWith(".tiny-compressed-")})
     }
+    verify("subtitle translation preserves ASS SRT clocks and project content") {
+        val srt="1\n00:00:01,000 --> 00:00:02,000\nHello world\n"
+        val content=com.cuscus.ffmpeggui.core.translate.SubtitleTranslation.rewrite(srt,listOf("Bonjour le monde"))
+        val project=p.copy(externalSubtitles=DesktopSubtitles("fr.srt",content,0))
+        val saved=File(folder,"translated.ffgui.json");DesktopProjects.save(project,saved)
+        val restored=DesktopProjects.load(saved,media);check(restored.externalSubtitles!!.content==content)
+        check(content.contains("00:00:01,000 --> 00:00:02,000"))
+        val ass="[Script Info]\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\nDialogue: 0,0:00:01.00,0:00:02.00,Default,,0,0,0,,{\\an8}Hello"
+        val result=com.cuscus.ffmpeggui.core.translate.SubtitleTranslation.rewrite(ass,listOf("Bonjour"))
+        check(result.contains("0:00:01.00,0:00:02.00") && result.contains("{\\an8}Bonjour"))
+        check(DesktopTranslation.validRepo("Xenova/opus-mt-en-fr"))
+        check(!DesktopTranslation.validRepo("../../opus-mt-en-fr") && !DesktopTranslation.validRepo("Xenova/opus-mt-en-mul"))
+    }
     verify("cancel real process") {
         val start=System.currentTimeMillis()
         val job=launch { media.process.run(listOf("ffmpeg","-re","-f","lavfi","-i","testsrc2=size=640x360:rate=25","-t","30","-f","null","-")) }

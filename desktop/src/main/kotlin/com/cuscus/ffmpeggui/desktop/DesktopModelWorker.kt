@@ -13,13 +13,13 @@ import java.util.concurrent.TimeUnit
 /** A native crash must not take the unsaved editor down. No network or shell. */
 class DesktopModelWorker {
     private val gate=Mutex()
-    private suspend fun run(kind:String,path:String,model:File,duration:Long=0,output:File?=null,progress:(String)->Unit):JsonObject = gate.withLock {
+    private suspend fun run(kind:String,path:String,model:File,duration:Long=0,output:File?=null,payload:JsonObject?=null,progress:(String)->Unit):JsonObject = gate.withLock {
         withContext(Dispatchers.IO) {
             val directory=Files.createTempDirectory("ffmpeggui-model-worker-").toFile()
             var process:Process?=null
             try {
                 val request=File(directory,"request.json")
-                request.writeText(buildJsonObject { put("kind",kind);put("path",File(path).absolutePath);put("model",model.absolutePath);put("duration",duration);put("parent",ProcessHandle.current().pid()) }.toString())
+                request.writeText(buildJsonObject { put("kind",kind);put("path",File(path).absolutePath);put("model",model.absolutePath);put("duration",duration);put("parent",ProcessHandle.current().pid());payload?.forEach {(key,value)->put(key,value)} }.toString())
                 val launcher=System.getProperty("jpackage.app-path")?.let(::File)?.takeIf { it.isFile }
                     ?: ProcessHandle.current().info().command().orElse(null)?.let(::File)?.takeIf { it.name=="ffmpeggui-linux" && it.isFile }
                 val classpath=System.getProperty("java.class.path").split(File.pathSeparator).joinToString(File.pathSeparator) { File(it).absolutePath }
@@ -36,8 +36,10 @@ class DesktopModelWorker {
                 val shutdown=Thread { child.descendants().forEach { it.destroyForcibly() };child.destroyForcibly() }
                 Runtime.getRuntime().addShutdownHook(shutdown)
                 try {
+                val started=System.nanoTime()
                 var lastProgress:String?=null
                 while(!process.waitFor(100,TimeUnit.MILLISECONDS)) {
+                    check(System.nanoTime()-started<TimeUnit.MINUTES.toNanos(30)) {"Offline model processing exceeded 30 minutes. Split the source or subtitle file into smaller parts."}
                     currentCoroutineContext().ensureActive()
                     File(directory,"progress").takeIf { it.isFile }?.let { runCatching { it.readText() }.getOrNull()?.takeIf {it!=lastProgress}?.let {lastProgress=it;progress(it)} }
                 }
@@ -72,6 +74,11 @@ class DesktopModelWorker {
                 directory.deleteRecursively()
             }
         }
+    }
+    suspend fun checkTranslation(directory:File) {run("translation-check","",directory,progress={})}
+    suspend fun translate(directory:File,texts:List<String>,progress:(String)->Unit):List<String> {
+        val payload=buildJsonObject {put("texts",buildJsonArray {texts.forEach {add(JsonPrimitive(it))}})}
+        return run("translation","",directory,payload=payload,progress=progress)["texts"]!!.jsonArray.map {it.jsonPrimitive.content}
     }
     /** Destination must not exist. A failed/cancelled run leaves no partial stem directory. */
     suspend fun stems(path:String,model:File,destination:File,progress:(String)->Unit):List<File> {
@@ -116,6 +123,11 @@ fun runModelWorker(folder:String)=runBlocking {
     val model=File(request["model"]!!.jsonPrimitive.content)
     try {
     val result=when(request["kind"]!!.jsonPrimitive.content) {
+        "translation-check","translation" -> {
+            val texts=request["texts"]?.jsonArray?.map {it.jsonPrimitive.content} ?: emptyList()
+            val translated=DesktopTranslation.execute(model,texts,request["kind"]!!.jsonPrimitive.content=="translation-check",::progress)
+            buildJsonObject {put("texts",buildJsonArray {translated.forEach {add(JsonPrimitive(it))}})}
+        }
         "speech" -> {
             val warnings=mutableListOf<String>()
             val words=runtime.transcribe(path,model,emptyList(),{ step,fraction -> progress("${step.name.lowercase()} ${fraction?.let { "${(it*100).toInt()}%" } ?: ""}") },{},{warnings+=it})

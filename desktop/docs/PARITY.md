@@ -358,3 +358,20 @@ rejected until its adapter exists. Latest full package8b6predatesHDR/canvas.
 -53native checks pass including actual HEVC decode/target/phase order/project,
   JPG fit on seeded noise, PNG palette, MP3 preset, unsupported SVG and tiny
   target preserving output/temporary cleanup. Not an all-input size guarantee.
+
+### 2026-11-23 03:54 EET: direct subtitle translation
+- Original Marian/SentencePiece/greedy decoder and SubtitleTranslation reused
+  in disposable workers. Five-file atomic-new model import, bounded copies,
+  manifest hashes checked on use, no publisher pin claim, no auto downloads.
+  Direct pairs only,500short cues,256token input bound,30minute worker limit.
+  Length/repetition-limit outputs reject instead of known partial replacement.
+- Actual Xenova en-fr revision28726206f80896b90035bd99cccd5cc1e151f916
+  returns sensible French for two cues. Time preservation, model corruption
+  rejection, cancellation/retry and oversized cue tests pass. Actual Translate
+  button clicked and2cue completion inspected, not a broad quality claim.
+-54native checks pass including ASS timing/leading-tag preservation and saved
+  subtitle recovery. Cue source binding/Undo retained. Original spoken words
+  untouched. Import five-file chooser not yet clicked end-to-end.
+- Model licence must be checked per model. Live tested en-fr base README
+  lists Apache2.0, unlike blanketCC-BY4.0 in original Android OpusMt registry.
+  No translation weights bundled; model-specific sources in desktop README.

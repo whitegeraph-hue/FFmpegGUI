@@ -26,6 +26,8 @@ import java.awt.Desktop
 
 fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
     runModelWorker(System.getenv("FFMPEGGUI_MODEL_WORKER"))
+} else if (System.getenv("FFMPEGGUI_TRANSLATION_CHECKS") != null) {
+    runTranslationChecks(System.getenv("FFMPEGGUI_TRANSLATION_CHECKS"))
 } else if (System.getenv("FFMPEGGUI_STEMS_CHECKS") != null) {
     runStemsChecks(System.getenv("FFMPEGGUI_STEMS_CHECKS"))
 } else if (System.getenv("FFMPEGGUI_ISOLATED_CHECKS") != null) {
@@ -129,7 +131,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                                 }
                             }
                             Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(10.dp)) {
-                                val tabs=listOf("Edit","Clip editor","Transcript","Pause cuts","Scenes","Beats","Follow crop","Models","Subtitles","Audio","Text layers","Sound tracks","Tags","Image layers","Drawing","Subject cutout","Scene stems","Compression","Command studio")
+                                val tabs=listOf("Edit","Clip editor","Transcript","Pause cuts","Scenes","Beats","Follow crop","Models","Subtitles","Audio","Text layers","Sound tracks","Tags","Image layers","Drawing","Subject cutout","Scene stems","Compression","Translation","Command studio")
                                 if(project.sources.size>1)FlowRowCompat {
                                     project.sources.forEachIndexed {i,source->FilterChip(controller.selectedSource==i,{controller.selectSource(i)},label={Text("${i+1}: ${File(source.path).name.take(20)}")},enabled=!controller.busy)}
                                 }
@@ -154,6 +156,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                                         "Beats" -> BeatsPanel(controller.smartUi())
                                         "Follow crop" -> FollowCropPanel(controller.smartUi())
                                         "Transcript" -> TranscriptPanel(controller,project)
+                                        "Translation" -> TranslationPanel(controller,project,window)
                                         "Compression" -> CompressionPanel(controller,project)
                                         "Scene stems" -> PanelCard {
                                             Text("Dialogue, music and effects",style=MaterialTheme.typography.titleLarge)
@@ -848,5 +851,44 @@ private fun EditPanel(c: EditorController,p: DesktopProject) {
             Row {Checkbox(v.pngPalette,{update(v.copy(pngPalette=it))},enabled=!c.busy);Text("PNG: reduce to 256 colours")}
             Text("PNG target fitting is not supported. Lossy audio target fitting is bitrate-based and can fail for tiny files. HEVC support varies between players. Render/export to check the result.",style=MaterialTheme.typography.bodySmall)
         }
+    }
+}
+
+@Composable private fun TranslationPanel(c:EditorController,p:DesktopProject,window:java.awt.Frame) {
+    var repo by remember {mutableStateOf("Xenova/opus-mt-en-fr")}
+    var models by remember {mutableStateOf(DesktopTranslation.installed())}
+    var selected by remember {mutableStateOf(models.firstOrNull()?.repo)}
+    PanelCard {
+        Text("Offline subtitle translation",style=MaterialTheme.typography.titleLarge)
+        Text("Import a direct Marian/Opus-MT language pair. Translation runs locally in an isolated process. Model files are not automatically downloaded. Hashes are recorded at import and checked again, but are not publisher-authenticated pins. Use only trusted model files.")
+        Text("Up to500short cues,1000characters each. Long token sequences are rejected, not silently truncated. Output keeps cue times and source binding, but inline styling can change. Translation may be wrong: review every result before export.",style=MaterialTheme.typography.bodySmall)
+        OutlinedTextField(repo,{repo=it},label={Text("Model repository, e.g. Xenova/opus-mt-en-fr")},enabled=!c.busy)
+        OutlinedButton(onClick={Desktop.getDesktop().browse(java.net.URI("https://huggingface.co/Xenova/opus-mt-en-fr"))},enabled=!c.busy) {Text("Open example model files")}
+        Text("Select config.json, vocab.json, source.spm, encoder_model_quantized.onnx and decoder_model_quantized.onnx. Quantized ONNX files are in the repository's onnx folder. Multilingual/pivot routes are still being ported.",style=MaterialTheme.typography.bodySmall)
+        Button(onClick={
+            val dialog=FileDialog(window,"Import five translation model files",FileDialog.LOAD);dialog.isMultipleMode=true;dialog.isVisible=true
+            if(dialog.files.isNotEmpty())c.work("Checking offline translation model…") {DesktopTranslation.import(repo.trim(),dialog.files.toList(),c.models);models=DesktopTranslation.installed();selected=repo.trim();c.status="Translation model imported. Hashes recorded; no publisher pin is claimed."}
+        },enabled=!c.busy) {Text("Import translation files")}
+        Text("Opus-MT: University of Helsinki, Jorg Tiedemann and contributors. ONNX conversions by Xenova. Licences vary by model: the linked en-fr base model card lists Apache 2.0. Review your selected model card and licence; no model weights are bundled.",style=MaterialTheme.typography.bodySmall)
+        models.forEach {model->
+            Row(verticalAlignment=Alignment.CenterVertically) {
+                RadioButton(selected==model.repo,{selected=model.repo},enabled=!c.busy)
+                Text("${model.repo}: ${model.pair.first} to ${model.pair.second}",modifier=Modifier.weight(1f))
+                TextButton(onClick={c.work("Removing translation model…") {require(model.directory.canonicalFile.parentFile==DesktopTranslation.root.canonicalFile);model.directory.deleteRecursively();models=DesktopTranslation.installed();selected=models.firstOrNull()?.repo}},enabled=!c.busy){Text("Remove")}
+            }
+        }
+        val subtitles=p.externalSubtitles
+        Text("Import SRT/ASS/SSA in Subtitles first. Spoken words are kept separately and are never overwritten.")
+        Button(onClick={
+            val model=models.first {it.repo==selected};val original=requireNotNull(subtitles)
+            c.work("Translating subtitles locally…") {
+                val texts=com.cuscus.ffmpeggui.core.translate.SubtitleTranslation.texts(original.content)
+                require(texts.isNotEmpty()) {"No subtitle text to translate"}
+                val translated=c.models.translate(model.directory,texts){c.status=it}
+                val rewritten=com.cuscus.ffmpeggui.core.translate.SubtitleTranslation.rewrite(original.content,translated)
+                val next=original.copy(name="${model.pair.second}-${original.name}",content=rewritten);next.validate()
+                c.mutate(p.copy(externalSubtitles=next));c.status="Translated ${texts.size} cues. Review all wording before export. Undo restores the original subtitles."
+            }
+        },enabled=!c.busy && selected!=null && subtitles!=null) {Text("Translate imported subtitles (Undo available)")}
     }
 }
