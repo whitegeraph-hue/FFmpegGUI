@@ -514,6 +514,20 @@ fun main(args:Array<String>)=runBlocking {
         val saved=File(folder,"photo-canvas.ffgui.json");DesktopProjects.save(project,saved);val loaded=DesktopProjects.load(saved,media)
         check(loaded.photoPlacement==project.photoPlacement && loaded.image==project.image)
     }
+    verify("lyrics from edited transcript output clock actual metadata and saved timing") {
+        val edited=captioned.copy(effects=Effects(speed=2f))
+        val words=edited.request().timedWords()
+        val lrc=LyricsText.synced(words,edited.effects.effectiveSpeed)
+        check("[00:00.25]" in lrc)
+        val parsed=LrcLines.parse(lrc)
+        val stamped=LrcLines.format(parsed.copy(lines=parsed.lines.mapIndexed {i,v->if(i==0)v.copy(timeMs=1230)else v}))
+        check(LrcLines.parse(stamped).lines.first().timeMs==1230L)
+        val project=edited.copy(format=OutputFormat.MP3,tags=MetadataTags(lyrics=stamped))
+        val result=exporter.export(project,File(folder,"lyrics.mp3"))
+        val info=media.process.checked(listOf("ffprobe","-v","error","-show_entries","format_tags","-of","json",result.path))
+        check(info.contains("Hello Linux") && info.contains("[00:01.23]"))
+        val file=File(folder,"lyrics.ffgui.json");DesktopProjects.save(project,file);check(DesktopProjects.load(file,media).tags.lyrics==stamped)
+    }
     verify("real two-pass stabilization joined clip effects and project persistence") {
         val edited=p.copy(timeline=Timeline(listOf(Clip("stable-a",video.path,endMs=1800,effects=Effects(speed=1.5f)),Clip("stable-b",video.path,startMs=3000,endMs=4500,effects=Effects(reversed=true)))),stabilization=Stabilization(7,12))
         val phases=mutableListOf<String>()

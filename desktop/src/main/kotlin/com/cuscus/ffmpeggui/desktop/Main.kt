@@ -600,7 +600,26 @@ private fun EditPanel(c: EditorController,p: DesktopProject) {
         OutlinedTextField(t.genre,{update(t.copy(genre=it))},label={Text("Genre")},enabled=!c.busy)
         OutlinedTextField(t.comment,{update(t.copy(comment=it))},label={Text("Comment")},enabled=!c.busy)
         OutlinedTextField(t.copyright,{update(t.copy(copyright=it))},label={Text("Copyright")},enabled=!c.busy)
-        OutlinedTextField(t.lyrics,{update(t.copy(lyrics=it))},label={Text("Lyrics")},enabled=!c.busy)
+        OutlinedTextField(t.lyrics,{update(t.copy(lyrics=it))},label={Text("Lyrics, plain or LRC")},enabled=!c.busy,modifier=Modifier.fillMaxWidth())
+        Text("Lyrics use output time. Later timeline edits do not retime this metadata automatically. Regenerate from reviewed spoken words after changing the edit.",style=MaterialTheme.typography.bodySmall)
+        val words=p.copy(externalSubtitles=null).request().timedWords()
+        FlowRowCompat {
+            OutlinedButton(onClick={update(t.copy(lyrics=LyricsText.plain(words)))},enabled=!c.busy && words.isNotEmpty()){Text("Plain from transcript")}
+            OutlinedButton(onClick={update(t.copy(lyrics=LyricsText.synced(words,p.effects.effectiveSpeed)))},enabled=!c.busy && words.isNotEmpty()){Text("LRC from transcript")}
+            TextButton(onClick={val parsed=LrcLines.parse(t.lyrics);update(t.copy(lyrics=LrcLines.plain(parsed.lines)))},enabled=!c.busy){Text("Remove timing")}
+        }
+        val lyrics=LrcLines.parse(t.lyrics)
+        val at=p.outputAt(c.position)
+        val active=LrcLines.lineAt(lyrics.lines,at)
+        Text("Lyrics clock ${time(at)}. Seek output, then stamp a line. Export writes metadata, not burned text.",style=MaterialTheme.typography.bodySmall)
+        lyrics.lines.take(250).forEachIndexed {index,line->
+            Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(6.dp)) {
+                Text((line.timeMs?.let {LyricsText.stamp(it)} ?: "[untimed]")+" "+line.text,color=if(index==active)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,modifier=Modifier.weight(1f))
+                TextButton(onClick={update(t.copy(lyrics=LrcLines.format(lyrics.copy(lines=lyrics.lines.mapIndexed {i,v->if(i==index)v.copy(timeMs=at)else v}))))},enabled=!c.busy){Text("Stamp")}
+                TextButton(onClick={update(t.copy(lyrics=LrcLines.format(lyrics.copy(lines=lyrics.lines.mapIndexed {i,v->if(i==index)v.copy(timeMs=null)else v}))))},enabled=!c.busy && line.timeMs!=null){Text("Clear")}
+            }
+        }
+        if(lyrics.lines.size>250)Text("Line timing view shows the first 250 lines. All lines remain in the text field and export.")
     }
 }
 
