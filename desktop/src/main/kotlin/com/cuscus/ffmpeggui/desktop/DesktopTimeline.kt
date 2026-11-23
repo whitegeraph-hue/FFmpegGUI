@@ -49,16 +49,16 @@ import java.io.File
                     DropdownMenu(chooseClip,{chooseClip=false}) {
                         p.timeline.clips.forEachIndexed {i,clip->DropdownMenuItem(text={Text("${i+1} · ${File(clip.sourceId).name} · ${clip.lengthMs} ms")},onClick={c.selectSmartClip(clip.id);c.seek(p.mediaForClipOutput(i,spans[i].startMs));chooseClip=false})}
                     }}
-                Text("${p.timeline.clips.size} clips · ${time(duration)} output",style=MaterialTheme.typography.labelSmall,modifier=Modifier.weight(1f))
-                TextButton(onClick={zoom=1f}) {Text("Fit")}
-                TextButton(onClick={zoom=(zoom/1.5f).coerceAtLeast(1f)},enabled=zoom>1f){Text("−")}
-                TextButton(onClick={zoom=(zoom*1.5f).coerceAtMost(32f)}){Text("+")}
-                TextButton(onClick={c.splitHere()},enabled=!c.busy){Text("Split")}
-                TextButton(onClick={c.duplicateSelected()},enabled=!c.busy && index>=0){Text("Duplicate")}
-                TextButton(onClick={c.moveClip(index,-1)},enabled=!c.busy && index>0){Text("←")}
-                TextButton(onClick={c.moveClip(index,1)},enabled=!c.busy && index>=0 && index<p.timeline.clips.lastIndex){Text("→")}
-                TextButton(onClick={c.removeClip(index)},enabled=!c.busy && index>=0 && p.timeline.clips.size>1){Text("Remove")}
-                FilledTonalButton(onClick=onAdd,enabled=!c.busy && !p.sources[0].info.isStill){Text("+ Add")}
+                Text("${p.timeline.clips.size} clips · ${time(duration)}",style=MaterialTheme.typography.labelSmall,modifier=Modifier.weight(1f))
+                TextButton(onClick={zoom=1f}) {SymbolLabel("fit_screen","Fit")}
+                TextButton(onClick={zoom=(zoom/1.5f).coerceAtLeast(1f)},enabled=zoom>1f){SymbolLabel("zoom_out","Out")}
+                TextButton(onClick={zoom=(zoom*1.5f).coerceAtMost(32f)}){SymbolLabel("zoom_in","In")}
+                TextButton(onClick={c.splitHere()},enabled=!c.busy){SymbolLabel("content_cut","Split")}
+                TextButton(onClick={c.duplicateSelected()},enabled=!c.busy && index>=0){SymbolLabel("content_copy","Duplicate")}
+                TextButton(onClick={c.moveClip(index,-1)},enabled=!c.busy && index>0){SymbolLabel("arrow_back","Left")}
+                TextButton(onClick={c.moveClip(index,1)},enabled=!c.busy && index>=0 && index<p.timeline.clips.lastIndex){SymbolLabel("arrow_forward","Right")}
+                TextButton(onClick={c.removeClip(index)},enabled=!c.busy && index>=0 && p.timeline.clips.size>1){SymbolLabel("delete","Remove")}
+                FilledTonalButton(onClick=onAdd,enabled=!c.busy && !p.sources[0].info.isStill){SymbolLabel("add","Add")}
             }
             BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
                 val width=maxWidth.value*zoom

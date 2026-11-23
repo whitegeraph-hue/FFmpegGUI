@@ -90,17 +90,17 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
         MaterialTheme(colorScheme=if(lightTheme)TealLightColorScheme else TealDarkColorScheme) {
             Surface(Modifier.fillMaxSize()) {
                 Column(Modifier.padding(12.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
-                    Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+                    Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                         Column(Modifier.weight(1f)) {
                             Text("FFmpegGUI",style=MaterialTheme.typography.titleLarge)
                             Text("Desktop preview",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.primary)
                         }
-                        OutlinedButton(onClick={ pick()?.let { controller.open(it.path) } },enabled=!controller.busy) { Text("Open media") }
-                        OutlinedButton(onClick={ pick()?.let { file -> controller.openProject(file) } },enabled=!controller.busy) { Text("Open project") }
-                        OutlinedButton(onClick={ controller.project?.let { p -> pick(true,"project.ffgui.json","Save project")?.let { file -> controller.work("Saving project…") { DesktopProjects.save(p,file); controller.status="Project saved: ${file.path}" } } } },enabled=!controller.busy && controller.project!=null) { Text("Save project") }
-                        OutlinedButton(onClick={ controller.undo() },enabled=!controller.busy && controller.canUndo) { Text("Undo") }
-                        FilledTonalButton(onClick={showSettings=true}) {Text("Settings")}
-                        Button(onClick={showExport=true},enabled=!controller.busy && controller.project!=null){Text("Export ${controller.project?.format?.name ?: ""}")}
+                        OutlinedButton(onClick={ pick()?.let { controller.open(it.path) } },enabled=!controller.busy) { SymbolLabel("folder_open","Open media") }
+                        OutlinedButton(onClick={ pick()?.let { file -> controller.openProject(file) } },enabled=!controller.busy) { SymbolLabel("folder","Open project") }
+                        OutlinedButton(onClick={ controller.project?.let { p -> pick(true,"project.ffgui.json","Save project")?.let { file -> controller.work("Saving project…") { DesktopProjects.save(p,file); controller.status="Project saved: ${file.path}" } } } },enabled=!controller.busy && controller.project!=null) { SymbolLabel("save","Save project") }
+                        OutlinedButton(onClick={ controller.undo() },enabled=!controller.busy && controller.canUndo) { SymbolLabel("undo","Undo") }
+                        FilledTonalButton(onClick={showSettings=true}) {SymbolLabel("settings","Settings")}
+                        Button(onClick={showExport=true},enabled=!controller.busy && controller.project!=null){SymbolLabel("file_upload","Export ${controller.project?.format?.name ?: ""}")}
                     }
                     Text("Work in progress: not all Android editors and AI tools have been ported. Originals are never edited.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                     HorizontalDivider()
@@ -131,7 +131,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                                     Text(if(controller.player.frame!=null)"Rendered preview · ${time(controller.player.positionMs)} / ${time(controller.player.durationMs)}" else if(controller.previewFrame!=null)"Rendered edit. Original unchanged." else "Source preview · Play edit renders first",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                                     Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                                         FilledTonalButton(onClick={controller.stepOutput(-1)},enabled=!controller.busy){Text("−1f")}
-                                        Button(onClick={controller.togglePlayback()},enabled=!controller.busy){Text(if(controller.player.playing)"Ⅱ Pause" else "▶ Play edit")}
+                                        Button(onClick={controller.togglePlayback()},enabled=!controller.busy){SymbolLabel(if(controller.player.playing)"pause" else "play_arrow",if(controller.player.playing)"Pause" else "Play edit")}
                                         FilledTonalButton(onClick={controller.stepOutput(1)},enabled=!controller.busy){Text("+1f")}
                                         if(controller.rendered!=null)TextButton(onClick={controller.preview()},enabled=!controller.busy){Text("Re-render")}
                                         TextButton(onClick={controller.splitHere()},enabled=!controller.busy && !project.sources[0].info.isStill){Text("Split")}
@@ -230,7 +230,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                             }
                         }){Text("Choose file & export")}},dismissButton={TextButton(onClick={showExport=false}){Text("Cancel")}})
                     }
-                    if(showSettings)AlertDialog(onDismissRequest={showSettings=false},title={Text("Settings")},text={
+                    if(showSettings)AlertDialog(onDismissRequest={showSettings=false},title={Row(verticalAlignment=Alignment.CenterVertically){SymbolLabel("settings","Settings")}},text={
                         ScrollArea(Modifier.heightIn(max=470.dp)) {
                             Text("Appearance",style=MaterialTheme.typography.titleMedium)
                             Row(verticalAlignment=Alignment.CenterVertically){Switch(lightTheme,{lightTheme=it;preferences.putBoolean("lightTheme",it)});Spacer(Modifier.width(10.dp));Text("Light theme")}
@@ -277,7 +277,11 @@ private val desktopGroups=linkedMapOf(
                 pair.forEach {(name,tools)->
                     val selected=group==name
                     Surface(onClick={c.tab=tools.first()},shape=RoundedCornerShape(14.dp),color=if(selected)MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerLow,modifier=Modifier.weight(1f)) {
-                        Text(name,Modifier.padding(horizontal=8.dp,vertical=12.dp),style=MaterialTheme.typography.labelLarge,maxLines=1)
+                        Column(Modifier.padding(vertical=8.dp).fillMaxWidth(),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(4.dp)) {
+                            val symbol=mapOf("Edit" to "edit","Audio" to "graphic_eq","Text" to "title","Picture" to "image","Export" to "file_upload","Models" to "model_training").getValue(name)
+                            Symbol(symbol+if(selected)"_filled" else "",size=22)
+                            Text(name,style=MaterialTheme.typography.labelLarge,maxLines=1)
+                        }
                     }
                 }
             }
@@ -285,7 +289,10 @@ private val desktopGroups=linkedMapOf(
         HorizontalDivider(Modifier.padding(vertical=6.dp))
         desktopGroups[group].orEmpty().forEach {tool->
             Surface(onClick={c.tab=tool},shape=RoundedCornerShape(14.dp),color=if(c.tab==tool)MaterialTheme.colorScheme.secondaryContainer else Color.Transparent,modifier=Modifier.fillMaxWidth()) {
-                Text(if(tool=="Edit")"Format & quality" else tool,Modifier.padding(horizontal=10.dp,vertical=9.dp),style=MaterialTheme.typography.labelLarge)
+                Row(Modifier.padding(horizontal=10.dp,vertical=9.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                    Symbol(when(tool){"Clip editor"->"content_cut";"Scenes"->"movie";"Pause cuts"->"waves";"Beats"->"graphic_eq";"Follow crop"->"person_search";"Transcript"->"subtitles";"Drawing"->"draw";"Dubbing"->"mic";else->"tune"},size=18)
+                    Text(if(tool=="Edit")"Format & quality" else tool,style=MaterialTheme.typography.labelLarge)
+                }
             }
         }
     }
@@ -854,8 +861,8 @@ private fun EditPanel(c: EditorController,p: DesktopProject,window:java.awt.Fram
         Text("Clip ${index+1}: ${File(clip.sourceId).name}",style=MaterialTheme.typography.titleLarge)
         Text("Only this clip. Original files stay unchanged.",style=MaterialTheme.typography.bodySmall)
         var expanded by remember {mutableStateOf(false)}
-        Box {FilledTonalButton(onClick={expanded=true},modifier=Modifier.fillMaxWidth()){Text(section+"  ▾")}
-            DropdownMenu(expanded,{expanded=false}) {listOf("Trim","Motion","Colour","Sound","Transition").forEach {name->DropdownMenuItem(text={Text(name)},onClick={section=name;expanded=false})}}}
+        Box {FilledTonalButton(onClick={expanded=true},modifier=Modifier.fillMaxWidth()){SymbolLabel(when(section){"Trim"->"content_cut";"Motion"->"crop";"Colour"->"palette";"Sound"->"volume_up";else->"transition_fade"},section+"  ▾")}
+            DropdownMenu(expanded,{expanded=false}) {listOf("Trim","Motion","Colour","Sound","Transition").forEach {name->DropdownMenuItem(text={Row(verticalAlignment=Alignment.CenterVertically){SymbolLabel(when(name){"Trim"->"content_cut";"Motion"->"crop";"Colour"->"palette";"Sound"->"volume_up";else->"transition_fade"},name)}},onClick={section=name;expanded=false})}}}
         if(section=="Trim") {
         if(!source.info.isStill) {
             PreciseClipTrim(c,clip.id,clip.startMs,clip.endMs ?: source.info.durationMs)
