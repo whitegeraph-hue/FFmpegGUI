@@ -96,7 +96,7 @@ class EditorController(val scope: CoroutineScope) {
         seek(position)
         pruneMasks()
     }
-    fun undo() { if (history.isNotEmpty()) { project=history.removeLast(); selectedSource=selectedSource.coerceIn(project!!.sources.indices);player.stop();rendered?.delete(); rendered=null;previewFrame=null; resetAnalysis(); seek(position);pruneMasks() } }
+    fun undo() { if (history.isNotEmpty()) { project=history.removeLast(); selectedSource=selectedSource.coerceIn(project!!.sources.indices);player.stop();rendered?.delete(); rendered=null;previewFrame=null; resetAnalysis(); seek(position);pruneMasks();status="Undid the last edit." } }
     fun seek(at: Long) {
         val p=project ?: return
         position=at.coerceIn(0,p.timeline.durationMs)
@@ -145,7 +145,7 @@ class EditorController(val scope: CoroutineScope) {
                 val cuts=PauseCuts.suggest(p.sourceWords(selectedSource),silence,p.sources[selectedSource].info.durationMs).flatMap { c ->
                     ClipToolScope.cuts(p.timeline,smartClipId,p.sources[selectedSource].path,listOf(c))
                 }
-                pauseStatus=PauseCutsStatus.Ready(cuts,cuts.indices.toSet()); status="Review the suggestions, then choose Cut."
+                pauseStatus=PauseCutsStatus.Ready(cuts,cuts.indices.toSet()); status=if(cuts.isEmpty())"No pause or hesitation cuts found in this scope."else "Review the suggestions, then choose Cut."
             } catch (e: Exception) { pauseStatus=PauseCutsStatus.Failed; throw e }
         }
     }
@@ -155,7 +155,7 @@ class EditorController(val scope: CoroutineScope) {
         work("Finding scene changes locally…") {
             try {
                 val points=ClipToolScope.points(p.timeline,smartClipId,p.sources[selectedSource].path,media.scenes(p.sources[selectedSource])).filter(p.timeline::canSplitAt)
-                sceneStatus=SceneSplitsStatus.Ready(points,points.indices.toSet()); status="Review the scene boundaries, then choose Split."
+                sceneStatus=SceneSplitsStatus.Ready(points,points.indices.toSet()); status=if(points.isEmpty())"No scene changes found in this scope."else "Review the scene boundaries, then choose Split."
             } catch (e: Exception) { sceneStatus=SceneSplitsStatus.Failed; throw e }
         }
     }
@@ -167,7 +167,7 @@ class EditorController(val scope: CoroutineScope) {
                 val result=withContext(Dispatchers.Default) { BeatTrack.analyze(media.samples(p.sources[selectedSource].path),16000,p.sources[selectedSource].info.durationMs) }
                 check(result.tempoBpm!=null && result.beatsMs.isNotEmpty()) { "No steady beat found. Use at least five seconds of rhythmic music." }
                 val points=ClipToolScope.points(p.timeline,smartClipId,p.sources[selectedSource].path,result.beatsMs).filter(p.timeline::canSplitAt)
-                beatStatus=BeatsStatus.Ready(result.onsetsMs,points,result.tempoBpm); status="Review the beats. Snapping also applies to Split here."
+                beatStatus=BeatsStatus.Ready(result.onsetsMs,points,result.tempoBpm); status=if(points.isEmpty())"No splittable beats found in this scope."else "Review the beats. Snapping also applies to Split here."
             } catch (e: Exception) { beatStatus=BeatsStatus.Failed; throw e }
         }
     }
@@ -268,8 +268,8 @@ class EditorController(val scope: CoroutineScope) {
         onDismissPauseCuts={ pauseStatus=PauseCutsStatus.Idle }, onListen={ tab="Transcript";listen() },
         onFindSceneSplits=::findScenes,
         onToggleSceneSplit={ index -> (sceneStatus as? SceneSplitsStatus.Ready)?.let { s -> sceneStatus=s.copy(chosen=toggle(s.chosen,index)) } },
-        onApplySceneSplits={ val p=project; val s=sceneStatus as? SceneSplitsStatus.Ready; if (p!=null && s!=null) mutate(p.copy(timeline=p.splitFootageAt(s.points.filterIndexed { i,_ -> i in s.chosen }),followCrop=null)) },
-        onDismissSceneSplits={ sceneStatus=SceneSplitsStatus.Idle }, onFindBeats=::findBeats,
+        onApplySceneSplits={ val p=project; val s=sceneStatus as? SceneSplitsStatus.Ready; if (p!=null && s!=null) {mutate(p.copy(timeline=p.splitFootageAt(s.points.filterIndexed { i,_ -> i in s.chosen }),followCrop=null));status="Scene splits applied. Undo restores the previous timeline."} },
+        onDismissSceneSplits={ sceneStatus=SceneSplitsStatus.Idle;status="Scene suggestions dismissed." }, onFindBeats=::findBeats,
         onToggleBeat={ index -> (beatStatus as? BeatsStatus.Ready)?.let { s -> beatStatus=s.copy(chosen=toggle(s.chosen,index)) } },
         onSnapToBeats={ snap=it },
         onApplyBeatCuts={ val p=project; val s=beatStatus as? BeatsStatus.Ready; if (p!=null && s!=null) mutate(p.copy(timeline=p.splitFootageAt(s.beatsMs.filterIndexed { i,_ -> i in s.chosen }),followCrop=null)) },
