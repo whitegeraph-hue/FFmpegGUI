@@ -12,3 +12,15 @@ internal fun DesktopProject.outputClipSpans():List<DesktopClipSpan> {
         DesktopClipSpan(i,(start/clock.speed).toLong().coerceAtLeast(0),(finish/clock.speed).toLong().coerceAtMost(outputDurationMs),clock.playsBackwards(i))
     }
 }
+
+/** A clicked lane owns the seek even while two clips overlap in a transition. */
+internal fun DesktopProject.mediaForClipOutput(index:Int,outputMs:Long):Long {
+    val clip=timeline.clips[index]
+    val span=outputClipSpans()[index]
+    val played=if(effects.reversed)span.endMs-outputMs else outputMs-span.startMs
+    val local=com.cuscus.ffmpeggui.core.preview.PreviewTimeline(listOf(
+        com.cuscus.ffmpeggui.core.preview.PreviewTimeline.SegmentTiming(clip.lengthMs,clip.effects.speed,clip.effects.reversed,clip.effects.speedCurve,clip.effects.keepPitch)
+    ))
+    val offset=local.mediaMsForOutput((played*clock().speed).toLong()).coerceIn(0,(clip.lengthMs-1).coerceAtLeast(0))
+    return timeline.startOf(index)+offset
+}

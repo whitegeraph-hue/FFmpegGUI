@@ -16,6 +16,38 @@ fun main(args:Array<String>)=runBlocking {
     var passed=0
     suspend fun verify(name:String,block:suspend ()->Unit) { block(); passed++;println("PASS $name") }
     val video=media.probe(File(folder,"video.mp4").path)
+    verify("desktop precise trim duplicate focus actions and Undo") {
+        val p=DesktopProject.create(video)
+        val scope=CoroutineScope(Dispatchers.Default+SupervisorJob());val c=EditorController(scope)
+        try {
+            c.project=p;check(!c.canUndo);c.selectSmartClip(p.timeline.clips[0].id)
+            c.trimSelected(500,2500);check(c.project!!.timeline.clips.single().startMs==500L && c.canUndo)
+            c.duplicateSelected();check(c.project!!.timeline.clips.size==2 && c.smartClipId==c.project!!.timeline.clips[1].id)
+            c.undo();check(c.project!!.timeline.clips.size==1);c.undo();check(c.project===p && !c.canUndo)
+            c.selectSmartClip(p.timeline.clips[0].id);c.trimSelected(0,video.info.durationMs+1)
+            check(c.project===p && !c.canUndo && c.error!=null)
+        }finally {c.close();scope.cancel()}
+    }
+    verify("timeline lane seeking owns overlapping reversed sped and ramp clips") {
+        val a=Clip("lane-a",video.path,0,4000,Effects(speed=2f,reversed=true,transition=Transition(TransitionKind.FADE,500)))
+        val b=Clip("lane-b",video.path,4000,8000)
+        val base=DesktopProject(listOf(video),Timeline(listOf(a,b)))
+        for(globalReverse in listOf(false,true)) {
+            val p=base.copy(effects=Effects(speed=2f,reversed=globalReverse))
+            p.outputClipSpans().forEach {span->
+                val at=(span.startMs+span.endMs)/2
+                val mediaAt=p.mediaForClipOutput(span.index,at)
+                check(p.timeline.locate(mediaAt)?.index==span.index)
+                check(kotlin.math.abs(p.outputAt(mediaAt)-at)<=2)
+                check(p.timeline.locate(p.mediaForClipOutput(span.index,span.startMs))?.index==span.index)
+            }
+            val both=p.outputClipSpans();val overlap=(maxOf(both[0].startMs,both[1].startMs)+minOf(both[0].endMs,both[1].endMs))/2
+            for(i in 0..1)check(p.timeline.locate(p.mediaForClipOutput(i,overlap))?.index==i)
+        }
+        val ramp=base.copy(timeline=Timeline(listOf(a.copy(effects=a.effects.copy(speedCurve=SpeedCurve(listOf(SpeedPoint(0f,.5f),SpeedPoint(1f,2f))))),b)))
+        val span=ramp.outputClipSpans()[0];val at=(span.startMs+span.endMs)/2
+        check(kotlin.math.abs(ramp.outputAt(ramp.mediaForClipOutput(0,at))-at)<=2)
+    }
     verify("clip speech source clock occurrence export persistence and raw extraction") {
         val first=Clip("speech-first",video.path,1000,3000)
         val second=first.copy(id="speech-second",effects=Effects(speed=2f,reversed=true))

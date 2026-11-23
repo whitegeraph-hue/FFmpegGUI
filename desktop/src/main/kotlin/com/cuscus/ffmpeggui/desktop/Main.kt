@@ -81,8 +81,8 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                 controller.close(); exitApplication()
             }
         }
-        fun pick(save: Boolean = false, name: String? = null): File? {
-            val dialog=FileDialog(window,if (save) "Export a new file" else "Open media",if (save) FileDialog.SAVE else FileDialog.LOAD)
+        fun pick(save: Boolean = false, name: String? = null, title:String?=null): File? {
+            val dialog=FileDialog(window,title ?: if (save) "Export a new file" else "Open media",if (save) FileDialog.SAVE else FileDialog.LOAD)
             if (name!=null) dialog.file=name
             dialog.isVisible=true
             return dialog.file?.let { File(dialog.directory,it) }
@@ -97,8 +97,8 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                         }
                         OutlinedButton(onClick={ pick()?.let { controller.open(it.path) } },enabled=!controller.busy) { Text("Open media") }
                         OutlinedButton(onClick={ pick()?.let { file -> controller.openProject(file) } },enabled=!controller.busy) { Text("Open project") }
-                        OutlinedButton(onClick={ controller.project?.let { p -> pick(true,"project.ffgui.json")?.let { file -> controller.work("Saving project…") { DesktopProjects.save(p,file); controller.status="Project saved: ${file.path}" } } } },enabled=!controller.busy && controller.project!=null) { Text("Save project") }
-                        OutlinedButton(onClick={ controller.undo() },enabled=!controller.busy && controller.project!=null) { Text("Undo") }
+                        OutlinedButton(onClick={ controller.project?.let { p -> pick(true,"project.ffgui.json","Save project")?.let { file -> controller.work("Saving project…") { DesktopProjects.save(p,file); controller.status="Project saved: ${file.path}" } } } },enabled=!controller.busy && controller.project!=null) { Text("Save project") }
+                        OutlinedButton(onClick={ controller.undo() },enabled=!controller.busy && controller.canUndo) { Text("Undo") }
                         FilledTonalButton(onClick={showSettings=true}) {Text("Settings")}
                         Button(onClick={showExport=true},enabled=!controller.busy && controller.project!=null){Text("Export ${controller.project?.format?.name ?: ""}")}
                     }
@@ -152,7 +152,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                                         "Dubbing" -> DubPanel(controller,window){name->pick(true,name)}
                                         "Magic eraser" -> ErasePanel(controller,project,window){name->pick(true,name)}
                                         "Command studio" -> StudioPanel(controller,project){name->pick(true,name)}
-                                        "Clip editor" -> {StabilizationPanel(controller,project);ClipEditorPanel(controller,project)}
+                                        "Clip editor" -> ClipEditorPanel(controller,project)
                                         "Subtitles" -> SubtitlesPanel(controller,project){pick()}
                                         "Image layers" -> PictureLayersPanel(controller,project){pick()?.path}
                                         "Tags" -> TagsPanel(controller,project){pick()}
@@ -242,7 +242,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
 
                             Text("Preview",style=MaterialTheme.typography.titleMedium)
                             Text("Play edit renders the edited result first, then plays it with sound. Edits invalidate that render. Source view does not show effects live.")
-                            Text("Shortcuts: Ctrl+Z undoes the last edit. Esc clears clip selection. Click a timeline clip to select it; use Move left/right to reorder. Drag reordering is not available.",style=MaterialTheme.typography.bodySmall)
+                            Text("Shortcuts: Ctrl+Z undoes the last edit. Esc clears clip selection. After clicking the timeline: Space plays, arrows step one output frame, S splits, D duplicates, Delete removes. These timeline keys do not run while typing in fields. Click inside a clip to select and seek; double-click to open its controls. Use timeline arrows to reorder. Drag reordering is not available.",style=MaterialTheme.typography.bodySmall)
                             Text("Development preview. Not every mobile feature is available yet. Original files are never edited.",style=MaterialTheme.typography.bodySmall)
                         }
                     },confirmButton={TextButton(onClick={showSettings=false}){Text("Done")}})
@@ -307,75 +307,10 @@ private val desktopGroups=linkedMapOf(
         Box {TextButton(onClick={sources=true}){Text("Source: "+File(p.sources[c.selectedSource].path).name.take(24))};DropdownMenu(sources,{sources=false}) {p.sources.forEachIndexed {i,source->DropdownMenuItem(text={Text(File(source.path).name)},onClick={c.selectSource(i);sources=false})}}}
     }
 }
-@Composable private fun DesktopTimeline(c:EditorController,p:DesktopProject,onAdd:()->Unit) {
-    Surface(Modifier.fillMaxWidth().height(164.dp),shape=RoundedCornerShape(24.dp),color=MaterialTheme.colorScheme.surfaceContainer) {
-        var zoom by remember {mutableStateOf(1f)}
-        Column(Modifier.padding(horizontal=14.dp,vertical=6.dp),verticalArrangement=Arrangement.spacedBy(2.dp)) {
-            Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                Text(c.smartClipId?.let {id->"Clip "+(p.timeline.clips.indexOfFirst {it.id==id}+1)+" / "+p.timeline.clips.size} ?: "Timeline",style=MaterialTheme.typography.titleMedium)
-                Text("${p.timeline.clips.size} clips · ${time(p.timeline.durationMs)} footage / ${time(p.outputDurationMs)} output",style=MaterialTheme.typography.labelSmall,modifier=Modifier.weight(1f))
-                TextButton(onClick={zoom=(zoom/2).coerceAtLeast(.25f)}){Text("−")}
-                TextButton(onClick={zoom=(zoom*2).coerceAtMost(16f)}){Text("Zoom +")}
-                val index=p.timeline.clips.indexOfFirst {it.id==c.smartClipId}
-                TextButton(onClick={c.moveClip(index,-1)},enabled=!c.busy && index>0){Text("Move left")}
-                TextButton(onClick={c.moveClip(index,1)},enabled=!c.busy && index>=0 && index<p.timeline.clips.lastIndex){Text("Move right")}
-                TextButton(onClick={c.removeClip(index)},enabled=!c.busy && index>=0 && p.timeline.clips.size>1){Text("Remove")}
-                FilledTonalButton(onClick=onAdd,enabled=!c.busy && !p.sources[0].info.isStill){Text("+ Add clip")}
-            }
-            val scroll=rememberScrollState()
-            val duration=p.outputDurationMs.coerceAtLeast(1)
-            val spans=p.outputClipSpans()
-            val width=maxOf(1300f,duration/10f)*zoom
-            val density=androidx.compose.ui.platform.LocalDensity.current.density
-            LaunchedEffect(c.smartClipId,p.timeline.clips) {
-                val index=p.timeline.clips.indexOfFirst {it.id==c.smartClipId}
-                if(index>=0) {
-                    val x=(width*spans[index].startMs/duration*density).toInt()
-                    if(x<scroll.value || x>scroll.value+scroll.viewportSize-60)scroll.animateScrollTo((x-40).coerceIn(0,scroll.maxValue))
-                }
-            }
-            LaunchedEffect(c.player.playing) {
-                while(c.player.playing) {
-                    val out=if(c.player.engaged)c.player.positionMs else p.outputAt(c.position)
-                    val x=(width*out/duration*density).toInt()
-                    if(x<scroll.value || x>scroll.value+scroll.viewportSize-30)scroll.scrollTo((x-60).coerceIn(0,scroll.maxValue))
-                    delay(250)
-                }
-            }
-            Column(Modifier.weight(1f).horizontalScroll(scroll)) {
-                Box(Modifier.width(width.dp).height(22.dp).pointerInput(p){detectTapGestures {at->if(!c.busy)c.seek(p.clock().mediaMsForOutput((at.x/size.width*duration).toLong()))}}) {
-                    val step=maxOf(1000L,(duration/12/1000)*1000)
-                    var t=0L
-                    while(t<=duration) {
-                        Text(time(t),Modifier.offset(x=(width*t/duration).dp),style=MaterialTheme.typography.labelSmall)
-                        t+=step
-                    }
-                }
-                Box(Modifier.width(width.dp).weight(1f)) {
-                    spans.forEach {span->
-                        val i=span.index
-                        val selected=c.smartClipId==p.timeline.clips[i].id
-                        val lane=if(spans.zipWithNext().any {(a,b)->a.endMs>b.startMs})i%2 else 0
-                        Surface(onClick={c.selectSmartClip(p.timeline.clips[i].id);c.seek(p.clock().mediaMsForOutput(span.startMs+1))},enabled=!c.busy,shape=RoundedCornerShape(8.dp),color=if(selected)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondaryContainer,contentColor=if(selected)MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSecondaryContainer,modifier=Modifier.offset(x=(width*span.startMs/duration).dp,y=(lane*26).dp).width((width*(span.endMs-span.startMs)/duration).dp).height(if(lane==0 && spans.none {it.index!=i && it.startMs<span.endMs && it.endMs>span.startMs})52.dp else 26.dp).padding(end=2.dp),border=BorderStroke(if(selected)3.dp else 1.dp,if(selected)MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.outline)) {
-                            Text("${i+1}${if(span.backwards)" ←" else ""} · ${time(span.endMs-span.startMs)}",Modifier.padding(horizontal=6.dp,vertical=3.dp),maxLines=1,overflow=TextOverflow.Ellipsis,style=MaterialTheme.typography.labelSmall)
-                        }
-                    }
-                    Canvas(Modifier.fillMaxSize()) {
-                        val at=if(c.player.engaged)c.player.positionMs else p.outputAt(c.position)
-                        val x=size.width*at/duration
-                        drawLine(Color(0xff82d5c7),Offset(x,0f),Offset(x,size.height),3f)
-                        drawCircle(Color(0xff82d5c7),5f,Offset(x,4f))
-                    }
-                }
-            }
-            HorizontalScrollbar(rememberScrollbarAdapter(scroll),Modifier.fillMaxWidth().height(7.dp))
-            Text("Output time · overlaps use two lanes · click to select · Zoom + for tiny clips · scroll →",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-    }
-}
 
 @Composable
 private fun EditPanel(c: EditorController,p: DesktopProject,window:java.awt.Frame) {
+    StabilizationPanel(c,p)
     ExportOptions(c,p)
     if(p.sources[0].info.isVideo && !p.sources[0].info.isStill)PanelCard {
         Text("Canvas",style=MaterialTheme.typography.titleMedium)
@@ -914,14 +849,16 @@ private fun EditPanel(c: EditorController,p: DesktopProject,window:java.awt.Fram
     val source=p.sources.first {it.path==clip.sourceId}
     val f=clip.effects
     fun change(update:(Effects)->Effects){c.mutate(p.copy(timeline=p.timeline.updateEffects(clip.id,update),followCrop=null))}
+    var section by remember {mutableStateOf("Trim")}
     PanelCard {
         Text("Clip ${index+1}: ${File(clip.sourceId).name}",style=MaterialTheme.typography.titleLarge)
-        Text("Click a timeline clip to select it. The ruler shows output time with speed and transitions. Seek inside the clip before Split; its first instant is already a boundary.")
-        FlowRowCompat {
-            OutlinedButton(onClick={c.mutate(p.copy(timeline=p.timeline.duplicate(clip.id,java.util.UUID.randomUUID().toString()),followCrop=null))},enabled=!c.busy){Text("Duplicate clip")}
-            OutlinedButton(onClick={change {Effects.NONE}},enabled=!c.busy){Text("Reset clip effects")}
-        }
+        Text("Only this clip. Original files stay unchanged.",style=MaterialTheme.typography.bodySmall)
+        var expanded by remember {mutableStateOf(false)}
+        Box {FilledTonalButton(onClick={expanded=true},modifier=Modifier.fillMaxWidth()){Text(section+"  ▾")}
+            DropdownMenu(expanded,{expanded=false}) {listOf("Trim","Motion","Colour","Sound","Transition").forEach {name->DropdownMenuItem(text={Text(name)},onClick={section=name;expanded=false})}}}
+        if(section=="Trim") {
         if(!source.info.isStill) {
+            PreciseClipTrim(c,clip.id,clip.startMs,clip.endMs ?: source.info.durationMs)
             ValueSlider("Source in (seconds)",clip.startMs/1000f,0f..((clip.endMs ?: source.info.durationMs)-120).coerceAtLeast(1)/1000f,!c.busy){c.mutate(p.copy(timeline=p.timeline.trim(clip.id,(it*1000).toLong(),clip.endMs ?: source.info.durationMs,source.info.durationMs),followCrop=null))}
             ValueSlider("Source out (seconds)",(clip.endMs ?: source.info.durationMs)/1000f,(clip.startMs+120)/1000f..source.info.durationMs/1000f,!c.busy){c.mutate(p.copy(timeline=p.timeline.trim(clip.id,clip.startMs,(it*1000).toLong(),source.info.durationMs),followCrop=null))}
         }
@@ -929,6 +866,12 @@ private fun EditPanel(c: EditorController,p: DesktopProject,window:java.awt.Fram
             Text("Still picture shown as a clip. Duration is footage time, before clip speed. The original picture is unchanged.")
             ValueSlider("Still duration seconds",clip.lengthMs/1000f,.2f..60f,!c.busy){value->c.mutate(p.copy(timeline=p.timeline.trim(clip.id,0,(value*1000).toLong(),0),followCrop=null))}
         }
+        FlowRowCompat {
+            OutlinedButton(onClick={c.mutate(p.copy(timeline=p.timeline.duplicate(clip.id,java.util.UUID.randomUUID().toString()),followCrop=null))},enabled=!c.busy){Text("Duplicate clip")}
+            OutlinedButton(onClick={change {Effects.NONE}},enabled=!c.busy){Text("Reset clip effects")}
+        }
+        }
+        if(section=="Motion") {
         ValueSlider("Clip speed",f.speed,.25f..4f,!c.busy){v->change {it.copy(speed=v)}}
         Text("Speed ramp",style=MaterialTheme.typography.titleMedium)
         Row {Switch(f.speedCurve!=null,{v->change {it.copy(speedCurve=if(v)SpeedCurve(listOf(SpeedPoint(0f,1f),SpeedPoint(.5f,2f),SpeedPoint(1f,1f))) else null)}},enabled=!c.busy);Text("Vary clip speed")}
@@ -942,16 +885,24 @@ private fun EditPanel(c: EditorController,p: DesktopProject,window:java.awt.Fram
             }
         }
         Row { Switch(f.reversed,{v->change {it.copy(reversed=v)}},enabled=!c.busy);Text("Reverse");Switch(f.keepPitch,{v->change {it.copy(keepPitch=v)}},enabled=!c.busy);Text("Keep pitch") }
+        }
+        if(section=="Sound") {
         Row {Switch(f.muted,{v->change {it.copy(muted=v)}},enabled=!c.busy);Text("Mute clip")}
         ValueSlider("Clip volume",f.volume,0f..2f,!c.busy){v->change {it.copy(volume=v)}}
         ValueSlider("Fade in (seconds)",f.fadeInSeconds,0f..3f,!c.busy){v->change {it.copy(fadeInSeconds=v)}}
         ValueSlider("Fade out (seconds)",f.fadeOutSeconds,0f..3f,!c.busy){v->change {it.copy(fadeOutSeconds=v)}}
+        }
+        if(section=="Motion") {
         ValueSlider("Clip zoom",f.zoom,1f..4f,!c.busy){v->change {it.copy(zoom=v)}}
         ValueSlider("Clip pan X",f.panX,0f..1f,!c.busy){v->change {it.copy(panX=v)}}
         ValueSlider("Clip pan Y",f.panY,0f..1f,!c.busy){v->change {it.copy(panY=v)}}
+        }
+        if(section=="Colour") {
         ValueSlider("Clip brightness",f.color.brightness,-1f..1f,!c.busy){v->change {it.copy(color=it.color.copy(brightness=v))}}
         ValueSlider("Clip contrast",f.color.contrast,0f..2f,!c.busy){v->change {it.copy(color=it.color.copy(contrast=v))}}
         ValueSlider("Clip saturation",f.color.saturation,0f..2f,!c.busy){v->change {it.copy(color=it.color.copy(saturation=v))}}
+        }
+        if(section=="Motion" || section=="Colour") {
         Text("Clip animation keys",style=MaterialTheme.typography.titleMedium)
         val sourceAt=clip.startMs+(c.position-p.timeline.startOf(index)).coerceIn(0,clip.lengthMs)
         Text("Keys use this source file's clock. Seek in the clip, set zoom, pan, colour and volume above, then capture.")
@@ -961,7 +912,8 @@ private fun EditPanel(c: EditorController,p: DesktopProject,window:java.awt.Fram
             FlowRowCompat {KeyEasing.entries.filter {it!=KeyEasing.CUSTOM}.forEach {e->FilterChip(key.easing==e,{change {it.copy(keyframes=it.keyframes.withEasing(key.atMs,e))}},label={Text(e.name)},enabled=!c.busy)}}
             TextButton(onClick={change {it.copy(keyframes=it.keyframes.remove(key.atMs))}},enabled=!c.busy){Text("Remove clip key")}
         }
-        if(index<p.timeline.clips.lastIndex) {
+        }
+        if(section=="Transition" && index<p.timeline.clips.lastIndex) {
             Text("Transition into next clip",style=MaterialTheme.typography.titleMedium)
             Text("Clips overlap by the transition length, limited to half either clip. Native and original custom-expression transitions are available. Punch and technical-difficulties companion assets are still being ported. Render to inspect the final cut.")
             OutlinedButton(onClick={change {it.copy(transition=null)}},enabled=!c.busy){Text("No transition")}

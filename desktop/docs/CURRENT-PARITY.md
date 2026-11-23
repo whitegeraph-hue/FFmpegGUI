@@ -67,3 +67,12 @@ has been qualified. The original full Linux request is still open.
 
 No release/tag/master merge has been made. Earlier delivered checkpoints remain
 unchanged. More tests do not close the full request without the remaining workflows.
+
+
+## Desktop editing UI checkpoint
+
+The monitor keeps its place while the 204dp timeline shows source thumbnails, file names, output-time clip spans and a fixed ruler. Fit/zoom and scrolling are separate from editing. Single click selects and seeks inside that occurrence, including its transition lane; double click opens its controls. A clip menu exposes very short clips without pixel hunting. The menu shows exact source durations in milliseconds.
+
+Clip controls are grouped as Trim, Motion, Colour, Sound and Transition. Exact source in/out drafts apply only on Apply; invalid ranges cannot change the edit. Timeline-local plain S, D, arrows, Space and Delete/Backspace split, duplicate, step, play or remove. Text fields keep their own keys. Reorder uses left/right buttons, not drag. Thumbnails are original-source stills, not live effects previews. The cache is at most64 160x90 images, decoding one at a time with a10second process timeout.
+
+Qualification: real1366x768 click/keyboard workflow selected, sought, split, duplicated, trimmed, undid, saved with native chooser, reopened and rendered; dense9clips and60ms selection, grouped controls and rail scroll were inspected. S and Split agree at sped/overlap position. Native checks cover lane-owned seek under per-clip/global speed/reverse, ramps and transitions. Render succeeds in the test environment; physical Zorin audio and hardware are not qualified. Full app parity is still not complete.

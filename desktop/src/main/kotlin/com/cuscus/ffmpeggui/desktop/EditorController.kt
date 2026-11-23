@@ -44,6 +44,7 @@ class EditorController(val scope: CoroutineScope) {
     private var frameJob: Job? = null
     private val history = ArrayDeque<DesktopProject>()
     val media = DesktopMedia()
+    val thumbnails=DesktopThumbnails(media)
     val exporter = DesktopExport(media)
     val studio=DesktopStudio(media)
     var studioText by mutableStateOf("")
@@ -154,6 +155,17 @@ class EditorController(val scope: CoroutineScope) {
         mutate(p.copy(timeline=p.splitFootageAt(listOf(at)),followCrop=null))
         status="Split at ${time(at)}. Export applies the timeline; source is untouched."
     }
+    fun duplicateSelected() {
+        val p=project ?: return;val clip=p.timeline.clips.firstOrNull {it.id==smartClipId} ?: return
+        val next=id();mutate(p.copy(timeline=p.timeline.duplicate(clip.id,next),followCrop=null));selectSmartClip(next);status="Duplicated selected clip. Undo removes the copy."
+    }
+    fun trimSelected(start:Long,end:Long) {
+        val p=project ?: return;val clip=p.timeline.clips.firstOrNull {it.id==smartClipId} ?: return
+        val source=p.sources.first {it.path==clip.sourceId}
+        if(start<0 || end-start<120 || (!source.info.isStill && end>source.info.durationMs)) {error="Keep at least 0.12 seconds inside the source.";return}
+        mutate(p.copy(timeline=p.timeline.trim(clip.id,start,end,source.info.durationMs),followCrop=null))
+    }
+    val canUndo:Boolean get()=history.isNotEmpty()
     fun removeClip(index: Int) { val p=project ?: return; mutate(p.copy(timeline=p.timeline.remove(p.timeline.clips[index].id),followCrop=null)) }
     fun moveClip(index: Int, offset: Int) { val p=project ?: return; mutate(p.copy(timeline=p.timeline.move(p.timeline.clips[index].id,offset),followCrop=null)) }
     fun transcriptCut(block: WordBlock, keepOnly: Boolean) {
