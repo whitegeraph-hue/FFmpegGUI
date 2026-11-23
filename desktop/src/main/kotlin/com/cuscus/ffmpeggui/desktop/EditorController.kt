@@ -63,6 +63,7 @@ class EditorController(val scope: CoroutineScope) {
     private fun rememberEdit() {snapshot()?.let {history.addLast(it);if(history.size>50)history.removeFirst()};future.clear()}
     val media = DesktopMedia()
     val thumbnails=DesktopThumbnails(media)
+    internal val waveforms=DesktopWaveforms(media)
     val exporter = DesktopExport(media)
     val studio=DesktopStudio(media)
     var studioText by mutableStateOf("")
@@ -260,7 +261,7 @@ class EditorController(val scope: CoroutineScope) {
             if(project!=p) {
                 val previous=project
                 rememberEdit()
-                project=p
+                project=p;pruneMasks()
                 // The preview keeps its picture when only the delivery container changes.
                 // Encoding changes can change cached dimensions, cadence or audio quality.
                 if(previous?.encoding!=p.encoding) {

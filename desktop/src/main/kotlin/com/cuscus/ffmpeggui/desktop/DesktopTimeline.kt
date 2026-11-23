@@ -109,6 +109,33 @@ import java.io.File
                             Surface(shape=RoundedCornerShape(9.dp),color=color,contentColor=ink,border=BorderStroke(if(selected)3.dp else 1.dp,if(selected)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline),modifier=Modifier.offset(x=(width*span.startMs/duration).dp,y=(lane*49).dp).width(clipWidth.dp).height(clipHeight).padding(end=2.dp).pointerInput(p,span,c.busy){detectTapGestures(onDoubleTap={if(!c.busy){focus.requestFocus();c.selectSmartClip(clip.id);c.tab="Clip editor"}},onTap={at->if(!c.busy){focus.requestFocus();c.selectSmartClip(clip.id);val out=span.startMs+(at.x/size.width*(span.endMs-span.startMs)).toLong();c.seek(p.mediaForClipOutput(span.index,out))}})}) {
                                 var thumb by remember(source.path,clip.startMs,clip.endMs) {mutableStateOf<ImageBitmap?>(null)}
                                 val showThumb=clipWidth>if(overlapping)110f else 65f
+                                val showPeaks=clipWidth>140f && source.info.hasAudio
+                                var waveform by remember(source.path) {mutableStateOf<DesktopWaveform?>(null)}
+                                var peakState by remember(source.path) {mutableStateOf("Loading source peaks")}
+                                LaunchedEffect(source.path,showPeaks) {
+                                    if(showPeaks)try {waveform=c.waveforms.source(source);peakState="Source peaks"}
+                                    catch(e:CancellationException){throw e}
+                                    catch(_:Exception){peakState=if(source.info.durationMs>1_800_000)"Peaks: 30 min limit" else "Source peaks unavailable"}
+                                }
+                                @Composable fun Peaks(modifier:Modifier) {
+                                    val data=waveform
+                                    val bins=(clipWidth/3).toInt().coerceIn(1,256)
+                                    val levels=remember(p,data,bins,span.index) {
+                                        p.waveformLevels(span.index,span,data,bins)
+                                    }
+                                    Box(modifier) {
+                                        Canvas(Modifier.fillMaxSize()) {
+                                            val middle=size.height/2
+                                            drawLine(ink.copy(alpha=.2f),Offset(0f,middle),Offset(size.width,middle),1.dp.toPx())
+                                            if(data!=null)levels.forEachIndexed {i,peak->
+                                                val x=(i+.5f)*size.width/bins
+                                                val h=peak*middle
+                                                drawLine(ink.copy(alpha=.75f),Offset(x,middle-h),Offset(x,middle+h),1.dp.toPx())
+                                            }
+                                        }
+                                        if(data==null)Text(peakState,maxLines=1,style=MaterialTheme.typography.labelSmall,modifier=Modifier.padding(horizontal=5.dp))
+                                    }
+                                }
                                 LaunchedEffect(source.path,clip.startMs,clip.endMs,showThumb) {
                                     if(showThumb && source.info.isVideo)try {
                                         thumb=c.thumbnails.frame(source,clip.startMs+clip.lengthMs/2)
@@ -128,10 +155,14 @@ import java.io.File
                                 }
                                 if(overlapping)Row(verticalAlignment=Alignment.CenterVertically) {
                                     if(showThumb)Thumbnail(Modifier.width(64.dp).fillMaxHeight())
-                                    ClipLabels(Modifier.weight(1f))
+                                    Column(Modifier.weight(1f)) {
+                                        ClipLabels()
+                                        if(showPeaks)Peaks(Modifier.fillMaxWidth().height(13.dp))
+                                    }
                                 } else Column {
-                                    if(showThumb)Thumbnail(Modifier.fillMaxWidth().height(48.dp))
+                                    if(showThumb)Thumbnail(Modifier.fillMaxWidth().height(if(showPeaks)34.dp else 48.dp))
                                     ClipLabels()
+                                    if(showPeaks)Peaks(Modifier.fillMaxWidth().height(14.dp))
                                 }
                             }
                             }
@@ -150,7 +181,7 @@ import java.io.File
                 }
             }
             HorizontalScrollbar(rememberScrollbarAdapter(scroll),Modifier.fillMaxWidth().height(7.dp))
-            Text(if(index>=0)"Clip ${index+1} selected · click within a clip to seek · double-click for controls · S split · D duplicate · arrows step · thumbnails are original footage" else "Click within a clip to select & seek · double-click for controls · output time · thumbnails are original footage",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(if(index>=0)"Clip ${index+1} selected · click within a clip to seek · double-click for controls · S split · D duplicate · arrows step · thumbnails & peaks are original sources" else "Click within a clip to select & seek · double-click for controls · output time · thumbnails & peaks are original sources",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

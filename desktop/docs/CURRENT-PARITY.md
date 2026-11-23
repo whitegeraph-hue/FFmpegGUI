@@ -28,7 +28,7 @@ qualified. The original full Linux request remains open.
 | Area | Current behavior | Qualification limits / remaining work |
 |---|---|---|
 | Import and source geometry | Video/audio/stills, JPEG orientation1..8, supported Ultra HDR primary normalization, multi-video/still append | Audio-only timeline append and still-first mixed timeline blocked; broader formats/camera profiles need tests |
-| Timeline | Split/trim/duplicate/remove/button reorder/Undo; selected occurrence; output ruler/zoom/playhead; speed/reverse/curves; overlap lanes | Source thumbnails are original footage, not live edits. No audio waveforms, multitrack lanes or drag reorder; richer layer editing remains |
+| Timeline | Split/trim/duplicate/remove/button reorder/Undo; selected occurrence; output ruler/zoom/playhead; speed/reverse/curves; overlap lanes | Source thumbnails are original footage, not live edits. Source mono peaks are in local qualification, not an edited mix. No multitrack lanes or drag reorder; richer layer editing remains |
 | Clip effects | Framing/colour/speed/pitch/volume/fades, animation keys/easing, ordinary transition families; mixed video/still transition export | Companion-asset punch/punch-back/technical-difficulties gated; representative transitions tested, not every kind/input |
 | Preview | Labelled source seek; render-first edited picture/audio playback; pause/resume and output-clock frame steps | Not live edited preview; rendering delay; physical device playback untested |
 | Selected smart edits | Pause/scene/beat and transcript cut/keep bind selected occurrence; source-clock mapping; stale result invalidation | Suggestions transient; all-tools selected-clip parity not established; combined scene/subtitle workflow qualified in source/native/UI, not a blanket package test |
@@ -47,7 +47,7 @@ qualified. The original full Linux request remains open.
 1. Continue the requested desktop editing experience, preserving the qualified
    saved-project, source-protection, cancel and occurrence-scope behavior.
 2. Timeline/layer interaction and keyboard access. Redo and short-window tool
-   access are being qualified next. Live edited preview, waveforms, drag reorder
+   access are being qualified next. Live edited preview, edited-mix waveforms, drag reorder
    and direct spatial layer dragging remain separate unfinished work.
 3. Remaining tool adapters and selected-clip semantics. Multi-source follow needs
    a per-clip filter pipeline, not removal of its current safety gate. Source

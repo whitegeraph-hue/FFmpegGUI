@@ -275,7 +275,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
 
                             Text("Preview",style=MaterialTheme.typography.titleMedium)
                             Text("Play edit renders the edited result first, then plays it with sound. Edits invalidate that render. Source view does not show effects live.")
-                            Text("Shortcuts: Ctrl+S saves to the current project file (asks on first save); Ctrl+Shift+S saves a copy to a new destination. Ctrl+O opens media; Ctrl+Shift+O opens a project. Ctrl+Z undoes the last edit; Ctrl+Shift+Z or Ctrl+Y redoes. A new edit clears Redo. Undo and Redo restore clip selection and position. Esc clears clip selection. After clicking the timeline: Space plays, arrows step one output frame, S splits, D duplicates, Delete removes. These timeline keys do not run while typing in fields. Click inside a clip to select and seek; double-click to open its controls. Use timeline arrows to reorder. Drag reordering is not available.",style=MaterialTheme.typography.bodySmall)
+                            Text("Shortcuts: Ctrl+S saves to the current project file (asks on first save); Ctrl+Shift+S saves a copy to a new destination. Ctrl+O opens media; Ctrl+Shift+O opens a project. Ctrl+Z undoes the last edit; Ctrl+Shift+Z or Ctrl+Y redoes. A new edit clears Redo. Undo and Redo restore clip selection and position. Esc clears clip selection. After clicking the timeline: Space plays, arrows step one output frame, S splits, D duplicates, Delete removes. Project Undo/Redo do not run while typing in fields. These timeline keys do not run while typing in fields. Click inside a clip to select and seek; double-click to open its controls. Use timeline arrows to reorder. Drag reordering is not available.",style=MaterialTheme.typography.bodySmall)
                             Text("Development preview. Not every mobile feature is available yet. Original files are never edited.",style=MaterialTheme.typography.bodySmall)
                         }
                     },confirmButton={TextButton(onClick={showSettings=false}){Text("Done")}})
@@ -513,7 +513,7 @@ private fun EditPanel(c: EditorController,p: DesktopProject,window:java.awt.Fram
     val valid=text.matches(Regex("[0-9a-fA-F]{8}"))
     Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
         Box(Modifier.size(24.dp).background(Color(value.toInt())))
-        OutlinedTextField(text,{text=it.take(8);if(text.matches(Regex("[0-9a-fA-F]{8}")))update(text.toLong(16))},label={Text(label+" (AARRGGBB)")},enabled=enabled,isError=!valid,singleLine=true)
+        OutlinedTextField(text,{text=it.take(8);if(text.matches(Regex("[0-9a-fA-F]{8}")))update(text.toLong(16))},label={Text(label+" (AARRGGBB)")},modifier=Modifier.isolateProjectHistory(),enabled=enabled,isError=!valid,singleLine=true)
     }
 }
 
@@ -697,7 +697,7 @@ private fun EditPanel(c: EditorController,p: DesktopProject,window:java.awt.Fram
             ValueSlider("Columns",t.columns.toFloat(),8f..240f,!c.busy){change(t.copy(columns=it.toInt()))}
             Text("Mode")
             Row(Modifier.horizontalScroll(rememberScrollState())) {com.cuscus.ffmpeggui.core.textart.ArtMode.entries.forEach {v->FilterChip(t.mode==v,{change(t.copy(mode=v))},label={Text(v.name)},enabled=!c.busy)}}
-            if(t.mode==com.cuscus.ffmpeggui.core.textart.ArtMode.TEXT_FILL)OutlinedTextField(t.phrase,{change(t.copy(phrase=it))},label={Text("Phrase")},enabled=!c.busy)
+            if(t.mode==com.cuscus.ffmpeggui.core.textart.ArtMode.TEXT_FILL)OutlinedTextField(t.phrase,{change(t.copy(phrase=it))},label={Text("Phrase")},modifier=Modifier.isolateProjectHistory(),enabled=!c.busy)
             Row {com.cuscus.ffmpeggui.core.textart.Paper.entries.forEach {v->FilterChip(t.paper==v,{change(t.copy(paper=v))},label={Text(v.name)},enabled=!c.busy)}}
             if(p.format==OutputFormat.ANSI)Row(Modifier.horizontalScroll(rememberScrollState())) {com.cuscus.ffmpeggui.core.textart.ArtColor.entries.forEach {v->FilterChip(t.palette.depth==v,{change(t.copy(palette=t.palette.copy(depth=v)))},label={Text(v.name)},enabled=!c.busy)}}
             Text("Dither")
@@ -717,7 +717,7 @@ private fun EditPanel(c: EditorController,p: DesktopProject,window:java.awt.Fram
         fun update(v:TextOverlay)=c.mutate(p.copy(captions=p.captions.mapIndexed {i,old->if(i==index)v else old}))
         PanelCard {
             Text("Layer ${index+1}",style=MaterialTheme.typography.titleMedium)
-            OutlinedTextField(t.text,{update(t.copy(text=it))},label={Text("Text")},enabled=!c.busy,modifier=Modifier.fillMaxWidth())
+            OutlinedTextField(t.text,{update(t.copy(text=it))},label={Text("Text")},enabled=!c.busy,modifier=Modifier.isolateProjectHistory().fillMaxWidth())
             ValueSlider("X",t.x,0f..1f,!c.busy){update(t.copy(x=it))}
             ValueSlider("Y",t.y,0f..1f,!c.busy){update(t.copy(y=it))}
             ValueSlider("Size",t.size,.01f.. .3f,!c.busy){update(t.copy(size=it))}
@@ -811,15 +811,15 @@ private fun EditPanel(c: EditorController,p: DesktopProject,window:java.awt.Fram
         Text("Container support varies. Render or export to write these tags. AI provenance marks are never removed by these controls.",style=MaterialTheme.typography.bodySmall)
         Row {Checkbox(t.stripAll,{update(t.copy(stripAll=it))},enabled=!c.busy);Text("Strip source tags")}
         Row {Checkbox(t.stripSensitive,{update(t.copy(stripSensitive=it))},enabled=!c.busy);Text("Strip location and device tags")}
-        OutlinedTextField(t.title,{update(t.copy(title=it))},label={Text("Title")},enabled=!c.busy)
-        OutlinedTextField(t.artist,{update(t.copy(artist=it))},label={Text("Artist")},enabled=!c.busy)
-        OutlinedTextField(t.album,{update(t.copy(album=it))},label={Text("Album")},enabled=!c.busy)
-        OutlinedTextField(t.albumArtist,{update(t.copy(albumArtist=it))},label={Text("Album artist")},enabled=!c.busy)
-        OutlinedTextField(t.year,{update(t.copy(year=it))},label={Text("Year")},enabled=!c.busy)
-        OutlinedTextField(t.genre,{update(t.copy(genre=it))},label={Text("Genre")},enabled=!c.busy)
-        OutlinedTextField(t.comment,{update(t.copy(comment=it))},label={Text("Comment")},enabled=!c.busy)
-        OutlinedTextField(t.copyright,{update(t.copy(copyright=it))},label={Text("Copyright")},enabled=!c.busy)
-        OutlinedTextField(t.lyrics,{update(t.copy(lyrics=it))},label={Text("Lyrics, plain or LRC")},enabled=!c.busy,modifier=Modifier.fillMaxWidth())
+        OutlinedTextField(t.title,{update(t.copy(title=it))},label={Text("Title")},modifier=Modifier.isolateProjectHistory(),enabled=!c.busy)
+        OutlinedTextField(t.artist,{update(t.copy(artist=it))},label={Text("Artist")},modifier=Modifier.isolateProjectHistory(),enabled=!c.busy)
+        OutlinedTextField(t.album,{update(t.copy(album=it))},label={Text("Album")},modifier=Modifier.isolateProjectHistory(),enabled=!c.busy)
+        OutlinedTextField(t.albumArtist,{update(t.copy(albumArtist=it))},label={Text("Album artist")},modifier=Modifier.isolateProjectHistory(),enabled=!c.busy)
+        OutlinedTextField(t.year,{update(t.copy(year=it))},label={Text("Year")},modifier=Modifier.isolateProjectHistory(),enabled=!c.busy)
+        OutlinedTextField(t.genre,{update(t.copy(genre=it))},label={Text("Genre")},modifier=Modifier.isolateProjectHistory(),enabled=!c.busy)
+        OutlinedTextField(t.comment,{update(t.copy(comment=it))},label={Text("Comment")},modifier=Modifier.isolateProjectHistory(),enabled=!c.busy)
+        OutlinedTextField(t.copyright,{update(t.copy(copyright=it))},label={Text("Copyright")},modifier=Modifier.isolateProjectHistory(),enabled=!c.busy)
+        OutlinedTextField(t.lyrics,{update(t.copy(lyrics=it))},label={Text("Lyrics, plain or LRC")},enabled=!c.busy,modifier=Modifier.isolateProjectHistory().fillMaxWidth())
         Text("Lyrics use output time. Later timeline edits do not retime this metadata automatically. Regenerate from reviewed spoken words after changing the edit.",style=MaterialTheme.typography.bodySmall)
         val words=p.copy(externalSubtitles=null).request().timedWords()
         FlowRowCompat {
@@ -1008,7 +1008,7 @@ private fun EditPanel(c: EditorController,p: DesktopProject,window:java.awt.Fram
             OutlinedButton(onClick={c.work("Reading installed FFmpeg help…"){c.studioCatalog=c.studio.catalog();c.status="Installed FFmpeg catalogue loaded."}},enabled=!c.busy){Text("Read installed catalogue")}
             OutlinedButton(onClick={c.studioText=com.cuscus.ffmpeggui.core.command.studio.tidyCommand(c.studioText,c.studioCatalog)},enabled=!c.busy){Text("Tidy command")}
         }
-        OutlinedTextField(c.studioText,{c.studioText=it},label={Text("FFmpeg command")},modifier=Modifier.fillMaxWidth().heightIn(min=160.dp,max=280.dp),enabled=!c.busy)
+        OutlinedTextField(c.studioText,{c.studioText=it},label={Text("FFmpeg command")},modifier=Modifier.isolateProjectHistory().fillMaxWidth().heightIn(min=160.dp,max=280.dp),enabled=!c.busy)
         Text("${c.studioCatalog.filters.size} filters, ${c.studioCatalog.encoders.size} encoders read from this system.")
         lint.take(12).forEach {Text("${it.severity}: ${it.code} ${it.subject}",color=if(it.severity==com.cuscus.ffmpeggui.core.command.studio.LintSeverity.ERROR)MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)}
         val validation=runCatching {c.studio.validate(p,c.studioText)}.exceptionOrNull()?.message
@@ -1041,7 +1041,7 @@ private fun EditPanel(c: EditorController,p: DesktopProject,window:java.awt.Fram
             FlowRowCompat {CompressionLevel.entries.forEach {level->FilterChip(v.level==level,{update(v.copy(level=level))},label={Text(level.name.lowercase())},enabled=!c.busy)}}
             Text("A target is a hard maximum here: if the encoded file is larger, export fails without replacing your output. Exact size may be impossible. HDR must be off. Unsupported output formats are rejected.",style=MaterialTheme.typography.bodySmall)
             var target by remember(v.targetBytes) {mutableStateOf(if(v.targetBytes==0L)""else v.targetBytes.toString())}
-            OutlinedTextField(target,{text->if(text.length<13 && text.all {it.isDigit()})target=text},label={Text("Target bytes (empty = preset)")},enabled=!c.busy)
+            OutlinedTextField(target,{text->if(text.length<13 && text.all {it.isDigit()})target=text},label={Text("Target bytes (empty = preset)")},modifier=Modifier.isolateProjectHistory(),enabled=!c.busy)
             Button(onClick={val n=target.toLongOrNull() ?: 0;update(v.copy(targetBytes=n.coerceIn(0,100_000_000_000)))},enabled=!c.busy){Text("Apply target")}
             Row {Checkbox(v.pngPalette,{update(v.copy(pngPalette=it))},enabled=!c.busy);Text("PNG: reduce to 256 colours")}
             Text("PNG target fitting is not supported. Lossy audio target fitting is bitrate-based and can fail for tiny files. HEVC support varies between players. Render/export to check the result.",style=MaterialTheme.typography.bodySmall)
@@ -1057,7 +1057,7 @@ private fun EditPanel(c: EditorController,p: DesktopProject,window:java.awt.Fram
         Text("Offline subtitle translation",style=MaterialTheme.typography.titleLarge)
         Text("Import a direct Marian/Opus-MT language pair. Translation runs locally in an isolated process. Model files are not automatically downloaded. Hashes are recorded at import and checked again, but are not publisher-authenticated pins. Use only trusted model files.")
         Text("Up to500short cues,1000characters each. Long token sequences are rejected, not silently truncated. Output keeps cue times and source binding, but inline styling can change. Translation may be wrong: review every result before export.",style=MaterialTheme.typography.bodySmall)
-        OutlinedTextField(repo,{repo=it},label={Text("Model repository, e.g. Xenova/opus-mt-en-fr")},enabled=!c.busy)
+        OutlinedTextField(repo,{repo=it},label={Text("Model repository, e.g. Xenova/opus-mt-en-fr")},modifier=Modifier.isolateProjectHistory(),enabled=!c.busy)
         OutlinedButton(onClick={Desktop.getDesktop().browse(java.net.URI("https://huggingface.co/Xenova/opus-mt-en-fr"))},enabled=!c.busy) {Text("Open example model files")}
         Text("Select config.json, vocab.json, source.spm, encoder_model_quantized.onnx and decoder_model_quantized.onnx. Quantized ONNX files are in the repository's onnx folder. Multilingual/pivot routes are still being ported.",style=MaterialTheme.typography.bodySmall)
         Button(onClick={
@@ -1131,7 +1131,7 @@ private fun EditPanel(c: EditorController,p: DesktopProject,window:java.awt.Fram
         Button(onClick={val d=FileDialog(window,"Import exact original Kokoro tar.bz2",FileDialog.LOAD);d.isVisible=true;d.file?.let {name->val f=File(d.directory,name);c.work("Verifying and unpacking pinned Kokoro archive…"){DesktopDub.importArchive(f);c.status="Kokoro archive imported and original pins verified."}}},enabled=!c.busy){Text("Import pinned Kokoro archive")}
         Text("Kokoro: hexgrad, Apache2.0. AudioSeal: Meta, MIT. eSpeak NG: GPL, separately installed by your package manager. Imported archive also contains eSpeak data. At least1.2GiB free RAM is required. Other languages and Piper are still being ported.",style=MaterialTheme.typography.bodySmall)
         FlowRowCompat {com.cuscus.ffmpeggui.core.dub.DubLanguage.EN_US.voices.forEach {v->FilterChip(voice==v.id,{voice=v.id},label={Text(v.label)},enabled=!c.busy)}}
-        OutlinedTextField(text,{if(it.length<=300)text=it;cues=null;cueOrigin="Single text cue"},label={Text("Single cue, starts at0seconds, up to20seconds")},enabled=!c.busy,modifier=Modifier.fillMaxWidth())
+        OutlinedTextField(text,{if(it.length<=300)text=it;cues=null;cueOrigin="Single text cue"},label={Text("Single cue, starts at0seconds, up to20seconds")},enabled=!c.busy,modifier=Modifier.isolateProjectHistory().fillMaxWidth())
         Button(onClick={val d=FileDialog(window,"Read standalone SRT cue times (not project timeline)",FileDialog.LOAD);d.isVisible=true;d.file?.let {name->c.work("Reading dubbing cues…"){val f=File(d.directory,name);require(f.extension.equals("srt",true));val s=DesktopSubtitles.import(f,0);val parsed=com.cuscus.ffmpeggui.core.preview.SubtitleParser().parse(s.content).map {com.cuscus.ffmpeggui.core.dub.DubTiming.Line(it.startMs,it.endMs,it.text)};require(parsed.size in 1..30);cues=parsed;cueOrigin="Standalone SRT";c.status="Read ${parsed.size} standalone cues. Times are not remapped by project edits."}}},enabled=!c.busy){Text("Use standalone timed SRT")}
         Button(onClick={c.project?.let {project->c.work("Snapshotting edited output-clock cues…"){cues=DesktopDub.projectLines(project);cueOrigin="Edited project snapshot";c.status="Cues frozen on the current output clock. Later timeline edits will not retime them."}}},enabled=!c.busy){Text("Snapshot project subtitle/transcript cues")}
         Text("$cueOrigin: ${cues?.size ?: 1}cue(s). Snapshot again after timeline changes.")

@@ -16,6 +16,22 @@ fun main(args:Array<String>)=runBlocking {
     var passed=0
     suspend fun verify(name:String,block:suspend ()->Unit) { block(); passed++;println("PASS $name") }
     val video=media.probe(File(folder,"video.mp4").path)
+    verify("source waveform bounded real decode silence levels cache and trim clock") {
+        val source=media.probe(File(folder,"waveform-check.wav").path)
+        val reader=DesktopWaveforms(media);val data=reader.source(source)
+        check(data.peaks.size<=4096 && data.durationMs==4000L && data.peak(100,800)==0f)
+        check(data.peak(1100,1800) in .75f.. .81f && data.peak(2100,2800) in .18f.. .22f && data.peak(3200,3800)==0f)
+        check(reader.source(source)===data)
+        val tooLong=source.copy(info=source.info.copy(durationMs=1_800_001))
+        check(runCatching {reader.source(tooLong)}.isFailure)
+        val p=DesktopProject.create(source).let {it.copy(timeline=Timeline(listOf(it.timeline.clips.single().copy(startMs=1000,endMs=3000,effects=Effects(speed=2f,reversed=true)))))}
+        val span=p.outputClipSpans().single()
+        val left=1000+p.mediaForClipOutput(0,span.startMs);val right=1000+p.mediaForClipOutput(0,span.endMs)
+        check(left>right && data.peak(left-300,left-100)<.3f && data.peak(right+100,right+300)>.7f)
+        val levels=p.waveformLevels(0,span,data,20);check(levels.first()<.3f && levels.last()>.7f)
+        val reversed=p.copy(effects=Effects(speed=1.5f,reversed=true));val reversedLevels=reversed.waveformLevels(0,reversed.outputClipSpans().single(),data,20)
+        check(reversedLevels.first()>.7f && reversedLevels.last()<.3f)
+    }
     verify("desktop precise trim duplicate focus actions and Undo") {
         val p=DesktopProject.create(video)
         val scope=CoroutineScope(Dispatchers.Default+SupervisorJob());val c=EditorController(scope)

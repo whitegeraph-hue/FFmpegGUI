@@ -57,6 +57,7 @@ building, project model JSON and smart-detector logic come from the shared core.
   the edit, selected clip and seek position (50 in-memory history entries).
   Redo restores the undone edit and selection; a new edit clears Redo. Saving
   does not clear history. Successful project entry clears both directions.
+  Text-field Ctrl+Z/Y/Shift+Z stays with text editing, not project history.
 - Unsaved project changes are shown in the header. Opening another source or
   project, or closing the window, asks before discarding edits. Keep editing or
   Escape cancels that action. A successful Save project clears the warning;
@@ -75,6 +76,7 @@ building, project model JSON and smart-detector logic come from the shared core.
   plus a small margin, use one decoder at a time and a 64-image cache. They are
   not live effect previews. A synthetic 100-clip, 3840×2160 source workflow was
   checked at 1366×768; this is not a general large-project performance claim.
+- Timeline source peaks are a mono 8kHz envelope, not the edited mix or a true-peak meter. They follow clip source trim/speed/reverse on the output ruler, but do not include gain, fades, DSP, transitions or added tracks. Stereo cancellation is possible. Work is limited to visible clips, one decoder, 20seconds, 30minute sources and16 cached4096-bin envelopes; unsupported inputs show a label.
 - Speed, volume, rotation, horizontal flip, brightness, contrast, saturation.
 - MP4/MKV/AVI/GIF and common audio/image output formats supported by the UI.
 - Real scene and beat analysis, selectable boundaries and application to the

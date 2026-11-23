@@ -25,3 +25,9 @@ print(root)
 with wave.open(str(root/'impulses.wav'),'wb') as w:
  w.setparams((1,2,48000,0,'NONE','not compressed'))
  w.writeframes(b''.join(struct.pack('<h',int(10000*math.sin(2*math.pi*600*i/48000))) if any(a<=i/48000<a+.01 for a in (.05,.5,1.,1.8)) else struct.pack('<h',0) for i in range(96000)))
+
+# Deterministic source-envelope qualification, silence then loud/quiet tones.
+import wave, struct, math
+with wave.open(str(root / "waveform-check.wav"), "wb") as target:
+    target.setparams((1, 2, 8000, 0, "NONE", "not compressed"))
+    target.writeframes(b"".join(struct.pack("<h", int((.8 if 1 <= i/8000 < 2 else .2 if 2 <= i/8000 < 3 else 0)*32767*math.sin(2*math.pi*400*i/8000))) for i in range(32000)))
