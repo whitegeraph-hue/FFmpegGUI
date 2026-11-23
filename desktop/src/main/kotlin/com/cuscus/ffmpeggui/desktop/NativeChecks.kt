@@ -684,7 +684,7 @@ fun main(args:Array<String>)=runBlocking {
         check(DesktopProvenance.speechNeeded(layered));check(layered.request().sounds.single().aiVoice!=null)
         for(format in listOf(OutputFormat.MP4,OutputFormat.MKV,OutputFormat.MP3,OutputFormat.FLAC,OutputFormat.WAV)) {
             val output=File(folder,"voice-disclosed.${format.name.lowercase()}");exporter.export(layered.copy(format=format),output)
-            check(DesktopProvenance.aiSpeech(output));media.process.checked(listOf("ffmpeg","-v","error","-i",output.path,"-f","null","-"))
+            check(DesktopProvenance.aiSpeech(output));check(!media.probe(output.path).aiPicture);media.process.checked(listOf("ffmpeg","-v","error","-i",output.path,"-f","null","-"))
         }
         val saved=File(folder,"voice-disclosed.ffgui.json");DesktopProjects.save(layered,saved);check(DesktopProjects.load(saved,media).sounds.single().source.aiSpeech)
         check(!DesktopProvenance.speechNeeded(layered.copy(sounds=listOf(sound.copy(muted=true)))))

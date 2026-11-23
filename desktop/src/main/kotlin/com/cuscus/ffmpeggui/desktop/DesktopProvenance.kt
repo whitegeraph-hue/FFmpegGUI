@@ -9,19 +9,23 @@ import com.cuscus.ffmpeggui.core.provenance.*
 
 /** Preserve existing machine-readable AI picture and voice disclosures, not detection of unmarked AI. */
 object DesktopProvenance {
+    private fun pictureBytes(bytes:ByteArray):Boolean {
+        val found=AiMarksReader.scan(bytes)
+        return found.ai && (!found.voice || bytes.toString(Charsets.ISO_8859_1).contains(AiDisclosure.PICTURE_TEXT))
+    }
     fun aiPicture(file:File):Boolean {
         file.inputStream().buffered().use {input->
             val xmp=AiMarksReader.xmp(input)
-            if(xmp!=null && AiMarksReader.changedWithAi(xmp))return true
+            if(xmp!=null && AiMarksReader.changedWithAi(xmp))return !xmp.contains(AiDisclosure.SPEECH_TEXT) || xmp.contains(AiDisclosure.PICTURE_TEXT)
         }
         return RandomAccessFile(file,"r").use {input->
             val length=input.length();val window=2_000_000
             val head=ByteArray(minOf(length,window.toLong()).toInt());input.readFully(head)
-            if(AiMarksReader.scan(head).ai)return@use true
+            if(pictureBytes(head))return@use true
             if(length>window) {
                 input.seek(maxOf(window.toLong(),length-window))
                 val tail=ByteArray((length-input.filePointer).toInt());input.readFully(tail)
-                AiMarksReader.scan(tail).ai
+                pictureBytes(tail)
             } else false
         }
     }
