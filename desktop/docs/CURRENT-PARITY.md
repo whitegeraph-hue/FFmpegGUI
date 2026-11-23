@@ -52,7 +52,11 @@ has been qualified. The original full Linux request is still open.
    follow tracking. Speech raw selection is now scoped; source-wide Listen remains
    explicit with no clip selected. Clip words override source words for that
    occurrence. Speech inference is raw, before speed/reverse/DSP, then captions
-   follow those edits. Multi-source follow still needs a per-clip filter pipeline,
+   follow those edits. With no clip selected, transcript shows source-wide words
+   only; reselect a recognized clip for its words. Source Listen does not replace
+   keyed clip words. A word spanning a split can appear in both halves.
+   Clip speech storage is capped equally on inference, save and load:10,000groups
+   and200,000words; a rejected save leaves the old file intact. Multi-source follow still needs a per-clip filter pipeline,
    not removal of its current safety gate.
 3. Timeline/layer interaction and keyboard access, preserving the current stable
    monitor and honest render-first behavior. Live-preview parity is a larger task.

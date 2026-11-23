@@ -17,6 +17,7 @@ object DesktopProjects {
     private fun core(value: CoreJson): JsonElement = Json.parseToJsonElement(JsonText.write(value))
     private fun read(value: JsonElement): CoreJson.Obj = JsonText.parse(value.toString()) as? CoreJson.Obj ?: error("Expected model object")
     fun save(project: DesktopProject, target: File) {
+        DesktopSpeech.validateStored(project.wordsByClip)
         val data=buildJsonObject {
             put("type","ffmpeggui-linux-project"); put("version",1)
             put("sources",buildJsonArray { project.sources.forEach { add(buildJsonObject { put("path",it.path); put("size",File(it.path).length()); put("durationMs",it.info.durationMs) }) } })
@@ -128,7 +129,7 @@ object DesktopProjects {
         val words=data["words"]!!.jsonArray.map { w -> w.jsonObject.let { SpokenWord(it["startMs"]!!.jsonPrimitive.long,it["endMs"]!!.jsonPrimitive.long,it["text"]!!.jsonPrimitive.content) } }
         val perSource=data["wordsBySource"]?.jsonObject?.mapValues {(_,v)->v.jsonArray.map {w->w.jsonObject.let {SpokenWord(it["startMs"]!!.jsonPrimitive.long,it["endMs"]!!.jsonPrimitive.long,it["text"]!!.jsonPrimitive.content)}}} ?: emptyMap()
         val perClip=data["wordsByClip"]?.jsonObject?.mapValues {(_,v)->v.jsonArray.map {w->w.jsonObject.let {SpokenWord(it["startMs"]!!.jsonPrimitive.long,it["endMs"]!!.jsonPrimitive.long,it["text"]!!.jsonPrimitive.content)}}} ?: emptyMap()
-        require(perClip.size<=10000 && perClip.values.sumOf {it.size}<=200000) {"Too many clip words"}
+        DesktopSpeech.validateStored(perClip)
         require(perSource.keys.all {key->sources.any {it.path==key}}){"Words refer to missing source."}
         var image=data["image"]?.let {ModelJson.imageEdit(read(it))} ?: ImageEdit()
         if(image.key?.cutsSubject==true) {

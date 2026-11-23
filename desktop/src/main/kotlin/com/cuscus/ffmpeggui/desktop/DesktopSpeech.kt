@@ -6,6 +6,9 @@ import java.io.File
 
 /** Inference uses raw selected footage; edits keep the recognizer's source clock. */
 object DesktopSpeech {
+    fun validateStored(words:Map<String,List<SpokenWord>>) {
+        require(words.size<=10000 && words.values.sumOf {it.size.toLong()}<=200000L) {"Too many clip words. Save fewer recognized clip groups in this project."}
+    }
     fun words(project:DesktopProject,source:Int,clipId:String?):List<SpokenWord> {
         val clip=project.timeline.clips.firstOrNull {it.id==clipId}
         val words=clip?.let {project.wordsByClip[it.speechKey ?: it.id]} ?: project.sourceWords(source)
@@ -18,7 +21,9 @@ object DesktopSpeech {
         val key=java.util.UUID.randomUUID().toString()
         val timeline=project.timeline.copy(clips=project.timeline.clips.map {if(it.id==clipId)it.copy(speechKey=key)else it})
         val used=timeline.clips.map {it.speechKey ?: it.id}.toSet()
-        return project.copy(timeline=timeline,wordsByClip=(project.wordsByClip+(key to words)).filterKeys {it in used})
+        val stored=(project.wordsByClip+(key to words)).filterKeys {it in used}
+        validateStored(stored)
+        return project.copy(timeline=timeline,wordsByClip=stored)
     }
     fun timedWords(project:DesktopProject):List<SpokenWord> {
         val segments=project.requestSegments()

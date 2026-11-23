@@ -60,6 +60,12 @@ fun main(args:Array<String>)=runBlocking {
         val legacyJson=Json.parseToJsonElement(legacyFile.readText()).jsonObject.toMutableMap();legacyJson.remove("wordsByClip")
         legacyFile.writeText(JsonObject(legacyJson).toString())
         check(DesktopProjects.load(legacyFile,media).request().timedWords().size==2)
+        val unchanged=File(folder,"clip-speech-limit.ffgui.json").apply {writeText("keep previous save")}
+        for(tooMuch in listOf((0..10000).associate {it.toString() to emptyList<SpokenWord>()},mapOf("limit" to List(200001) {words.single()}))) {
+            check(runCatching {DesktopProjects.save(p.copy(wordsByClip=tooMuch),unchanged)}.isFailure)
+            check(unchanged.readText()=="keep previous save")
+        }
+        DesktopSpeech.validateStored(mapOf("at-limit" to List(200000) {words.single()}))
         val rendered=File(folder,"clip-speech-render.mp4");exporter.export(p,rendered)
         val plain=File(folder,"clip-speech-plain.mp4");exporter.export(base,plain)
         for((time,visible) in listOf(1400L to false,2800L to true)) {
