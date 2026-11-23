@@ -66,6 +66,8 @@ class EditorOpenScreenshotTest {
             listOf("Pause cuts", "Scenes", "Beats", "Follow crop").forEach { tool ->
                 assertTrue("tool not clickable: $tool", Ui.clickScrolling(tool))
                 shot("editor-tool-" + tool.lowercase().replace(' ', '-'))
+                assertTrue("could not close panel: $tool",Ui.click("Done"))
+                Thread.sleep(400)
             }
         }
     }
