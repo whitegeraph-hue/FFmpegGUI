@@ -526,3 +526,22 @@ rejected until its adapter exists. Latest full package8b6predatesHDR/canvas.
   completion shows added marked Sound track, Sound tracks controls appear,
   Undo removes track leaving generated WAV on disk. Pixels inspected. Project
   cue snapshot mapping is native-test covered; its UI button not yet clicked.
+
+
+### 2026-11-23 05:50 EET: generated HDR area masks
+- Original HdrAreas alignment/share and GainMapBuilder now take an upright
+  source alpha mask for subject/background/brush areas. Crop, rotation,
+  perspective and border use shared geometry. Canvas and original-camera HDR
+  remain explicitly blocked. No HDR hardware preview claim.
+- Matching external masks are validated, copied into owned mask storage,
+  embedded in projects, restored with bounded geometry checks and retained
+  across Undo. Current subject mask can be reused. Direct HDR painting remains
+  unported; BRUSH accepts a separately painted alpha mask.
+-59 native tests pass, including actual rotated half-mask gain-map JPGs,
+  inverse background, exported reread, save/delete-mask/load/reexport, missing
+  mask rejection and output/project overwrite protection. Actual gain-map
+  pixels inspected. Controls displayed and inspected; chooser not yet clicked.
+- LaMa adapter checkpoint9ed9dbd remains non-UI pending clean packaged actual
+  inference and visual inspection. Local2GiB host correctly refuses its2,000MiB
+  available-memory guard; no output claim. Desktop conversion pin does not
+  weaken or replace the original Android unpinned LaMa placeholder.

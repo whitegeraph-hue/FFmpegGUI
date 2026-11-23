@@ -53,6 +53,12 @@ object DesktopProjects {
                 val file=File(path);require(file.length() in 1..24_000_000) {"Subject mask is missing or too large"}
                 put("subjectMask",java.util.Base64.getEncoder().encodeToString(file.readBytes()))
             }
+            project.image.hdr?.let {hdr->
+                listOf("hdrSubjectMask" to hdr.mask,"hdrBrushMask" to hdr.brush).forEach {(key,path)->path?.let {
+                    val file=File(it);DesktopHdr.readMask(file,project.sources.single().info.width,project.sources.single().info.height)
+                    put(key,java.util.Base64.getEncoder().encodeToString(file.readBytes()))
+                }}
+            }
             put("audioEffects",core(ModelJson.write(project.audioEffects)))
             put("gif",buildJsonObject { val g=project.encoding.gif;put("width",g.width);put("fps",g.fps);put("colors",g.colors);put("dither",g.dither.name);put("loops",g.loops);put("smaller",g.smaller) })
             project.followCrop?.let { put("followCrop",core(ModelJson.writeFollowCrop(it))) }
@@ -67,6 +73,7 @@ object DesktopProjects {
             put("words",buildJsonArray { project.words.forEach { w -> add(buildJsonObject { put("startMs",w.startMs);put("endMs",w.endMs);put("text",w.text) }) } })
         }
         require((project.sources+project.sounds.map {it.source}+project.pictures.map {it.source}).none { File(it.path).canonicalFile==target.canonicalFile }) { "Cannot replace a source with a project." }
+        require(listOfNotNull(project.image.hdr?.mask,project.image.hdr?.brush).none {File(it).canonicalFile==target.canonicalFile}) {"Cannot replace an HDR mask with a project."}
         require(project.image.key?.mask?.let {File(it).canonicalFile!=target.canonicalFile} ?: true) {"Cannot replace a subject mask with a project."}
         val temporary=File(target.parentFile,".${target.name}-${UUID.randomUUID()}.tmp")
         try {
@@ -142,6 +149,22 @@ object DesktopProjects {
                 try {tmp.writeBytes(bytes);Files.move(tmp.toPath(),target.toPath(),StandardCopyOption.REPLACE_EXISTING)} finally {tmp.delete()}
             }
             image=image.copy(key=image.key!!.copy(mask=target.absolutePath))
+        }
+        image.hdr?.let {hdr->
+            fun restore(key:String,path:String?):String? {
+                if(path==null)return null
+                val encoded=data[key]?.jsonPrimitive?.content ?: error("Saved HDR mask is missing")
+                require(encoded.length<=32_000_000) {"HDR mask is too large"}
+                val bytes=java.util.Base64.getDecoder().decode(encoded)
+                val temp=File.createTempFile("hdr-restore-",".png",DesktopMasks.directory())
+                try {
+                    temp.writeBytes(bytes);DesktopHdr.readMask(temp,sources.single().info.width,sources.single().info.height)
+                    val hash=java.security.MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") {"%02x".format(it)}
+                    val target=File(DesktopMasks.directory(),"$hash.png")
+                    Files.move(temp.toPath(),target.toPath(),StandardCopyOption.REPLACE_EXISTING);return target.absolutePath
+                }finally {temp.delete()}
+            }
+            image=image.copy(hdr=hdr.copy(mask=restore("hdrSubjectMask",hdr.mask),brush=restore("hdrBrushMask",hdr.brush)))
         }
         return DesktopProject(sources,timeline,OutputFormat.valueOf(data["format"]!!.jsonPrimitive.content),compression=data["compression"]?.jsonObject?.let {v->Compression(CompressionLevel.valueOf(v["level"]!!.jsonPrimitive.content),v["target"]!!.jsonPrimitive.long.also {require(it in 0..100_000_000_000)},v["palette"]!!.jsonPrimitive.boolean)},coverPng=data["coverPng"]?.jsonPrimitive?.content?.also {DesktopCover.decode(it)},photoPlacement=data["photoPlacement"]?.jsonObject?.let {v->ImagePlacement(x=v["x"]!!.jsonPrimitive.float,y=v["y"]!!.jsonPrimitive.float,widthFraction=v["width"]!!.jsonPrimitive.float,opacity=v["opacity"]!!.jsonPrimitive.float,rotationDegrees=v["rotation"]!!.jsonPrimitive.float,layer=v["layer"]!!.jsonPrimitive.int,stretch=v["stretch"]!!.jsonPrimitive.float,blend=LayerBlend.valueOf(v["blend"]!!.jsonPrimitive.content),aspect=v["aspect"]?.jsonPrimitive?.float ?: 0f)},effects=effects,words=words,stabilization=data["stabilization"]?.jsonObject?.let {v->Stabilization(v["shakiness"]!!.jsonPrimitive.int.coerceIn(1,10),v["smoothing"]!!.jsonPrimitive.int.coerceIn(0,100))},externalSubtitles=data["externalSubtitles"]?.jsonObject?.let {v->DesktopSubtitles(v["name"]!!.jsonPrimitive.content,v["content"]!!.jsonPrimitive.content,v["source"]!!.jsonPrimitive.int,v["enabled"]!!.jsonPrimitive.boolean).also {it.validate();require(it.sourceIndex in sources.indices){"Subtitle source missing"}}},
             encoding=EncodingSettings(resolution=data["resolution"]?.jsonPrimitive?.content?.let { Resolution.valueOf(it) } ?: Resolution.ORIGINAL, quality=data["quality"]?.jsonPrimitive?.float ?: .7f,

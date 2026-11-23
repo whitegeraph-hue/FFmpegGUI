@@ -50,6 +50,7 @@ class DesktopStudio(private val media:DesktopMedia) {
     }
     suspend fun export(p:DesktopProject,text:String,target:File):DesktopSource {
         validate(p,text)
+        require(listOfNotNull(p.image.hdr?.mask,p.image.hdr?.brush).none {File(it).canonicalFile==target.canonicalFile}) {"HDR masks cannot be overwritten."}
         require(p.image.key?.mask?.let {File(it).canonicalFile!=target.canonicalFile} ?: true){"Subject masks cannot be overwritten."}
         require((p.sources+p.sounds.map {it.source}+p.pictures.map {it.source}).none {File(it.path).canonicalFile==target.canonicalFile}){"Source files cannot be overwritten."}
         val output=tokenizeCommandLine(text).lastOrNull {it.matches(Regex("output\\.[A-Za-z0-9]+"))}!!

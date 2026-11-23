@@ -75,7 +75,7 @@ class EditorController(val scope: CoroutineScope) {
         mutate(p.copy(sources=sources,timeline=p.timeline.append(Clip(id(),source.path,endMs=source.info.durationMs)),followCrop=null))
         selectedSource=sources.indexOfFirst {it.path==source.path};resetAnalysis();status="Source added: ${File(source.path).name}"
     }
-    private fun pruneMasks(){DesktopMasks.prune((history.toList()+listOfNotNull(project)).mapNotNull {it.image.key?.mask}.toSet())}
+    private fun pruneMasks(){DesktopMasks.prune((history.toList()+listOfNotNull(project)).flatMap {listOfNotNull(it.image.key?.mask,it.image.hdr?.mask,it.image.hdr?.brush)}.toSet())}
     fun resetAnalysis() { pauseStatus=PauseCutsStatus.Idle; sceneStatus=SceneSplitsStatus.Idle; beatStatus=BeatsStatus.Idle; snap=false; followStatus=FollowCropStatus.Idle }
     fun mutate(next: DesktopProject) {
         project?.let { history.addLast(it); if (history.size>50) history.removeFirst() }

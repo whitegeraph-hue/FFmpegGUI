@@ -495,6 +495,28 @@ fun main(args:Array<String>)=runBlocking {
         javax.imageio.ImageIO.write(sdr,"png",File(folder,"ultra-hdr-sdr-proof.png"))
         javax.imageio.ImageIO.write(map,"png",File(folder,"ultra-hdr-map-proof.png"))
     }
+    verify("HDR alpha area rotated geometry inverse background portable masks and overwrite guards") {
+        val source=media.probe(File(folder,"sticker.png").path)
+        val maskFile=File(folder,"hdr-half-mask.png");val bitmap=java.awt.image.BufferedImage(100,100,java.awt.image.BufferedImage.TYPE_INT_ARGB)
+        for(y in 0 until 100)for(x in 0 until 100)bitmap.setRGB(x,y,if(x<50)0xffffffff.toInt()else 0x00ffffff)
+        javax.imageio.ImageIO.write(bitmap,"png",maskFile);bitmap.flush()
+        val project=DesktopProject.create(source).copy(format=OutputFormat.JPG,effects=Effects(rotation=Rotation.entries.first {it.degrees==90}),image=ImageEdit(hdr=ImageHdr(intensity=.7f,area=HdrArea.SUBJECT,mask=maskFile.path)))
+        fun gain(file:File):Pair<Int,Int> {
+            val embedded=com.cuscus.ffmpeggui.core.hdr.UltraHdr.read(file.readBytes()) ?: error("Missing HDR area map")
+            val image=javax.imageio.ImageIO.read(java.io.ByteArrayInputStream(embedded.gainMapJpeg))
+            try {return (image.getRGB(image.width/2,image.height/4) and 255) to (image.getRGB(image.width/2,3*image.height/4) and 255)}finally {image.flush()}
+        }
+        val out=File(folder,"hdr-area-subject.jpg");exporter.export(project,out);val (a,b)=gain(out);check(kotlin.math.abs(a-b)>80) {"Area map not separated: $a $b"}
+        val inverse=File(folder,"hdr-area-background.jpg");exporter.export(project.copy(image=project.image.copy(hdr=project.image.hdr!!.copy(area=HdrArea.BACKGROUND))),inverse);val (c,d)=gain(inverse);check((a-b)*(c-d)<0) {"Background must invert subject"}
+        val bytes=maskFile.readBytes();check(runCatching {exporter.export(project,maskFile)}.isFailure);check(bytes.contentEquals(maskFile.readBytes()))
+        check(runCatching {DesktopProjects.save(project,maskFile)}.isFailure)
+        val saved=File(folder,"hdr-area.ffgui.json");DesktopProjects.save(project,saved);maskFile.delete()
+        val restored=DesktopProjects.load(saved,media);check(restored.image.hdr!!.area==HdrArea.SUBJECT && File(restored.image.hdr!!.mask!!).isFile)
+        val reexport=File(folder,"hdr-area-restored.jpg");exporter.export(restored,reexport);check(gain(reexport)==(a to b))
+        val noMask=restored.copy(image=restored.image.copy(hdr=ImageHdr(area=HdrArea.BRUSH)))
+        check(runCatching {exporter.export(noMask,File(folder,"hdr-no-mask.jpg"))}.isFailure)
+        check(runCatching {DesktopHdr.readMask(File(folder,"video.mp4"),100,100)}.isFailure)
+    }
     verify("HDR non-JPG output explicitly rejected") {
         val still=media.probe(File(folder,"exif-6.jpg").path)
         val error=runCatching {exporter.export(DesktopProject.create(still).copy(format=OutputFormat.PNG,image=ImageEdit(hdr=ImageHdr())),File(folder,"hdr-rejected.png"))}.exceptionOrNull()

@@ -151,7 +151,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                                 }
                                 Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(12.dp)) {
                                     when(controller.tab) {
-                                        "Edit" -> EditPanel(controller,project)
+                                        "Edit" -> EditPanel(controller,project,window)
                                         "Subject cutout" -> SubjectPanel(controller,project)
                                         "Drawing" -> DrawingPanel(controller,project)
                                         "Dubbing" -> DubPanel(controller,window){name->pick(true,name)}
@@ -225,7 +225,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
 }
 
 @Composable
-private fun EditPanel(c: EditorController,p: DesktopProject) {
+private fun EditPanel(c: EditorController,p: DesktopProject,window:java.awt.Frame) {
     PanelCard {
         Text("Export format",style=MaterialTheme.typography.titleMedium)
         val formats=when { p.sources[0].info.isStill -> listOf(OutputFormat.JPG,OutputFormat.PNG,OutputFormat.WEBP,OutputFormat.BMP,OutputFormat.TIFF,OutputFormat.SVG,OutputFormat.ASCII,OutputFormat.ANSI)
@@ -256,7 +256,7 @@ private fun EditPanel(c: EditorController,p: DesktopProject) {
         }
     }
     GeometryPanel(c,p)
-    PhotoPanel(c,p)
+    PhotoPanel(c,p,window)
     ArtPanel(c,p)
     PanelCard {
         Text("Command preview",style=MaterialTheme.typography.titleMedium)
@@ -461,7 +461,7 @@ private fun EditPanel(c: EditorController,p: DesktopProject) {
     }
 }
 
-@Composable private fun PhotoPanel(c:EditorController,p:DesktopProject) {
+@Composable private fun PhotoPanel(c:EditorController,p:DesktopProject,window:java.awt.Frame) {
     if(!p.sources[0].info.isStill)return
     val e=p.image
     fun edit(v:ImageEdit)=c.mutate(p.copy(image=v))
@@ -510,10 +510,21 @@ private fun EditPanel(c: EditorController,p: DesktopProject) {
         e.hdr?.let {hdr->
             if(p.format!=OutputFormat.JPG)Text("HDR is on, but export requires JPG. Choose JPG or turn HDR off.",color=MaterialTheme.colorScheme.error)
             ValueSlider("HDR intensity",hdr.intensity,0f..1f,!c.busy){edit(e.copy(hdr=hdr.copy(intensity=it)))}
-            Text("JPG only, up to 8 megapixels. Gain map is generated from the edited light, not AI. SDR screens keep the ordinary JPG. HDR hardware display is not verified. Original-camera gain maps and area masks are still being ported.")
+            Text("HDR area")
+            FlowRowCompat {HdrArea.entries.forEach {area->FilterChip(hdr.area==area,{edit(e.copy(hdr=hdr.copy(area=area)))},label={Text(area.name)},enabled=!c.busy)}}
+            if(hdr.area!=HdrArea.EVERYWHERE) {
+                Text(if(hdr.areaMask==null)"Choose a matching upright alpha mask. White/opaque selects HDR; transparent excludes it. BACKGROUND inverts a subject mask." else "HDR mask: ${File(hdr.areaMask!!).name}")
+                OutlinedButton(onClick={val d=FileDialog(window,"Choose HDR alpha mask PNG",FileDialog.LOAD);d.isVisible=true;d.file?.let {name->val file=File(d.directory,name);c.work("Checking HDR mask…"){
+                    DesktopHdr.readMask(file,p.sources.single().info.width,p.sources.single().info.height)
+                    val target=File.createTempFile("hdr-",".png",DesktopMasks.directory());file.copyTo(target,true)
+                    edit(e.copy(hdr=if(hdr.area==HdrArea.BRUSH)hdr.copy(brush=target.path)else hdr.copy(mask=target.path)));c.status="HDR mask copied. Export JPG to inspect the gain map."
+                }}},enabled=!c.busy){Text("Choose HDR alpha mask")}
+                e.key?.mask?.let {path->OutlinedButton(onClick={edit(e.copy(hdr=if(hdr.area==HdrArea.BRUSH)hdr.copy(brush=path)else hdr.copy(mask=path)))},enabled=!c.busy){Text("Use current subject mask")}}
+            }
+            Text("JPG only, up to 8 megapixels, no picture canvas. Gain map is generated from edited light, not AI. SDR screens keep the ordinary JPG. HDR hardware display is not verified. Original-camera gain maps and direct HDR brush painting remain in progress.")
         }
         OutlinedButton(onClick={c.mutate(p.copy(image=ImageEdit(),photoPlacement=null))},enabled=!c.busy){Text("Reset photo settings")}
-        Text("Drawing and subject-mask brushes have separate tabs. Original/area HDR and richer layer gestures remain in progress.",style=MaterialTheme.typography.bodySmall)
+        Text("Drawing and subject-mask brushes have separate tabs. Original HDR, direct HDR brush painting and richer layer gestures remain in progress.",style=MaterialTheme.typography.bodySmall)
     }
 }
 

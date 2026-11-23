@@ -176,6 +176,7 @@ class DesktopExport(private val media: DesktopMedia = DesktopMedia()) {
     }
     suspend fun export(project: DesktopProject, output: File,onPhase:(String)->Unit={}): DesktopSource {
         require((project.sources+project.sounds.map {it.source}+project.pictures.map {it.source}).none { File(it.path).canonicalFile == output.canonicalFile }) { "Choose a new output. Source files are never overwritten." }
+        require(listOfNotNull(project.image.hdr?.mask,project.image.hdr?.brush).none {File(it).canonicalFile==output.canonicalFile}) {"Cannot replace an HDR mask with output."}
         require(project.image.key?.mask?.let {File(it).canonicalFile!=output.canonicalFile} ?: true) {"Cannot replace a subject mask with output."}
         require(project.compression==null || project.format in listOf(OutputFormat.MP4,OutputFormat.MKV,OutputFormat.JPG,OutputFormat.PNG,OutputFormat.MP3,OutputFormat.M4A,OutputFormat.OGG,OutputFormat.OPUS)) {"Compression is not supported for this output format. Turn it off or choose another format."}
         require(project.format != OutputFormat.CUSTOM) { "This output needs an adapter that is still being ported." }
@@ -248,7 +249,7 @@ class DesktopExport(private val media: DesktopMedia = DesktopMedia()) {
             } else null
             require(project.image.hdr==null || project.format==OutputFormat.JPG) {"HDR is enabled but this output is not JPG. Choose JPG or turn HDR off."}
             val hdr=project.image.hdr
-            require(hdr==null || (hdr.mode==HdrMode.GENERATED && hdr.area==HdrArea.EVERYWHERE && project.image.canvas==null)) {"This HDR mode needs an adapter still being ported."}
+            require(hdr==null || (hdr.mode==HdrMode.GENERATED && hdr.hasArea && project.image.canvas==null)) {"This HDR mode needs an adapter still being ported."}
             val hdrPictures=hdr?.let {HdrPictures(File(auxiliaries,"hdr-final.png").path,File(auxiliaries,"hdr-plain.png").path)}
             val cover=project.coverPng?.let {encoded->
                 require(project.format.coverWriting!=null) {"This format cannot hold album art. Choose MP3, M4A, FLAC, OGG or OPUS, or remove the cover."}
@@ -302,7 +303,7 @@ class DesktopExport(private val media: DesktopMedia = DesktopMedia()) {
                 best.copyTo(temporary,true)
             }
             require(target==null || temporary.length()<=target) {"Encoded output exceeds the target size. Increase the target or reduce resolution. No output was replaced."}
-            if(hdr!=null && hdrPictures!=null)DesktopHdr.assemble(temporary,File(hdrPictures.finalPng),File(hdrPictures.plainPng),hdr)
+            if(hdr!=null && hdrPictures!=null)DesktopHdr.assemble(temporary,File(hdrPictures.finalPng),File(hdrPictures.plainPng),hdr,project)
             val result = media.probe(temporary.path)
             require(result.info.isStill || result.info.durationMs > 0) { "Export verification failed." }
             DesktopProvenance.seal(project,temporary)
