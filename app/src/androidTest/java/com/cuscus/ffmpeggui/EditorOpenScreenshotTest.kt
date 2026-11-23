@@ -56,7 +56,7 @@ class EditorOpenScreenshotTest {
                 assertTrue("format chooser not shown", Ui.waitFor("Choose a format", 30_000))
                 shot("editor-format-chooser")
                 assertTrue("could not pick MP4", Ui.click("MP4"))
-                assertTrue("editor toolbar never showed 'Scenes'", Ui.waitFor("Scenes", 60_000))
+                assertTrue("editor toolbar never showed 'Split'", Ui.waitFor("Split", 60_000))
             } catch (e: Throwable) {
                 Ui.dump()
                 shot("editor-timeout")

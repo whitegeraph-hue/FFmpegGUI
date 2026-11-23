@@ -39,7 +39,7 @@ class SelectedClipRuntimeTest {
         ActivityScenario.launch<MainActivity>(intent).use { scenario ->
             assertTrue(Ui.waitFor("Choose a format", 30000))
             assertTrue(Ui.click("MP4"))
-            assertTrue(Ui.waitFor("Scenes", 60000))
+            assertTrue(Ui.waitFor("Split", 60000))
             lateinit var vm: ConversionViewModel
             scenario.onActivity { vm = ViewModelProvider(it, ConversionViewModel.Factory)[ConversionViewModel::class.java] }
             waitFor("source probe did not finish") { vm.mediaInfo.value != null }

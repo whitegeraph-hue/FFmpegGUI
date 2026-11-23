@@ -96,10 +96,14 @@ object Ui {
 
     /** Clicks [text], swiping the tool strip left a few times to bring it in view. */
     fun clickScrolling(text: String): Boolean {
-        repeat(4) {
+        repeat(15) {
             if (click(text)) return true
-            ui.executeShellCommand("input swipe 1000 2175 200 2175 250").use { it.fileDescriptor }
-            Thread.sleep(600)
+            val strip=all().firstOrNull {n->
+                val r=android.graphics.Rect().also {n.getBoundsInScreen(it)}
+                n.isScrollable && r.width()>r.height()*2 && r.height()>20
+            }
+            if(strip!=null)strip.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)
+            Thread.sleep(400)
         }
         return false
     }
