@@ -59,6 +59,17 @@ object DesktopDub {
         for((rel,value) in files){currentCoroutineContext().ensureActive();require(!rel.startsWith('/') && '\\' !in rel && rel.split('/').none {it in listOf("",".","..")});val f=File(directory,rel);require(f.isFile && !Files.isSymbolicLink(f.toPath()) && f.length()<=350_000_000 && hash(f)==value.jsonPrimitive.content) {"Kokoro file changed: $rel. Import the original archive again."}}
         for((name,pin) in DubModel.PINNED)require(files[name]?.jsonPrimitive?.content==pin) {"Kokoro pinned identity missing"}
     }
+    /** Snapshot on the final output clock, not the selected source clock. */
+    fun projectLines(project:DesktopProject):List<DubTiming.Line> {
+        val request=project.request()
+        val srt=project.externalSubtitles?.takeIf {it.enabled}?.let {subtitles->
+            val cues=DesktopSubtitles.cuesOnTimeline(subtitles,request)
+            com.cuscus.ffmpeggui.core.subtitles.SrtSubtitles.write(com.cuscus.ffmpeggui.core.subtitles.SubtitleLayout.ofCues(cues,project.subtitleStyle ?: com.cuscus.ffmpeggui.core.subtitles.SubtitleStyle(),request.subtitleFrameRatio),project.effects.effectiveSpeed)
+        } ?: DesktopExport().transcript(project,com.cuscus.ffmpeggui.core.model.OutputFormat.SRT)
+        val lines=com.cuscus.ffmpeggui.core.preview.SubtitleParser().parse(srt).map {DubTiming.Line(it.startMs,it.endMs,it.text)}
+        require(lines.isNotEmpty() && lines.size<=30 && project.outputDurationMs<=60000) {"Project dubbing is limited to30cues and one minute"}
+        return lines
+    }
     suspend fun generate(directory:File,markerDirectory:File,lines:List<DubTiming.Line>,voice:Int,speed:Float,endMs:Long?,target:File,progress:(String)->Unit) {
         require(lines.size in 1..30 && lines.sumOf {it.text.length}<=3000 && lines.all {it.text.length<=300 && it.startMs>=0 && it.endMs>it.startMs && it.endMs<=60_000} && lines.zipWithNext().all {it.first.startMs<it.second.startMs} && voice in DubLanguage.EN_US.voices.map {it.id} && speed in .75f..1.5f && (endMs==null || endMs in 1..60_000)) {"Dub up to30short US-English cues within one minute"}
         for(pin in listOf(MarkerModel.GENERATOR,MarkerModel.DETECTOR))DesktopModelFiles.verify(File(markerDirectory,pin.name),pin.sha256,pin.bytes)

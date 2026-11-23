@@ -690,8 +690,25 @@ fun main(args:Array<String>)=runBlocking {
         check(!DesktopProvenance.speechNeeded(layered.copy(sounds=listOf(sound.copy(muted=true)))))
         check(!DesktopProvenance.speechNeeded(layered.copy(sounds=listOf(sound.copy(placed=sound.placed.copy(volume=0f))))))
         val studioOut=File(folder,"voice-studio.wav");val studio=DesktopStudio(media);val alias=studio.aliases(layered).entries.first {it.value==voice.canonicalPath}.key;studio.export(layered,"ffmpeg -i $alias output.wav",studioOut);check(DesktopProvenance.aiSpeech(studioOut))
+        val generic=File(folder,"generic-external.png");java.awt.image.BufferedImage(4,4,java.awt.image.BufferedImage.TYPE_INT_RGB).let {javax.imageio.ImageIO.write(it,"png",generic);it.flush()}
+        check(com.cuscus.ffmpeggui.core.provenance.AiSeal.mark(generic,com.cuscus.ffmpeggui.core.provenance.AiDisclosure(pictures=true))==com.cuscus.ffmpeggui.core.provenance.AiSeal.Marked.WRITTEN)
+        check(DesktopProvenance.aiPicture(generic))
+        val combined=File(folder,"combined-disclosure.mp4");File(folder,"voice-disclosed.mp4").copyTo(combined,overwrite=true)
+        check(com.cuscus.ffmpeggui.core.provenance.AiSeal.mark(combined,com.cuscus.ffmpeggui.core.provenance.AiDisclosure(pictures=true,speech=true))==com.cuscus.ffmpeggui.core.provenance.AiSeal.Marked.WRITTEN)
+        val both=media.probe(combined.path);check(both.aiSpeech && both.aiPicture)
+        val genericType=File(folder,"generic-external.svg").apply {writeText("<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"2\" height=\"2\"><metadata>"+com.cuscus.ffmpeggui.core.provenance.Xmp.packet(com.cuscus.ffmpeggui.core.provenance.AiDisclosure()).replace("<rdf:li xml:lang=\"x-default\"></rdf:li>","<rdf:li xml:lang=\"x-default\">External picture</rdf:li>")+"</metadata></svg>")}
+        check(DesktopProvenance.aiPicture(genericType))
         val main=DesktopProject(listOf(source),Timeline(listOf(Clip("voice",source.path,endMs=source.info.durationMs))));val mainOut=File(folder,"voice-main.mp3");exporter.export(main.copy(format=OutputFormat.MP3,tags=MetadataTags(stripAll=true)),mainOut);check(DesktopProvenance.aiSpeech(mainOut))
         val image=File(folder,"voice-no-speech.png");exporter.export(layered.copy(format=OutputFormat.PNG),image);check(!DesktopProvenance.aiSpeech(image))
+    }
+    verify("dub cue snapshots use edited output clock including global speed") {
+        val original="1\n00:00:01,000 --> 00:00:03,000\nHello Linux.\n\n2\n00:00:05,000 --> 00:00:07,000\nSecond cue.\n"
+        val edit=p.copy(timeline=Timeline(listOf(Clip("dub-clock",video.path,startMs=2000,endMs=8000,effects=Effects(speed=2f)))),effects=Effects(speed=2f),externalSubtitles=DesktopSubtitles("clock.srt",original,0))
+        val lines=DesktopDub.projectLines(edit)
+        check(lines.size==2);check(lines[0].startMs==0L && lines[0].endMs==250L);check(lines[1].startMs==750L && lines[1].endMs==1250L)
+        check(lines.all {it.endMs<=edit.outputDurationMs})
+        val transcript=p.copy(words=listOf(SpokenWord(1000,2000,"Hello Linux.")),effects=Effects(speed=2f))
+        val spoken=DesktopDub.projectLines(transcript);check(spoken.single().startMs==500L)
     }
     verify("cancel real process") {
         val start=System.currentTimeMillis()

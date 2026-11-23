@@ -510,3 +510,19 @@ rejected until its adapter exists. Latest full package8b6predatesHDR/canvas.
 - Dubbing UI notes importing standalone output via Sound tracks and preservation
   limits. Fresh generated WAV still has production saved-sample readback; later
   edits/recompression remain unguaranteed. Invisible pipeline reseal remains open.
+
+### 2026-11-23 05:25 EET: edited cue snapshot and optional generated track
+- Dubbing can snapshot enabled project subtitles or transcript onto final output
+  clock using original retimer/layout plus global speed.58native checks include
+  source trim+clip2x+global2x and transcript global speed. Later timeline edits do
+  not retime that snapshot or a saved dub, explicitly disclosed.
+- Optional add saved WAV as separate Sound track uses source probe, unchanged
+  original audio, undoable project mutation; Undo does not delete saved file.
+  No automatic duck/mute, alignment inference or invisible mix reseal claimed.
+- Voice-only MP4/MKV reimport is not marked as generated picture; combined and
+  generic external picture type remain recognized. Metadata tests are not a
+  guarantee about invisible marks after editing.
+- Actual Add saved WAV checkbox, Generate/Save, completion and Undo clicked;
+  completion shows added marked Sound track, Sound tracks controls appear,
+  Undo removes track leaving generated WAV on disk. Pixels inspected. Project
+  cue snapshot mapping is native-test covered; its UI button not yet clicked.

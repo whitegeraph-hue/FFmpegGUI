@@ -11,7 +11,10 @@ import com.cuscus.ffmpeggui.core.provenance.*
 object DesktopProvenance {
     private fun pictureBytes(bytes:ByteArray):Boolean {
         val found=AiMarksReader.scan(bytes)
-        return found.ai && (!found.voice || bytes.toString(Charsets.ISO_8859_1).contains(AiDisclosure.PICTURE_TEXT))
+        val text=bytes.toString(Charsets.ISO_8859_1)
+        val packets=Regex("<x:xmpmeta.*?</x:xmpmeta>",RegexOption.DOT_MATCHES_ALL).findAll(text).map {it.value}.toList()
+        if(packets.any {AiMarksReader.changedWithAi(it) && (!it.contains(AiDisclosure.SPEECH_TEXT) || it.contains(AiDisclosure.PICTURE_TEXT))})return true
+        return found.ai && (!found.voice || text.contains(AiDisclosure.PICTURE_TEXT))
     }
     fun aiPicture(file:File):Boolean {
         file.inputStream().buffered().use {input->
