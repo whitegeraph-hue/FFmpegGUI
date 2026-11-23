@@ -55,6 +55,8 @@ building, project model JSON and smart-detector logic come from the shared core.
   plays it inside the editor with an audio-sample clock, including cuts and effects. Physical target audio remains unverified.
 - Split, duplicate, precise source trim, remove and reorder clips. Undo restores
   the edit, selected clip and seek position (50 in-memory history entries).
+  Redo restores the undone edit and selection; a new edit clears Redo. Saving
+  does not clear history. Successful project entry clears both directions.
 - Unsaved project changes are shown in the header. Opening another source or
   project, or closing the window, asks before discarding edits. Keep editing or
   Escape cancels that action. A successful Save project clears the warning;

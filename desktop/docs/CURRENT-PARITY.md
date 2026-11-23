@@ -1,36 +1,34 @@
 # Current Linux preview status
 
-Audited 2026-11-23 after d9114fd, with project-switch safety fix 54733c0.
-This replaces the opening snapshot in PARITY.md for planning. PARITY.md remains
-an execution history. Implemented does not mean every input or every UI path
-has been qualified. The original full Linux request is still open.
+Audited 2026-11-23 through qualified internal137286d. PARITY.md remains an
+execution history. Implemented does not mean every input or UI path has been
+qualified. The original full Linux request remains open.
 
 ## Current checkpoint
 
-- d9114fd Debian amd64 preview: all three CI workflows green;933 shared tests,
-  71 native checks; actual downloaded packaged launcher and CI apt-installed
-  desktop entry inspected. Source monitor stays large at1366x768/nine clips.
-- 54733c0 safety successor:72 native checks locally; clears history, selection,
-  preview and transient analysis on successful project entry, validates first,
-  and routes native chooser and launch project entry through the same path.
-  All CI green and downloaded bundled launcher qualified with native project chooser
-  and post-switch Undo. Delivered547 replaces d911. For d911 still restart between saved projects.
-- 94d0b83 tests/docs milestone: all CI green,73native checks; combined selected
-  scene edit plus embedded SRT save/delete-original/reopen/render checked in
-  native tests and UI. Virtual audio route advances edited playback clock, not
-  physical audio proof.
-- Current source adds clip-bound speech with74native checks locally, actual
-  selected-clip Parakeet inference and empty repeated-source neighbour in UI.
-  CI/package qualification pending.
-- Zorin release and physical graphics/audio/HDR remain untested. Java is bundled;
-  FFmpeg, DejaVu fonts and eSpeak NG are package dependencies. Models are separate.
+- Delivered70b43f0 safety/UI preview: all three CI green;933shared tests,
+  77native checks against exact package jars; bundled launcher checked for
+  unsaved guards, save/cancel/replacement and running-task close. This is not
+  autosave or crash recovery. Dirty compares identity with the saved snapshot.
+- Internal137286d: all three CI green,933shared/77native; exact package checked
+  for responsive rows, session save destination, Save as, focused Open/Save
+  shortcuts and native existing-file Replace/Cancel. Save overwrites the active
+  project without another chooser or backup. Save as switches to its destination.
+- Clip-bound speech, official Rounded Symbols, source thumbnails, viewport
+  culling, Undo selection/seek and a full-lane output guide are qualified in
+  their earlier source/package checkpoints. The synthetic100clip4K-source test
+  is bounded workflow evidence, not production HEVC/Intel performance proof.
+- Zorin release and physical graphics/audio/HDR/GTK/HiDPI remain untested.
+  Java is bundled; FFmpeg, DejaVu fonts and eSpeak NG are package dependencies.
+  Models are separate. Initial no-control-focused synthetic-launch shortcut
+  behavior remains unverified; focused field/timeline shortcuts were checked.
 
 ## Implemented with bounded evidence
 
 | Area | Current behavior | Qualification limits / remaining work |
 |---|---|---|
 | Import and source geometry | Video/audio/stills, JPEG orientation1..8, supported Ultra HDR primary normalization, multi-video/still append | Audio-only timeline append and still-first mixed timeline blocked; broader formats/camera profiles need tests |
-| Timeline | Split/trim/duplicate/remove/button reorder/Undo; selected occurrence; output ruler/zoom/playhead; speed/reverse/curves; overlap lanes | No thumbnails, audio waveforms, multitrack lanes or drag reorder; richer layer editing remains |
+| Timeline | Split/trim/duplicate/remove/button reorder/Undo; selected occurrence; output ruler/zoom/playhead; speed/reverse/curves; overlap lanes | Source thumbnails are original footage, not live edits. No audio waveforms, multitrack lanes or drag reorder; richer layer editing remains |
 | Clip effects | Framing/colour/speed/pitch/volume/fades, animation keys/easing, ordinary transition families; mixed video/still transition export | Companion-asset punch/punch-back/technical-difficulties gated; representative transitions tested, not every kind/input |
 | Preview | Labelled source seek; render-first edited picture/audio playback; pause/resume and output-clock frame steps | Not live edited preview; rendering delay; physical device playback untested |
 | Selected smart edits | Pause/scene/beat and transcript cut/keep bind selected occurrence; source-clock mapping; stale result invalidation | Suggestions transient; all-tools selected-clip parity not established; combined scene/subtitle workflow qualified in source/native/UI, not a blanket package test |
@@ -42,27 +40,20 @@ has been qualified. The original full Linux request is still open.
 | Translation/dub | Trusted direct-pair import; timed translated subtitles; marked standalone Kokoro WAV, optional placed track, project-cue snapshot | No multilingual/pivot routing or voice cloning. Review translation/timing. Later edits do not retime dub snapshot. Invisible marks not guaranteed after recompression/mixing |
 | Project files | Linux envelope includes edits, sources, words, subtitles, layers, masks, cover, HDR, encoding and model settings | Sources remain external; no Android-envelope interoperability guarantee. Earlier development fixture opens, not all old distributed projects qualified. Undo/selection/suggestions not persisted |
 | Export/studio | Shared builder, safe temp output/cancel/source protection, compression, metadata/cover/stabilization; private export draft, remember success, Undo | Distro filter/codec breadth not fully qualified. Studio bounded single-output argv adapter; no arbitrary paths/network/numbered outputs/full completion/help |
-| Desktop interaction | Grouped rail/scrollbars, fixed monitor/timeline, Settings/themes, visible selected scope and format | Tonal rounded mobile continuity, not desktop Material3Expressive components. Only CtrlZ/Esc tested; no broad keyboard parity |
+| Desktop interaction | Grouped rail/scrollbars, fixed monitor/timeline, Settings/themes, visible selected scope and format | Official bundled Rounded Symbols, not full Expressive components/motion. Focused Open/Save/Undo and timeline-local keys checked; no broad keyboard or physical target guarantee |
 
 ## Priority order
 
-1. Safety547 and combined scene/subtitle workflow are qualified. Qualify the
-   current clip-speech successor in CI/package before offering it as an update.
-2. Audit each tool's scope against Android selected-clip semantics, starting with
-   follow tracking. Speech raw selection is now scoped; source-wide Listen remains
-   explicit with no clip selected. Clip words override source words for that
-   occurrence. Speech inference is raw, before speed/reverse/DSP, then captions
-   follow those edits. With no clip selected, transcript shows source-wide words
-   only; reselect a recognized clip for its words. Source Listen does not replace
-   keyed clip words. A word spanning a split can appear in both halves.
-   Clip speech storage is capped equally on inference, save and load:10,000groups
-   and200,000words; a rejected save leaves the old file intact. Multi-source follow still needs a per-clip filter pipeline,
-   not removal of its current safety gate.
-3. Timeline/layer interaction and keyboard access, preserving the current stable
-   monitor and honest render-first behavior. Live-preview parity is a larger task.
-4. Remaining adapters and native project interoperability, each with actual
-   exported/restored-media checks and clear limits. No blanket parity claim from
-   a successful compile or the availability of shared models.
+1. Continue the requested desktop editing experience, preserving the qualified
+   saved-project, source-protection, cancel and occurrence-scope behavior.
+2. Timeline/layer interaction and keyboard access. Redo and short-window tool
+   access are being qualified next. Live edited preview, waveforms, drag reorder
+   and direct spatial layer dragging remain separate unfinished work.
+3. Remaining tool adapters and selected-clip semantics. Multi-source follow needs
+   a per-clip filter pipeline, not removal of its current safety gate. Source
+   Listen remains explicit, while clip words belong only to that occurrence.
+4. Native project interoperability and broader media checks. No blanket parity
+   claim follows from compilation or availability of shared models.
 5. Target Zorin installation/physical playback feedback and broader real media.
 
 No release/tag/master merge has been made. Earlier delivered checkpoints remain
@@ -77,7 +68,7 @@ Clip controls are grouped as Trim, Motion, Colour, Sound and Transition. Exact s
 
 Qualification: real1366x768 click/keyboard workflow selected, sought, split, duplicated, trimmed, undid, saved with native chooser, reopened and rendered; dense9clips and60ms selection, grouped controls and rail scroll were inspected. S and Split agree at sped/overlap position. Native checks cover lane-owned seek under per-clip/global speed/reverse, ramps and transitions. Render succeeds in the test environment; physical Zorin audio and hardware are not qualified. Full app parity is still not complete.
 
-UI checkpoint limits: a transition overlap switches the timeline to short alternating lanes without thumbnails. Very short clips are reachable through the clip menu or zoom. The cache/decode work is bounded, but100clip4KHEVC responsiveness has not been qualified. Expanding a recognized clip's trim cannot create captions for newly included audio; run Listen again on the expanded clip. Selecting a clip resets scene/pause suggestions as before.
+UI checkpoint limits: a transition overlap switches the timeline to short alternating lanes with thumbnails when wide enough. Very short clips are reachable through the clip menu or zoom. The cache/decode work is bounded, but production4KHEVC responsiveness on physical Intel has not been qualified. Expanding a recognized clip's trim cannot create captions for newly included audio; run Listen again on the expanded clip. Selecting a clip resets scene/pause suggestions as before.
 
 
 ### Rounded Material Symbols

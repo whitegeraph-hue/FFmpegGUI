@@ -10,6 +10,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.input.pointer.pointerInput
@@ -65,7 +66,8 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
     Window(onCloseRequest={ protectEdits {controller.close();exitApplication()} }, title="FFmpegGUI · Linux development preview", state=rememberWindowState(width=1280.dp,height=850.dp),onKeyEvent={event->
         if(event.type==KeyEventType.KeyDown && !showSettings && !showExport && pendingDiscard==null && controller.error==null) {
             when {
-                event.isCtrlPressed && event.key==Key.Z -> {if(!controller.busy)controller.undo();true}
+                event.isCtrlPressed && event.key==Key.Z -> {if(!controller.busy){if(event.isShiftPressed)controller.redo() else controller.undo()};true}
+                event.isCtrlPressed && event.key==Key.Y -> {if(!controller.busy)controller.redo();true}
                 event.key==Key.Escape -> {controller.selectSmartClip(null);controller.status="Clip selection cleared. Tools now apply to the whole output or selected source, as shown in Apply to.";true}
                 else -> false
             }
@@ -106,7 +108,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                 }
             }) {
                 BoxWithConstraints {
-                val compact=maxWidth<1360.dp
+                val compact=maxWidth<1490.dp
                 Column(Modifier.padding(12.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
                     @Composable fun RowScope.ProjectActions() {
                         OutlinedButton(onClick=::openMedia,enabled=!controller.busy) { SymbolLabel("folder_open","Open media") }
@@ -114,6 +116,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                         OutlinedButton(onClick={saveProject()},enabled=!controller.busy && controller.project!=null) { SymbolLabel("save","Save project") }
                         TextButton(onClick={saveProject(true)},enabled=!controller.busy && controller.project!=null) { Text("Save as…") }
                         OutlinedButton(onClick={ controller.undo() },enabled=!controller.busy && controller.canUndo) { SymbolLabel("undo","Undo") }
+                        OutlinedButton(onClick={ controller.redo() },enabled=!controller.busy && controller.canRedo) { Icon(DesktopSymbols.vector("undo"),null,Modifier.size(20.dp).graphicsLayer(scaleX=-1f));Spacer(Modifier.width(7.dp));Text("Redo") }
                     }
                     @Composable fun RowScope.WindowActions() {
                         FilledTonalButton(onClick={showSettings=true}) {SymbolLabel("settings","Settings")}
@@ -272,7 +275,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
 
                             Text("Preview",style=MaterialTheme.typography.titleMedium)
                             Text("Play edit renders the edited result first, then plays it with sound. Edits invalidate that render. Source view does not show effects live.")
-                            Text("Shortcuts: Ctrl+S saves to the current project file (asks on first save); Ctrl+Shift+S saves a copy to a new destination. Ctrl+O opens media; Ctrl+Shift+O opens a project. Ctrl+Z undoes the last edit. Esc clears clip selection. After clicking the timeline: Space plays, arrows step one output frame, S splits, D duplicates, Delete removes. These timeline keys do not run while typing in fields. Click inside a clip to select and seek; double-click to open its controls. Use timeline arrows to reorder. Drag reordering is not available.",style=MaterialTheme.typography.bodySmall)
+                            Text("Shortcuts: Ctrl+S saves to the current project file (asks on first save); Ctrl+Shift+S saves a copy to a new destination. Ctrl+O opens media; Ctrl+Shift+O opens a project. Ctrl+Z undoes the last edit; Ctrl+Shift+Z or Ctrl+Y redoes. A new edit clears Redo. Undo and Redo restore clip selection and position. Esc clears clip selection. After clicking the timeline: Space plays, arrows step one output frame, S splits, D duplicates, Delete removes. These timeline keys do not run while typing in fields. Click inside a clip to select and seek; double-click to open its controls. Use timeline arrows to reorder. Drag reordering is not available.",style=MaterialTheme.typography.bodySmall)
                             Text("Development preview. Not every mobile feature is available yet. Original files are never edited.",style=MaterialTheme.typography.bodySmall)
                         }
                     },confirmButton={TextButton(onClick={showSettings=false}){Text("Done")}})
@@ -285,10 +288,10 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
     }
 }
 
-@Composable private fun ScrollArea(modifier:Modifier=Modifier,content:@Composable ColumnScope.()->Unit) {
+@Composable private fun ScrollArea(modifier:Modifier=Modifier,spacing:Int=12,content:@Composable ColumnScope.()->Unit) {
     val scroll=rememberScrollState()
     Box(modifier) {
-        Column(Modifier.fillMaxWidth().padding(end=10.dp).verticalScroll(scroll),verticalArrangement=Arrangement.spacedBy(12.dp),content=content)
+        Column(Modifier.fillMaxWidth().padding(end=10.dp).verticalScroll(scroll),verticalArrangement=Arrangement.spacedBy(spacing.dp),content=content)
         VerticalScrollbar(rememberScrollbarAdapter(scroll),Modifier.align(Alignment.CenterEnd).fillMaxHeight().width(7.dp))
     }
 }
@@ -302,7 +305,17 @@ private val desktopGroups=linkedMapOf(
 )
 @Composable private fun DesktopToolRail(c:EditorController) {
     val group=desktopGroups.entries.firstOrNull {c.tab in it.value}?.key ?: "Edit"
-    ScrollArea(Modifier.width(154.dp).fillMaxHeight()) {
+    BoxWithConstraints(Modifier.width(154.dp).fillMaxHeight()) {
+    val short=maxHeight<430.dp
+    ScrollArea(Modifier.fillMaxSize(),spacing=if(short)2 else 12) {
+        if(short) {
+            var groups by remember {mutableStateOf(false)}
+            Box {
+                FilledTonalButton(onClick={groups=true},modifier=Modifier.fillMaxWidth()) {Text("$group ▾")}
+                DropdownMenu(groups,{groups=false}) {desktopGroups.forEach {(name,tools)->DropdownMenuItem(text={Text(name)},onClick={c.tab=tools.first();groups=false})}}
+            }
+        }
+        if(!short) {
         Text("TOOLS",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.padding(8.dp))
         desktopGroups.entries.toList().chunked(2).forEach {pair->
             Row(horizontalArrangement=Arrangement.spacedBy(6.dp)) {
@@ -319,14 +332,16 @@ private val desktopGroups=linkedMapOf(
             }
         }
         HorizontalDivider(Modifier.padding(vertical=6.dp))
+        }
         desktopGroups[group].orEmpty().forEach {tool->
             Surface(onClick={c.tab=tool},shape=RoundedCornerShape(14.dp),color=if(c.tab==tool)MaterialTheme.colorScheme.secondaryContainer else Color.Transparent,modifier=Modifier.fillMaxWidth()) {
-                Row(Modifier.padding(horizontal=10.dp,vertical=9.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                Row(Modifier.padding(horizontal=10.dp,vertical=if(short)7.dp else 9.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                     Symbol(when(tool){"Clip editor"->"content_cut";"Scenes"->"movie";"Pause cuts"->"waves";"Beats"->"graphic_eq";"Follow crop"->"person_search";"Transcript"->"subtitles";"Drawing"->"draw";"Dubbing"->"mic";else->"tune"},size=18)
-                    Text(if(tool=="Edit")"Format & quality" else tool,style=MaterialTheme.typography.labelLarge)
+                    Text(if(tool=="Edit")"Format & quality" else tool,style=MaterialTheme.typography.labelLarge,maxLines=2,overflow=TextOverflow.Ellipsis)
                 }
             }
         }
+    }
     }
 }
 @Composable private fun DesktopScopePicker(c:EditorController,p:DesktopProject) {

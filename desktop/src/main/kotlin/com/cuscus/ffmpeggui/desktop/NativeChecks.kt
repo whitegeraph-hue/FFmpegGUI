@@ -34,6 +34,36 @@ fun main(args:Array<String>)=runBlocking {
             c.moveClip(1,-1);c.undo();check(c.project===pair && c.smartClipId=="second-undo" && c.position==1500L)
         }finally {c.close();scope.cancel()}
     }
+    verify("Redo restores occurrence position dirty snapshot and clears on new edit or project") {
+        val scope=CoroutineScope(Dispatchers.Default+SupervisorJob());val c=EditorController(scope)
+        try {
+            c.open(video.path);c.job?.join();val base=c.project!!
+            c.selectSmartClip(base.timeline.clips.single().id);c.seek(500);c.duplicateSelected()
+            val duplicated=c.project!!;val selected=c.smartClipId;c.seek(1400)
+            c.undo();check(c.project===base && !c.hasUnsavedChanges && c.canRedo)
+            c.redo();check(c.project===duplicated && c.smartClipId==selected && c.position==1400L && c.hasUnsavedChanges && !c.canRedo)
+            val save=File(folder,"redo-saved.ffgui.json");c.saveProject(save);c.job?.join();check(!c.hasUnsavedChanges)
+            c.undo();check(c.hasUnsavedChanges && c.canRedo);c.redo();check(!c.hasUnsavedChanges)
+            c.removeClip(1);val removed=c.project!!;c.undo();check(c.smartClipId==selected);c.redo();check(c.project===removed && c.smartClipId==null)
+            c.undo();c.moveClip(1,-1);check(!c.canRedo);val moved=c.project!!;c.undo();c.redo();check(c.project===moved)
+            c.undo();check(c.canRedo)
+            val beforeFailure=c.project;c.export(File(video.path),c.project!!.copy(format=OutputFormat.MKV));c.job?.join();check(c.error!=null && c.project===beforeFailure && c.canRedo)
+            c.openProject(File(folder,"redo-rejected.ffgui.json").apply {writeText("{}")});c.job?.join();check(c.canRedo)
+            c.openProject(save);c.job?.join();check(!c.canRedo && !c.canUndo && !c.hasUnsavedChanges)
+            c.duplicateSelected();c.selectSmartClip(c.project!!.timeline.clips.first().id);c.duplicateSelected();c.undo();check(c.canRedo)
+            c.export(File(folder,"redo-export.mkv").apply {delete()},c.project!!.copy(format=OutputFormat.MKV));c.job?.join();check(c.error==null && !c.canRedo)
+        } finally {c.close();scope.cancel()}
+    }
+    verify("Redo mask cache survives Undo and is pruned after branching") {
+        val scope=CoroutineScope(Dispatchers.Default+SupervisorJob());val c=EditorController(scope)
+        try {
+            c.open(video.path);c.job?.join();val base=c.project!!
+            val mask=File(DesktopMasks.directory(),"redo-${UUID.randomUUID()}.png").apply {writeBytes(byteArrayOf(1,2,3))}
+            c.mutate(base.copy(image=base.image.copy(key=ColorKey(mask=mask.path))))
+            c.undo();check(mask.isFile && c.canRedo);c.redo();check(mask.isFile && c.project!!.image.key?.mask==mask.path)
+            c.undo();c.mutate(base.copy(effects=Effects(speed=1.5f)));check(!c.canRedo && !mask.exists())
+        } finally {c.close();scope.cancel()}
+    }
     verify("unsaved edit state survives failed saves loads and Undo and resets on success") {
         val scope=CoroutineScope(Dispatchers.Default+SupervisorJob());val c=EditorController(scope)
         try {
