@@ -67,7 +67,7 @@ internal fun runNativeChecks(args:Array<String>)=runBlocking {
             c.inspectFrame();c.job!!.join()
             check(c.project===p && !c.canUndo && !c.canRedo)
             check(c.previewFrame!=null && c.inspectedOutputMs==2400L && c.rendered==null && !c.player.engaged)
-            c.seekOutput(800);check(c.previewFrame==null && c.inspectedOutputMs==null)
+            c.seekOutput(800);check(c.previewFrame==null && c.inspectedOutputMs==null && c.status.startsWith("Source frame."))
             c.inspectFrame();c.job!!.join();check(c.inspectedOutputMs==800L)
             c.positionCaption(p,p.captions[0].id,.2f,.7f)
             check(c.previewFrame==null && c.inspectedOutputMs==null && c.canUndo)
@@ -78,7 +78,7 @@ internal fun runNativeChecks(args:Array<String>)=runBlocking {
             check(c.inspectedOutputMs==2400L && kotlin.math.abs(p.outputAt(c.position)-2400)<=2)
             check(!c.player.engaged && c.rendered!=null && c.project===p && !c.canUndo)
             c.seekOutput(800);delay(500)
-            check(c.inspectedOutputMs==null && c.player.engaged)
+            check(c.inspectedOutputMs==null && c.player.engaged && c.status.startsWith("Rendered preview."))
             c.rendered=null
         } finally {c.close();scope.cancel()}
         val originals=File(System.getProperty("java.io.tmpdir")).listFiles()!!.filter {it.name.startsWith("ffmpeggui-edited-frame-")}.map {it.name}.toSet()

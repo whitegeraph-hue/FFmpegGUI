@@ -165,14 +165,13 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                                         else Text(if(project.sources[controller.selectedSource].info.isVideo)"Reading frame…" else "Audio clip",color=Color.White)
                                     }
                                     if(!short)Text(if(controller.player.frame!=null)"Rendered preview · ${time(controller.player.positionMs)} / ${time(controller.player.durationMs)}" else if(controller.inspectedOutputMs!=null)"Edited frame · ${time(controller.inspectedOutputMs!!)} output · temporary MP4, no audio/motion" else if(controller.previewFrame!=null)"Rendered edit. Original unchanged." else "Source preview · Play edit renders first",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                                    Row(Modifier.horizontalScroll(rememberScrollState()),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                                    FlowRow(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp),verticalArrangement=Arrangement.spacedBy(0.dp)) {
                                         FilledTonalButton(onClick={controller.stepOutput(-1)},enabled=!controller.busy){Text("−1f")}
                                         Button(onClick={controller.togglePlayback()},enabled=!controller.busy){SymbolLabel(if(controller.player.playing)"pause" else "play_arrow",if(controller.player.playing)"Pause" else "Play edit")}
                                         FilledTonalButton(onClick={controller.stepOutput(1)},enabled=!controller.busy){Text("+1f")}
                                         if(project.sources.first().info.isVideo && !project.sources.first().info.isStill)TextButton(onClick={controller.inspectFrame()},enabled=!controller.busy){Text("Inspect frame")}
                                         if(controller.rendered!=null)TextButton(onClick={controller.preview()},enabled=!controller.busy){Text("Re-render")}
                                         TextButton(onClick={controller.splitHere()},enabled=!controller.busy && !project.sources[0].info.isStill){Text("Split")}
-                                        if(!compact)Spacer(Modifier.weight(1f))
                                         if(!compact)Text("%.3f s output · 25fps".format(java.util.Locale.US,(if(controller.player.engaged)controller.player.positionMs else project.outputAt(controller.position))/1000.0),style=MaterialTheme.typography.labelSmall)
                                     }
                                     if(compact && !short)Text("%.3f s output · 25fps".format(java.util.Locale.US,(if(controller.player.engaged)controller.player.positionMs else project.outputAt(controller.position))/1000.0),style=MaterialTheme.typography.labelSmall,maxLines=1)

@@ -147,7 +147,7 @@ class EditorController(val scope: CoroutineScope) {
 
     fun seek(at: Long) {
         val p=project ?: return
-        if(inspectedOutputMs!=null){previewFrame=null;inspectedOutputMs=null;status="Source frame. Inspect frame or Play edit to see the edit."}
+        if(inspectedOutputMs!=null){previewFrame=null;inspectedOutputMs=null;status=if(rendered!=null)"Rendered preview. Play edit resumes the movie." else "Source frame. Inspect frame or Play edit to see the edit."}
         player.stop()
         position=at.coerceIn(0,p.timeline.durationMs)
         val pos=p.timeline.locate(position) ?: return
