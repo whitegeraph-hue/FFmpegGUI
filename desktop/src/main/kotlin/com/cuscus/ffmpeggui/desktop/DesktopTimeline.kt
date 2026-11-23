@@ -98,7 +98,12 @@ import java.io.File
                     }
                 }
                 Column(Modifier.fillMaxSize().horizontalScroll(scroll)) {
-                    Box(Modifier.width(width.dp).height(22.dp).pointerInput(p,width){detectTapGestures {at->if(!c.busy)c.seekOutput((at.x/size.width*duration).toLong())}}) {
+                    Box(Modifier.width(width.dp).height(22.dp)
+                        .pointerInput(p,width,c.busy){detectTapGestures {at->if(!c.busy){focus.requestFocus();c.seekOutput((at.x/size.width*duration).toLong())}}}
+                        .pointerInput(p,width,c.busy){if(!c.busy)detectDragGestures(
+                            onDragStart={at->focus.requestFocus();c.seekOutput((at.x/size.width*duration).toLong())},
+                            onDrag={change,_->change.consume();c.seekOutput((change.position.x/size.width*duration).toLong())}
+                        )}) {
                         val step=maxOf(100L,(duration/(maxOf(1,(width/120).toInt()))/100)*100)
                         var t=0L
                         while(t<=duration) {Text(time(t),Modifier.offset(x=(width*t/duration).dp),style=MaterialTheme.typography.labelSmall);t+=step}
@@ -209,7 +214,7 @@ import java.io.File
                 }
             }
             HorizontalScrollbar(rememberScrollbarAdapter(scroll),Modifier.fillMaxWidth().height(7.dp))
-            Text(if(dragging!=null)dropIndex?.let {"Release to move to clip ${it+1}. Drag outside the timeline to cancel."} ?: "Outside drop area. Release to cancel." else if(compact)"${if(index>=0)"Clip ${index+1} · " else ""}Source thumbnails & peaks · click to seek · shortcuts in Settings" else if(index>=0)"Clip ${index+1} selected · click within a clip to seek · double-click for controls · drag ↔ to reorder · S split · D duplicate · arrows step · Alt+arrows move · Home/End seek · original source thumbnails & peaks" else "Click within a clip to select & seek · double-click for controls · output time · thumbnails & peaks are original sources",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(if(dragging!=null)dropIndex?.let {"Release to move to clip ${it+1}. Drag outside the timeline to cancel."} ?: "Outside drop area. Release to cancel." else if(compact)"${if(index>=0)"Clip ${index+1} · " else ""}Source thumbnails & peaks · drag ruler to seek · shortcuts in Settings" else if(index>=0)"Clip ${index+1} selected · click within a clip to seek · double-click for controls · drag ↔ to reorder · S split · D duplicate · arrows step · Alt+arrows move · Home/End seek · original source thumbnails & peaks" else "Click within a clip to select & seek · double-click for controls · drag ruler to seek · output time · thumbnails & peaks are original sources",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

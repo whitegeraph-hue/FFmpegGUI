@@ -189,3 +189,7 @@ unselect, Undo and Clear. For a rotated EXIF JPEG, choose an upright PNG copy
 or an external matching upright mask. The mask is separate from project drawing.
 
 Arch Linux x86_64 packaging and validation: [Arch preview](docs/ARCH-LINUX.md).
+
+Timeline ruler: click or drag to seek and focus timeline shortcuts. Seeking
+does not select another clip or add an Undo entry. Source frame updates are
+debounced; drag seeking is not a live-effects preview.

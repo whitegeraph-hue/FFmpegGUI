@@ -99,3 +99,13 @@ UI checkpoint limits: a transition overlap switches the timeline to short altern
 
 ### Rounded Material Symbols
 Desktop header actions, tool categories, editing sub-tools, grouped clip controls, transport and timeline actions use bundled official Google Material Symbols Rounded static24px paths, retaining text labels. Selected category uses filled symbol variant as well as the tonal selected surface. These are actual current Symbols assets, not Unicode placeholders, and work offline. This does not claim the full Android Material3Expressive component library or animated variable-font interpolation is ported. Sources, hashes and Apache2 license are bundled under material-symbols in the app resources. Official guide: https://developers.google.com/fonts/docs/material_symbols .
+
+### Local ruler interaction follow-through
+
+Ruler click and drag now focus the timeline, so Home/End and frame-step keys
+work after leaving a trim field. Dragging seeks the output clock without
+changing clip selection, project contents or Undo history. The controller
+clamps endpoints and blocks seeks during a job. Source frame decoding keeps
+the existing 120ms debounce; this is not continuous live effect rendering.
+Actual 1024px checks cover normal/global-reverse projects, 2.25x zoom,
+horizontally scrolled ruler coordinates and rendered-preview cueing.
