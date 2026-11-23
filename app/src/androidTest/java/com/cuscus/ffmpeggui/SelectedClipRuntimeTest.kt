@@ -90,6 +90,17 @@ class SelectedClipRuntimeTest {
             assertEquals(3500L,vm.settings.value.timeline.durationMs)
             instrumentation.runOnMainSync { vm.undo() }
             assertEquals(before,vm.settings.value.timeline)
+            assertTrue(Ui.click("Clip 2"))
+            assertTrue(Ui.click("Done"))
+            assertTrue(Ui.clickScrolling("Equalizer"))
+            assertTrue(Ui.waitFor("Bass boost",15000))
+            assertTrue(Ui.click("Bass boost"))
+            waitFor("selected clip EQ did not change") {vm.settings.value.timeline.clips[1].effects.audioEffects.shapesTone}
+            assertEquals(before.clips[0],vm.settings.value.timeline.clips[0])
+            assertEquals(com.cuscus.ffmpeggui.core.model.AudioEffects.NONE,vm.settings.value.audioEffects)
+            ShellShot.take("selected-clip2-equalizer-bass")
+            instrumentation.runOnMainSync {vm.undo()}
+            assertEquals(before,vm.settings.value.timeline)
         }
         context.contentResolver.delete(uri, null, null)
     }
