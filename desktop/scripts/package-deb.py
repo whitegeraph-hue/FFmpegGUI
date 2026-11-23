@@ -11,10 +11,10 @@ with tempfile.TemporaryDirectory() as folder:
  for i,line in enumerate(lines):
   if line.startswith('Depends:'):
    dependencies=[d.strip() for d in line.split(':',1)[1].split(',') if not d.strip().startswith('libc6')]
-   dependencies += ['libc6 (>= 2.27)', 'ffmpeg', 'fonts-dejavu-core']
+   dependencies += ['libc6 (>= 2.27)', 'ffmpeg', 'fonts-dejavu-core', 'espeak-ng']
    lines[i]='Depends: '+', '.join(dict.fromkeys(dependencies))
    found=True
- if not found:lines.append('Depends: libc6 (>= 2.27), ffmpeg, fonts-dejavu-core')
+ if not found:lines.append('Depends: libc6 (>= 2.27), ffmpeg, fonts-dejavu-core, espeak-ng')
  control.write_text('\n'.join(lines)+'\n')
  license_path=Path(folder)/'usr/share/doc/ffmpeggui-linux/copyright'
  license_path.parent.mkdir(parents=True,exist_ok=True)

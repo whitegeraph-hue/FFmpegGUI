@@ -43,8 +43,8 @@ class DesktopAudioMarker(private val generator:OrtSession,private val detector:O
                 FloatArray(line.size) { i -> (line[i] + back[i]).coerceIn(-1f, 1f) }
             }
             val verdict = detect(detector, marked, rate)
-            // Too little speech to tell (a dub of one short word) is marked all the same.
-            if (verdict.share != null && (verdict.share < SpeechMarking.FRESH_SHARE || !Marks.speechMessageIsOurs(verdict.message))) {
+            // No unverified very short speech: every accepted dub must have enough voiced signal to check.
+            if (verdict.share == null || verdict.share < SpeechMarking.FRESH_SHARE || !Marks.speechMessageIsOurs(verdict.message)) {
                 throw NotHeld("this voice")
             }
             marked

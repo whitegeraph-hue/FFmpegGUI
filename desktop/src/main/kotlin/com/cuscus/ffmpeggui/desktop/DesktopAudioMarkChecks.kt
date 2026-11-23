@@ -14,6 +14,8 @@ fun runAudioMarkChecks(path:String)=runBlocking {
     val source=FloatArray(buffer.remaining()).also {buffer.get(it)}
     require(source.size<=16000*30)
     DesktopAudioMarker.use(dir){marker->
+        check(runCatching {marker.markSpeech(listOf(FloatArray(800)),16000)}.isFailure)
+        println("PASS null detector share refuses unverified short or silent output")
         val marked=marker.markSpeech(listOf(source),16000).single()
         val verdict=marker.speech(listOf(marked),16000)
         println("FRESH_SHARE=${verdict.share} MESSAGE_MATCH=${Marks.speechMessageIsOurs(verdict.message)}")

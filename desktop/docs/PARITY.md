@@ -468,3 +468,29 @@ rejected until its adapter exists. Latest full package8b6predatesHDR/canvas.
   memory was retained there; fresh worker-only checks pass. No lowered gate.
 - Archive contains eSpeak NG GPL data; weights remain unbundled. AudioSeal MIT
   licence is included; current licence audit is scoped, not legal certification.
+
+### 2026-11-23 05:06 EET: eSpeak frontend and verified standalone dubbing
+- Distro eSpeak NG CLI now produces IPA for sherpa GenerationConfig, so missing
+  lexicon words/numbers are no longer silently dropped. Direct ProcessBuilder,
+  private UTF-8 input file,20second timeout,16KB stdout/4KB error limits while
+  running, error/unknown-model-token refusal,380phoneme limit. No shell/Python.
+  Apostrophes/hyphens pass phonemizer; unsupported symbols fail explicitly.
+- AudioSeal null-share output is now rejected, even for short words: no verified
+  mark, no delivered output. Model detector stays alive through saved16bit WAV
+  reload and verifies fresh-share threshold and constant message after quantizing.
+  Actual null/silent test rejected; natural source mark/reload remains1.0.
+- Actual two-cue arbitrary-word/numeric synthesis (including generated/carries/
+  1969),12second saved WAV reloaded0.996875marked share. Audio transcript contains
+  both formerly omitted words and the number. This is narrow intelligibility,
+  not a listening panel or real-world robustness guarantee.
+- New Dubbing panel exports standalone new WAV from text or independent SRT
+  times. Actual Generate/Save/completion clicked and screenshot inspected; audio
+  transcription confirms default sentence. Project media/mix remain unchanged.
+  US-English only,30cues/one-minute/300characters each,1.2GiB freeRAM. Native
+  disposable worker cancel/retry/unsupported-input/existing-output tests pass.
+  Import model UI pickers not clicked.20voices not all listening-tested.
+- espeak-ng added as ordinary apt dependency; its GPL implementation/data are
+  supplied by package manager, not embedded here. No dependency change to the
+  already delivered17c binary. Full package refresh/lifecycle and broad licence
+  audit still open for this checkpoint. No multilingual/Piper/integrated dub
+  or export-pipeline invisible re-seal claim.

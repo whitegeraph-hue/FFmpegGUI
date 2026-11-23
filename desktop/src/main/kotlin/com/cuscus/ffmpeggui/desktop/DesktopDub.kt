@@ -59,38 +59,26 @@ object DesktopDub {
         for((rel,value) in files){currentCoroutineContext().ensureActive();require(!rel.startsWith('/') && '\\' !in rel && rel.split('/').none {it in listOf("",".","..")});val f=File(directory,rel);require(f.isFile && !Files.isSymbolicLink(f.toPath()) && f.length()<=350_000_000 && hash(f)==value.jsonPrimitive.content) {"Kokoro file changed: $rel. Import the original archive again."}}
         for((name,pin) in DubModel.PINNED)require(files[name]?.jsonPrimitive?.content==pin) {"Kokoro pinned identity missing"}
     }
-    /** sherpa2 no longer uses eSpeak. Reject any word its lexicon would silently drop. */
-    fun requireCovered(directory:File,texts:List<String>) {
-        val words=File(directory,"lexicon-us-en.txt").useLines {lines->lines.map {it.substringBefore(' ').lowercase(java.util.Locale.ROOT)}.toHashSet()}
-        val missing=linkedSetOf<String>()
-        for(text in texts) {
-            require(text.all {it in ' '..'~' || it=='\n'}) {"This synthesis checkpoint accepts plain ASCII US-English only"}
-            require(text.all {it.isLetter() || it.isWhitespace() || it in ".,!?:;"}) {"Spell numbers, symbols and abbreviations as spoken words"}
-            val tokens=Regex("[A-Za-z]+(?:['-][A-Za-z]+)*").findAll(text).map {it.value.lowercase(java.util.Locale.ROOT)}.toList()
-            require(tokens.isNotEmpty()) {"No supported words to say"}
-            tokens.filterNot {it in words}.forEach {missing+=it}
-        }
-        require(missing.isEmpty()) {"Voice lexicon does not cover these words; no audio was generated: ${missing.take(15).joinToString(", ")}. External phonemizer support is still being ported."}
-    }
     suspend fun generate(directory:File,markerDirectory:File,lines:List<DubTiming.Line>,voice:Int,speed:Float,endMs:Long?,target:File,progress:(String)->Unit) {
         require(lines.size in 1..30 && lines.sumOf {it.text.length}<=3000 && lines.all {it.text.length<=300 && it.startMs>=0 && it.endMs>it.startMs && it.endMs<=60_000} && lines.zipWithNext().all {it.first.startMs<it.second.startMs} && voice in DubLanguage.EN_US.voices.map {it.id} && speed in .75f..1.5f && (endMs==null || endMs in 1..60_000)) {"Dub up to30short US-English cues within one minute"}
         for(pin in listOf(MarkerModel.GENERATOR,MarkerModel.DETECTOR))DesktopModelFiles.verify(File(markerDirectory,pin.name),pin.sha256,pin.bytes)
         verify(directory);DesktopSmartModels.checkAvailableMemory(1_200L*1024*1024)
         val spoken=lines.mapNotNull {line->DubTiming.oneBreath(DubTiming.spoken(line.text)).takeIf {it.isNotBlank()}?.let {line.copy(text=it)}}
         require(spoken.isNotEmpty()) {"No spoken subtitle text"}
-        requireCovered(directory,spoken.map {it.text})
+        val phonemes=spoken.map {DesktopPhonemizer.phonemes(it.text,"en-us",directory)}
         val config=OfflineTtsConfig.builder().setModel(OfflineTtsModelConfig.builder().setKokoro(OfflineTtsKokoroModelConfig.builder()
-            .setModel(File(directory,DubModel.MODEL).path).setVoices(File(directory,DubModel.VOICES).path).setTokens(File(directory,DubModel.TOKENS).path).setLexicon(File(directory,"lexicon-us-en.txt").path).build())
+            .setModel(File(directory,DubModel.MODEL).path).setVoices(File(directory,DubModel.VOICES).path).setTokens(File(directory,DubModel.TOKENS).path).build())
             .setNumThreads(2).setProvider("cpu").setDebug(false).build()).setMaxNumSentences(1).setSilenceScale(.15f).build()
         val clips=ArrayList<FloatArray>();val rate:Int
         val tts=OfflineTts(config)
         try {
             rate=tts.sampleRate;require(rate==24000);val slots=DubTiming.slots(spoken,endMs);val pace=DubPace()
-            fun say(text:String,at:Float):FloatArray {val audio=tts.generate(text,voice,at);require(audio.sampleRate==rate && audio.samples.isNotEmpty() && audio.samples.size<=rate*60 && audio.samples.all {it.isFinite()});return DubAudio.trimmed(audio.samples,rate).also {require(it.isNotEmpty()) {"The voice returned silence"};DubAudio.fade(it,rate)}}
-            spoken.forEachIndexed {index,line->currentCoroutineContext().ensureActive();progress("Saying cue ${index+1} of ${spoken.size}");val used=pace.speedFor(line.text,slots[index],speed);var samples=say(line.text,used);pace.learn(line.text,samples.size*1000L/rate,used);DubTiming.retrySpeed(samples.size*1000L/rate,slots[index],used,speed)?.let {retry->val again=say(line.text,retry);if(again.isNotEmpty())samples=again};clips+=DubFit.fit(samples,rate,slots[index]);require(clips.sumOf {it.size.toLong()}<=rate*60L) {"Generated voice exceeds one minute"}}
+            fun say(index:Int,at:Float):FloatArray {val config=GenerationConfig().apply {setSid(voice);setSpeed(at);setPhonemeCodepoints(phonemes[index])};val audio=tts.generateWithConfig("",config);require(audio.sampleRate==rate && audio.samples.isNotEmpty() && audio.samples.size<=rate*60 && audio.samples.all {it.isFinite()});return DubAudio.trimmed(audio.samples,rate).also {require(it.isNotEmpty()) {"The voice returned silence"};DubAudio.fade(it,rate)}}
+            spoken.forEachIndexed {index,line->currentCoroutineContext().ensureActive();progress("Saying cue ${index+1} of ${spoken.size}");val used=pace.speedFor(line.text,slots[index],speed);var samples=say(index,used);pace.learn(line.text,samples.size*1000L/rate,used);DubTiming.retrySpeed(samples.size*1000L/rate,slots[index],used,speed)?.let {retry->val again=say(index,retry);if(again.isNotEmpty())samples=again};clips+=DubFit.fit(samples,rate,slots[index]);require(clips.sumOf {it.size.toLong()}<=rate*60L) {"Generated voice exceeds one minute"}}
         }finally {tts.release()}
         progress("Adding and checking invisible AudioSeal marks")
-        val marked=DesktopAudioMarker.use(markerDirectory){it.markSpeech(clips,rate)}
+        DesktopAudioMarker.use(markerDirectory){marker->
+        val marked=marker.markSpeech(clips,rate)
         val starts=DubTiming.place(spoken,marked.map {it.size*1000L/rate})
         require(starts.last()+marked.last().size*1000L/rate<=60_000 && (endMs==null || starts.last()+marked.last().size*1000L/rate<=endMs)) {"Fitted voice extends beyond the allowed end"}
         WavWriter(target,1,rate,comment=AiDisclosure.SPEECH_TEXT).use {writer->
@@ -98,5 +86,11 @@ object DesktopDub {
             marked.forEachIndexed {i,clip->var gap=starts[i]*rate/1000-written;while(gap>0){currentCoroutineContext().ensureActive();val n=minOf(gap,silence.size.toLong()).toInt();writer.write(silence,n);written+=n;gap-=n};writer.write(clip,clip.size);written+=clip.size}
         }
         check(AiSeal.mark(target,AiDisclosure(speech=true),AiDisclosure.TRAINED)==AiSeal.Marked.WRITTEN) {"Could not mark generated speech disclosure"}
+        require(target.length() in 45..3_000_000) {"Invalid saved speech size"}
+        val saved=com.cuscus.ffmpeggui.core.marking.PcmWav.read(target)
+        require(saved.rate==rate && saved.samples.size<=rate*60) {"Invalid saved speech format"}
+        val verdict=marker.speech(listOf(saved.samples),rate)
+        require(verdict.share!=null && verdict.share>=com.cuscus.ffmpeggui.core.marking.SpeechMarking.FRESH_SHARE && com.cuscus.ffmpeggui.core.marking.Marks.speechMessageIsOurs(verdict.message)) {"Invisible AI mark could not be verified in the saved WAV. No output will be delivered."}
+        }
     }
 }

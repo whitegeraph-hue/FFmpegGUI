@@ -108,3 +108,14 @@ Cancellation kills the child and descendants; the child watches its parent.
 Packaged workers reuse the package launcher, not a nonexistent runtime/bin/java.
 The inherited _JPACKAGE_LAUNCHER restart marker must be cleared, or the launcher
 mistakes the worker for an internal re-exec and omits its configured main class.
+
+
+Standalone dubbing: import exact original Kokoro archive (c5f7e2d2 prefix,349906910
+bytes) after original pinned AudioSeal generator/detector. Current upstream
+repacked archive is rejected. Original-hash mirror:
+https://github.com/modelship-ai/model-bundles/releases/tag/tts/kokoro
+Uses espeak-ng from apt, separately licensed GPL. No model weights bundled.
+New WAV only,US-English,30cues/one-minute,1.2GiB free RAM, no automatic mixing.
+Short outputs without enough voiced audio to verify AudioSeal are refused.
+Saved16bit WAV mark/payload readback required. Other languages/Piper and wider
+speech-quality validation remain unfinished. Existing17c package predates this.

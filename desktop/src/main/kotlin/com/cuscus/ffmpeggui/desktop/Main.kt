@@ -140,7 +140,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                                 }
                             }
                             Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(10.dp)) {
-                                val tabs=listOf("Edit","Clip editor","Transcript","Pause cuts","Scenes","Beats","Follow crop","Models","Subtitles","Audio","Text layers","Sound tracks","Tags","Image layers","Drawing","Subject cutout","Scene stems","Compression","Translation","Magic eraser","Command studio")
+                                val tabs=listOf("Edit","Clip editor","Transcript","Pause cuts","Scenes","Beats","Follow crop","Models","Subtitles","Audio","Text layers","Sound tracks","Tags","Image layers","Drawing","Subject cutout","Scene stems","Compression","Translation","Magic eraser","Dubbing","Command studio")
                                 if(project.sources.size>1)FlowRowCompat {
                                     project.sources.forEachIndexed {i,source->FilterChip(controller.selectedSource==i,{controller.selectSource(i)},label={Text("${i+1}: ${File(source.path).name.take(20)}")},enabled=!controller.busy)}
                                 }
@@ -152,6 +152,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                                         "Edit" -> EditPanel(controller,project)
                                         "Subject cutout" -> SubjectPanel(controller,project)
                                         "Drawing" -> DrawingPanel(controller,project)
+                                        "Dubbing" -> DubPanel(controller,window){name->pick(true,name)}
                                         "Magic eraser" -> ErasePanel(controller,project,window){name->pick(true,name)}
                                         "Command studio" -> StudioPanel(controller,project){name->pick(true,name)}
                                         "Clip editor" -> {StabilizationPanel(controller,project);ClipEditorPanel(controller,project)}
@@ -921,5 +922,27 @@ private fun EditPanel(c: EditorController,p: DesktopProject) {
         Button(onClick={runCatching {DesktopEraseMask.paint(File(p.sources.first().path),window)}.onSuccess {if(it!=null)mask=it}.onFailure {c.error=it.message}},enabled=!c.busy && p.sources.size==1 && p.sources.first().info.isStill){Text("Paint erase mask")}
         Text(mask?.name ?: "No mask selected. Paint a mask here or choose an external alpha mask.")
         Button(onClick={val chosen=mask ?: return@Button;save("erased.png")?.let {target->c.work("Preparing magic eraser…"){c.models.erase(p.sources.first().path,chosen,target){c.status=it};c.status="New AI-marked PNG saved: ${target.path}. Original and project are unchanged."}}},enabled=!c.busy && mask!=null && p.sources.size==1 && p.sources.first().info.isStill){Text("Erase to new PNG")}
+    }
+}
+
+@Composable private fun DubPanel(c:EditorController,window:java.awt.Frame,save:(String)->File?) {
+    var text by remember {mutableStateOf("This voice carries generated words on Linux.")}
+    var voice by remember {mutableStateOf(0)}
+    var cues by remember {mutableStateOf<List<com.cuscus.ffmpeggui.core.dub.DubTiming.Line>?>(null)}
+    PanelCard {
+        Text("Offline dubbing: new WAV",style=MaterialTheme.typography.titleLarge)
+        Text("US-English Kokoro voices. Up to one minute,30cues,300characters per cue. Uses local eSpeak NG for pronunciation, then adds and verifies invisible AudioSeal marks in the saved WAV. A very short or silent result is refused if its mark cannot be checked.")
+        Text("Standalone output only: this does not replace or mix project audio. An SRT uses its own times starting at zero, not your edited timeline. Later edits or recompression can weaken the invisible mark. Review all speech before use.",style=MaterialTheme.typography.bodySmall)
+        OutlinedButton(onClick={Desktop.getDesktop().browse(java.net.URI("https://github.com/marcomorosi06/FFmpegGUI/releases/tag/ai-markers-1"))},enabled=!c.busy){Text("Open original AudioSeal model files")}
+        Button(onClick={val d=FileDialog(window,"Choose AudioSeal generator and detector",FileDialog.LOAD);d.isMultipleMode=true;d.isVisible=true;if(d.files.isNotEmpty())c.work("Checking AudioSeal models…"){DesktopDub.importMarkers(d.files.toList());c.status="AudioSeal pins verified and imported."}},enabled=!c.busy){Text("Import both AudioSeal models")}
+        OutlinedButton(onClick={Desktop.getDesktop().browse(java.net.URI("https://github.com/modelship-ai/model-bundles/releases/tag/tts/kokoro"))},enabled=!c.busy){Text("Open exact-hash Kokoro archive mirror")}
+        Text("Choose kokoro-multi-lang-v1_0-c5f7e2d2.tar.bz2 (about350MB). Only the original Android full-archive hash is accepted. Current upstream repacks are refused even if main files look the same. No weights are bundled.",style=MaterialTheme.typography.bodySmall)
+        Button(onClick={val d=FileDialog(window,"Import exact original Kokoro tar.bz2",FileDialog.LOAD);d.isVisible=true;d.file?.let {name->val f=File(d.directory,name);c.work("Verifying and unpacking pinned Kokoro archive…"){DesktopDub.importArchive(f);c.status="Kokoro archive imported and original pins verified."}}},enabled=!c.busy){Text("Import pinned Kokoro archive")}
+        Text("Kokoro: hexgrad, Apache2.0. AudioSeal: Meta, MIT. eSpeak NG: GPL, separately installed by your package manager. Imported archive also contains eSpeak data. At least1.2GiB free RAM is required. Other languages and Piper are still being ported.",style=MaterialTheme.typography.bodySmall)
+        FlowRowCompat {com.cuscus.ffmpeggui.core.dub.DubLanguage.EN_US.voices.forEach {v->FilterChip(voice==v.id,{voice=v.id},label={Text(v.label)},enabled=!c.busy)}}
+        OutlinedTextField(text,{if(it.length<=300)text=it;cues=null},label={Text("Single cue, starts at0seconds, up to20seconds")},enabled=!c.busy,modifier=Modifier.fillMaxWidth())
+        Button(onClick={val d=FileDialog(window,"Read standalone SRT cue times (not project timeline)",FileDialog.LOAD);d.isVisible=true;d.file?.let {name->c.work("Reading dubbing cues…"){val f=File(d.directory,name);require(f.extension.equals("srt",true));val s=DesktopSubtitles.import(f,0);val parsed=com.cuscus.ffmpeggui.core.preview.SubtitleParser().parse(s.content).map {com.cuscus.ffmpeggui.core.dub.DubTiming.Line(it.startMs,it.endMs,it.text)};require(parsed.size in 1..30);cues=parsed;c.status="Read ${parsed.size} standalone cues. Times are not remapped by project edits."}}},enabled=!c.busy){Text("Use standalone timed SRT")}
+        Text(cues?.let {"${it.size}SRT cues selected"} ?: "Single text cue selected")
+        Button(onClick={save("dub-ai.wav")?.let {output->val lines=cues ?: listOf(com.cuscus.ffmpeggui.core.dub.DubTiming.Line(0,20000,text));c.work("Generating and verifying marked speech…"){c.models.dub(lines,voice,1f,60000,output){c.status=it};c.status="Saved marked standalone WAV: ${output.path}. Review speech before use; project audio is unchanged."}}},enabled=!c.busy && DesktopDub.root.isDirectory && DesktopDub.markers.isDirectory){Text("Generate marked new WAV")}
     }
 }
