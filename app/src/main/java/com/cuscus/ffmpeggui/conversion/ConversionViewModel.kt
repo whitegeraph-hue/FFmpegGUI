@@ -107,6 +107,7 @@ import com.cuscus.ffmpeggui.withSpan
 import com.cuscus.ffmpeggui.core.editing.BeatTrack
 import com.cuscus.ffmpeggui.core.editing.CutRange
 import com.cuscus.ffmpeggui.core.editing.FollowCropTrack
+import com.cuscus.ffmpeggui.core.editing.ClipToolScope
 import com.cuscus.ffmpeggui.core.editing.PauseCuts
 import com.cuscus.ffmpeggui.core.editing.SceneDetect
 import com.cuscus.ffmpeggui.core.editing.TranscriptEdits
@@ -4041,6 +4042,15 @@ class ConversionViewModel(
     // Smart editing: pause cuts, scene splits, beats, subject-following crop
     // ---------------------------------------------------------------------
 
+    private var smartClipId:String?=null
+    fun setSmartClipScope(clipId:String?) {
+        if(smartClipId==clipId)return
+        smartClipId=clipId;dismissPauseCuts();dismissSceneSplits();dismissBeats()
+    }
+    private fun smartSourceId():String = _settings.value.timeline.clips.firstOrNull {it.id==smartClipId}?.sourceId ?: EditorSource.MAIN_ID
+    private var pauseTimeline:Timeline?=null
+    private var sceneTimeline:Timeline?=null
+    private var beatTimeline:Timeline?=null
     private val _pauseCuts = MutableStateFlow<PauseCutsStatus>(PauseCutsStatus.Idle)
     val pauseCuts: StateFlow<PauseCutsStatus> = _pauseCuts.asStateFlow()
     private val _sceneSplits = MutableStateFlow<SceneSplitsStatus>(SceneSplitsStatus.Idle)
@@ -4088,8 +4098,8 @@ class ConversionViewModel(
         val features = smart ?: return
         if (pauseCutsJob?.isActive == true) return
         val settings = _settings.value
-        val source = settings.source(EditorSource.MAIN_ID) ?: return
-        val words = settings.spokenWords[EditorSource.MAIN_ID]
+        val source = settings.source(smartSourceId()) ?: return
+        val words = settings.spokenWords[smartSourceId()]
         if (words == null) {
             _pauseCuts.value = PauseCutsStatus.NeedsWords
             return
@@ -4098,6 +4108,7 @@ class ConversionViewModel(
             _pauseCuts.value = PauseCutsStatus.Ready(emptyList(), emptySet())
             return
         }
+        val clipId=smartClipId;val sourceId=smartSourceId();pauseTimeline=settings.timeline
         pauseCutsJob = viewModelScope.launch {
             _pauseCuts.value = PauseCutsStatus.Working
             try {
@@ -4108,8 +4119,8 @@ class ConversionViewModel(
                 }
                 val durationMs = source.info?.durationMs ?: 0L
                 val cuts = PauseCuts.suggest(words, silences, durationMs, minPauseMs = minPauseMs)
-                    .ontoTimeline()
-                    .normalized(_settings.value.timeline.durationMs, minGapMs = 120L)
+                    .let {ClipToolScope.cuts(settings.timeline,clipId,sourceId,it)}
+                if(_settings.value.timeline!=pauseTimeline || smartClipId!=clipId)return@launch
                 _pauseCuts.value = PauseCutsStatus.Ready(cuts, cuts.indices.toSet())
             } catch (e: CancellationException) {
                 if (_pauseCuts.value is PauseCutsStatus.Working) _pauseCuts.value = PauseCutsStatus.Idle
@@ -4134,10 +4145,11 @@ class ConversionViewModel(
     /** Takes the ticked pause and filler cuts out of the timeline. */
     fun applyPauseCuts() {
         val ready = _pauseCuts.value as? PauseCutsStatus.Ready ?: return
+        if(_settings.value.timeline!=pauseTimeline){dismissPauseCuts();return}
         val chosen = ready.chosen.sorted().mapNotNull { ready.cuts.getOrNull(it) }
         _pauseCuts.value = PauseCutsStatus.Idle
         if (chosen.isEmpty()) return
-        editTimeline { timeline -> timeline.withoutRanges(chosen) { newId() } }
+        editTimeline { timeline -> ClipToolScope.remove(timeline,chosen) { newId() } }
     }
 
     /**
@@ -4155,8 +4167,9 @@ class ConversionViewModel(
     fun findSceneSplits(threshold: Double = SceneDetect.DEFAULT_THRESHOLD) {
         val features = smart ?: return
         if (sceneSplitsJob?.isActive == true) return
-        val source = _settings.value.source(EditorSource.MAIN_ID) ?: return
+        val source = _settings.value.source(smartSourceId()) ?: return
         if (source.isStill) return
+        val clipId=smartClipId;val sourceId=smartSourceId();sceneTimeline=_settings.value.timeline
         sceneSplitsJob = viewModelScope.launch {
             _sceneSplits.value = SceneSplitsStatus.Working
             try {
@@ -4165,8 +4178,9 @@ class ConversionViewModel(
                     _sceneSplits.value = SceneSplitsStatus.Failed
                     return@launch
                 }
-                val points = scenes.mapNotNull(::filePointOntoTimeline).distinct().sorted()
+                val points = ClipToolScope.points(sceneTimeline!!,clipId,sourceId,scenes)
                     .filter { _settings.value.timeline.canSplitAt(it) }
+                if(_settings.value.timeline!=sceneTimeline || smartClipId!=clipId)return@launch
                 _sceneSplits.value = SceneSplitsStatus.Ready(points, points.indices.toSet())
             } catch (e: CancellationException) {
                 if (_sceneSplits.value is SceneSplitsStatus.Working) _sceneSplits.value = SceneSplitsStatus.Idle
@@ -4191,6 +4205,7 @@ class ConversionViewModel(
     /** Splits the clips at the ticked scene changes. */
     fun applySceneSplits() {
         val ready = _sceneSplits.value as? SceneSplitsStatus.Ready ?: return
+        if(_settings.value.timeline!=sceneTimeline){dismissSceneSplits();return}
         val chosen = ready.chosen.sorted().mapNotNull { ready.points.getOrNull(it) }
         _sceneSplits.value = SceneSplitsStatus.Idle
         if (chosen.isEmpty()) return
@@ -4201,8 +4216,9 @@ class ConversionViewModel(
     fun findBeats() {
         val features = smart ?: return
         if (beatsJob?.isActive == true) return
-        val source = _settings.value.source(EditorSource.MAIN_ID) ?: return
+        val source = _settings.value.source(smartSourceId()) ?: return
         if (source.isStill || source.info?.hasAudio == false) return
+        val clipId=smartClipId;val sourceId=smartSourceId();beatTimeline=_settings.value.timeline
         beatsJob = viewModelScope.launch {
             _beats.value = BeatsStatus.Working
             try {
@@ -4211,8 +4227,9 @@ class ConversionViewModel(
                     _beats.value = BeatsStatus.Failed
                     return@launch
                 }
-                val beats = found.beatsMs.mapNotNull(::filePointOntoTimeline).distinct().sorted()
-                val onsets = found.onsetsMs.mapNotNull(::filePointOntoTimeline).distinct().sorted()
+                val beats = ClipToolScope.points(beatTimeline!!,clipId,sourceId,found.beatsMs)
+                val onsets = ClipToolScope.points(beatTimeline!!,clipId,sourceId,found.onsetsMs)
+                if(_settings.value.timeline!=beatTimeline || smartClipId!=clipId)return@launch
                 if (beats.isEmpty()) {
                     _beats.value = BeatsStatus.Failed
                 } else {
@@ -4244,6 +4261,7 @@ class ConversionViewModel(
      */
     fun applyBeatCuts() {
         val ready = _beats.value as? BeatsStatus.Ready ?: return
+        if(_settings.value.timeline!=beatTimeline){dismissBeats();return}
         val at = ready.chosen.sorted().map(ready.beatsMs::get).filter(_settings.value.timeline::canSplitAt)
         if (at.isEmpty()) return
         editTimeline { timeline -> timeline.splitAtAll(at) { newId() } }
@@ -4585,6 +4603,7 @@ class ConversionViewModel(
         val before = _settings.value
         _settings.update { block(it).withValidWindow() }
         val after = _settings.value
+        if(after.timeline!=before.timeline){dismissPauseCuts();dismissSceneSplits();dismissBeats()}
         if (record && after != before) {
             val now = System.nanoTime()
             val continuesStep = stepKey != null && stepKey == lastStepKey &&

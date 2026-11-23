@@ -14,6 +14,14 @@ import java.io.File
 import java.util.UUID
 
 class EditorController(val scope: CoroutineScope) {
+    var smartClipId by mutableStateOf<String?>(null)
+    fun selectSmartClip(id:String?) {
+        if(busy)return
+        smartClipId=id
+        val p=project ?: return
+        p.timeline.clips.firstOrNull {it.id==id}?.let {clip->selectedSource=p.sources.indexOfFirst {it.path==clip.sourceId}.coerceAtLeast(0)}
+        resetAnalysis()
+    }
     var selectedSource by mutableStateOf(0)
     var project by mutableStateOf<DesktopProject?>(null)
     var sourceFrame by mutableStateOf<ImageBitmap?>(null)
@@ -57,13 +65,13 @@ class EditorController(val scope: CoroutineScope) {
         val source=media.probe(path)
         player.stop()
         selectedSource=0;drawingFrame=null;project=DesktopProject.create(source)
-        history.clear();pruneMasks(); resetAnalysis(); rendered?.delete();rendered=null;previewFrame=null; position=0
+        history.clear();smartClipId=null;pruneMasks(); resetAnalysis(); rendered?.delete();rendered=null;previewFrame=null; position=0
         status="${File(path).name} · ${source.info.durationFormatted} · ${source.info.width} × ${source.info.height}"
         seek(0)
     }
     fun selectSource(index:Int) {
         val p=project ?: return
-        selectedSource=index.coerceIn(p.sources.indices);resetAnalysis()
+        smartClipId=null;selectedSource=index.coerceIn(p.sources.indices);resetAnalysis()
         p.timeline.clips.indexOfFirst {it.sourceId==p.sources[selectedSource].path}.takeIf {it>=0}?.let {seek(p.timeline.startOf(it))}
     }
     fun append(path:String)=work("Adding source…") {
@@ -83,7 +91,8 @@ class EditorController(val scope: CoroutineScope) {
         selectedSource=selectedSource.coerceIn(next.sources.indices)
         player.stop();rendered?.delete(); rendered=null;previewFrame=null
         position=position.coerceAtMost(next.timeline.durationMs)
-        pauseStatus=PauseCutsStatus.Idle; sceneStatus=SceneSplitsStatus.Idle
+        resetAnalysis()
+        if(next.timeline.clips.none {it.id==smartClipId})smartClipId=null
         seek(position)
         pruneMasks()
     }
@@ -134,8 +143,8 @@ class EditorController(val scope: CoroutineScope) {
             try {
                 val silence=media.silence(p.sources[selectedSource])
                 val cuts=PauseCuts.suggest(p.sourceWords(selectedSource),silence,p.sources[selectedSource].info.durationMs).flatMap { c ->
-                    p.footageRanges(c.startMs,c.endMs,selectedSource).map { CutRange(it.first,it.second,c.reason) }
-                }.normalized(p.timeline.durationMs,120)
+                    ClipToolScope.cuts(p.timeline,smartClipId,p.sources[selectedSource].path,listOf(c))
+                }
                 pauseStatus=PauseCutsStatus.Ready(cuts,cuts.indices.toSet()); status="Review the suggestions, then choose Cut."
             } catch (e: Exception) { pauseStatus=PauseCutsStatus.Failed; throw e }
         }
@@ -145,7 +154,7 @@ class EditorController(val scope: CoroutineScope) {
         sceneStatus=SceneSplitsStatus.Working
         work("Finding scene changes locally…") {
             try {
-                val points=media.scenes(p.sources[selectedSource]).flatMap { at -> p.footageRanges(at,at+1,selectedSource).map { it.first } }.distinct()
+                val points=ClipToolScope.points(p.timeline,smartClipId,p.sources[selectedSource].path,media.scenes(p.sources[selectedSource]))
                 sceneStatus=SceneSplitsStatus.Ready(points,points.indices.toSet()); status="Review the scene boundaries, then choose Split."
             } catch (e: Exception) { sceneStatus=SceneSplitsStatus.Failed; throw e }
         }
@@ -157,7 +166,7 @@ class EditorController(val scope: CoroutineScope) {
             try {
                 val result=withContext(Dispatchers.Default) { BeatTrack.analyze(media.samples(p.sources[selectedSource].path),16000,p.sources[selectedSource].info.durationMs) }
                 check(result.tempoBpm!=null && result.beatsMs.isNotEmpty()) { "No steady beat found. Use at least five seconds of rhythmic music." }
-                val points=result.beatsMs.flatMap { at -> p.footageRanges(at,at+1,selectedSource).map { it.first } }.distinct()
+                val points=ClipToolScope.points(p.timeline,smartClipId,p.sources[selectedSource].path,result.beatsMs)
                 beatStatus=BeatsStatus.Ready(result.onsetsMs,points,result.tempoBpm); status="Review the beats. Snapping also applies to Split here."
             } catch (e: Exception) { beatStatus=BeatsStatus.Failed; throw e }
         }
@@ -255,7 +264,7 @@ class EditorController(val scope: CoroutineScope) {
         followCrop=followStatus, followCropSet=project?.followCrop!=null,
         onFindPauseCuts=::findPauses,
         onTogglePauseCut={ index -> (pauseStatus as? PauseCutsStatus.Ready)?.let { s -> pauseStatus=s.copy(chosen=toggle(s.chosen,index)) } },
-        onApplyPauseCuts={ val p=project; val s=pauseStatus as? PauseCutsStatus.Ready; if (p!=null && s!=null) mutate(p.copy(timeline=p.withoutFootageRanges(s.cuts.filterIndexed { i,_ -> i in s.chosen }),followCrop=null)) },
+        onApplyPauseCuts={ val p=project; val s=pauseStatus as? PauseCutsStatus.Ready; if (p!=null && s!=null) mutate(p.copy(timeline=ClipToolScope.remove(p.timeline,s.cuts.filterIndexed { i,_ -> i in s.chosen },id),followCrop=null)) },
         onDismissPauseCuts={ pauseStatus=PauseCutsStatus.Idle }, onListen={ tab="Transcript";listen() },
         onFindSceneSplits=::findScenes,
         onToggleSceneSplit={ index -> (sceneStatus as? SceneSplitsStatus.Ready)?.let { s -> sceneStatus=s.copy(chosen=toggle(s.chosen,index)) } },

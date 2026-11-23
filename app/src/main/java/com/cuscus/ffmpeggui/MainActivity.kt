@@ -381,6 +381,7 @@ class MainActivity : ComponentActivity() {
                         onRejoin = vm::rejoinStems,
                     )
                     val smartEdit = SmartEditUi(
+                        onClipScope=vm::setSmartClipScope,
                         pauseCuts = pauseCutsStatus,
                         sceneSplits = sceneSplitsStatus,
                         beats = beatsStatus,

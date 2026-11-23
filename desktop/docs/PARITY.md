@@ -567,3 +567,23 @@ rejected until its adapter exists. Latest full package8b6predatesHDR/canvas.
   desktop conversion pin, no auto-download;2,000MiB freeRAM requirement retained.
   Local host cannot run it, correctly refuses. Selector/limits displayed and
   visually inspected. Import picker not clicked; inference tested in CI.
+
+
+### 2026-11-23 06:22 EET: selected existing clip smart-tool correction
+- User clarified existing split clip, not arbitrary range. No new arbitrary
+  range UI shipped. Android smart actions now follow selectedClipId and analyze
+  its source; pause/scene/beat detections map through ClipToolScope onto only
+  that occurrence on unsped footage clock. No duplicate-source collateral cut.
+- Selection change cancels/clears results. Android timeline snapshot guards and
+  mutation invalidation refuse stale apply. Linux explicit Clip N smart scope,
+  source selection reset and beat/follow mutation invalidation added.
+- Shared pause removal handles edge cuts below the100ms split threshold,
+  windows speed curves, retains absolute source-clock keyframes and preserves
+  neighbour clip objects unchanged. One project/timeline mutation, hence one Undo.
+-61 native checks pass including reversed2x duplicate occurrence,50ms edge,
+  expected played duration and actual stable-colour outside pixels at shifted
+  times. Core JUnit tests added; local test dependency not cached, CI needed.
+- Android source compile/UI/device proof remains pending. Follow crop, speech,
+  stems and other tool-specific selected-clip adapters remain open. This is not
+  fulfillment of all-tools scope. Analysis can still read whole source for
+  context; only selected clip results mutate the edit.

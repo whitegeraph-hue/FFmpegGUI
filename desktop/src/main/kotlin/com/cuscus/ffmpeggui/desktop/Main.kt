@@ -150,6 +150,15 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                                     tabs.forEach { title -> FilterChip(selected=controller.tab==title,onClick={ controller.tab=title },label={ Text(title) }) }
                                 }
                                 Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+                                    if(controller.tab in listOf("Pause cuts","Scenes","Beats"))PanelCard {
+                                        Text("Tool scope",style=MaterialTheme.typography.titleMedium)
+                                        FlowRowCompat {
+                                            FilterChip(controller.smartClipId==null,{controller.selectSmartClip(null)},label={Text("Selected source, all clips")},enabled=!controller.busy)
+                                            project.timeline.clips.forEachIndexed {i,clip->FilterChip(controller.smartClipId==clip.id,{controller.selectSmartClip(clip.id)},label={Text("Clip ${i+1}")},enabled=!controller.busy)}
+                                        }
+                                        Text("Only this clip occurrence is changed. Existing clip effects stay; cuts shift later content earlier. Originals are unchanged.")
+                                    }
+
                                     when(controller.tab) {
                                         "Edit" -> EditPanel(controller,project,window)
                                         "Subject cutout" -> SubjectPanel(controller,project)

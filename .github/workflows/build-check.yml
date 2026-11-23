@@ -8,6 +8,7 @@ on:
   push:
     branches:
       - smart-editing-features
+      - linux-desktop
   workflow_dispatch:
 
 permissions:

@@ -14,6 +14,29 @@ fun main(args:Array<String>)=runBlocking {
     var passed=0
     suspend fun verify(name:String,block:suspend ()->Unit) { block(); passed++;println("PASS $name") }
     val video=media.probe(File(folder,"video.mp4").path)
+    verify("selected existing clip smart cuts preserve duplicate occurrence effects and footage clock") {
+        val first=Clip("first",video.path,0,4000,Effects(speed=2f,reversed=true))
+        val selected=first.copy(id="selected")
+        val last=Clip("last",video.path,4000,8000)
+        val project=pendingScopeProject(video,Timeline(listOf(first,selected,last)))
+        val cuts=ClipToolScope.cuts(project.timeline,"selected",video.path,listOf(CutRange(1000,2000,"pause")))
+        check(cuts==listOf(CutRange(5000,6000,"pause")))
+        val changed=project.copy(timeline=ClipToolScope.remove(project.timeline,cuts){UUID.randomUUID().toString()})
+        check(changed.timeline.clips.first()==first && changed.timeline.clips.last()==last)
+        check(changed.timeline.durationMs==11000L)
+        // Stable colour scenes isolate outside-content preservation from frame rounding at joins.
+        val stable=media.probe(File(folder,"scenes.mp4").path)
+        fun stableProject(t:Timeline)=DesktopProject.create(stable).copy(timeline=Timeline(t.clips.map {it.copy(sourceId=stable.path)}))
+        val before=exporter.export(stableProject(project.timeline),File(folder,"clip-scope-before.mp4"));val after=exporter.export(stableProject(changed.timeline),File(folder,"clip-scope-after.mp4"))
+        check(kotlin.math.abs(before.info.durationMs-after.info.durationMs-500)<150)
+        for((a,b) in listOf(500L to 500L,5000L to 4500L)) {
+            val x=media.frame(before.path,a)!!;val y=media.frame(after.path,b)!!
+            try {var diff=0L;for(py in 0 until x.height step 8)for(px in 0 until x.width step 8)diff+=kotlin.math.abs((x.getRGB(px,py) and 255)-(y.getRGB(px,py) and 255));check(diff<30000) {"Outside selected clip changed: $diff"}}finally {x.flush();y.flush()}
+        }
+        check(ClipToolScope.points(project.timeline,"selected",video.path,listOf(1000,2000))==listOf(5000L,6000L))
+        val edge=ClipToolScope.remove(project.timeline,ClipToolScope.cuts(project.timeline,"selected",video.path,listOf(CutRange(0,50)))){UUID.randomUUID().toString()}
+        check(edge.durationMs==11950L && edge.clips.first()==first && edge.clips.last()==last)
+    }
     verify("probe actual streams") { check(video.info.durationMs in 7900..8100 && video.info.width==640 && video.info.hasAudio) }
     verify("seek actual pixels") { val a=media.frame(video.path,500)!!;val b=media.frame(video.path,3500)!!;check(a.width>0 && a.getRGB(100,100)!=b.getRGB(100,100)) }
     verify("real scene detector") { val s=media.probe(File(folder,"scenes.mp4").path); val points=media.scenes(s);println("SCENES $points");check(points.size==2 && kotlin.math.abs(points[0]-2000)<100 && kotlin.math.abs(points[1]-4000)<100) }
@@ -754,3 +777,5 @@ fun main(args:Array<String>)=runBlocking {
     }
     println("NATIVE_CHECKS_PASSED=$passed")
 }
+
+private fun pendingScopeProject(source:DesktopSource,timeline:Timeline)=DesktopProject.create(source).copy(timeline=timeline)

@@ -498,6 +498,7 @@ fun ConfigScreen(
         }
     }
     val scopeClipId = selectedClip?.id
+    LaunchedEffect(scopeClipId) {smartEdit.onClipScope(scopeClipId)}
     val scopeEffects = selectedClip?.let { it.effects.at(keyMsOf(it)) } ?: wholeEffects
     // Changes go through the keyframes: what something with keyframes animates is put in the
     // keyframe at the playhead (see Keyframing.kt).

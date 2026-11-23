@@ -40,6 +40,7 @@ import java.util.Locale
 
 /** The smart-editing tools' state and actions, collected from the view model for the editor. */
 class SmartEditUi(
+    val onClipScope:(String?)->Unit = {},
     val pauseCuts: PauseCutsStatus = PauseCutsStatus.Idle,
     val sceneSplits: SceneSplitsStatus = SceneSplitsStatus.Idle,
     val beats: BeatsStatus = BeatsStatus.Idle,
