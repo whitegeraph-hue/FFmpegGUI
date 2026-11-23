@@ -327,7 +327,7 @@ class DesktopSmartModels(
                 (weight.toDouble() / (side.toLong() * side * 255)).toFloat().coerceIn(0f, 1f))
         }
 
-        private fun checkAvailableMemory(minimum: Long) {
+        fun checkAvailableMemory(minimum: Long) {
             // Native models allocate outside the Java heap. Respect the host and cgroup limit.
             val host = runCatching {
                 File("/proc/meminfo").useLines { lines ->

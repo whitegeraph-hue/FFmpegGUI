@@ -26,6 +26,8 @@ import java.awt.Desktop
 
 fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
     runModelWorker(System.getenv("FFMPEGGUI_MODEL_WORKER"))
+} else if (System.getenv("FFMPEGGUI_STEMS_CHECKS") != null) {
+    runStemsChecks(System.getenv("FFMPEGGUI_STEMS_CHECKS"))
 } else if (System.getenv("FFMPEGGUI_ISOLATED_CHECKS") != null) {
     runIsolatedChecks(System.getenv("FFMPEGGUI_ISOLATED_CHECKS"))
 } else if (System.getenv("FFMPEGGUI_MODEL_CHECKS") != null) {
@@ -127,7 +129,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                                 }
                             }
                             Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(10.dp)) {
-                                val tabs=listOf("Edit","Clip editor","Transcript","Pause cuts","Scenes","Beats","Follow crop","Models","Subtitles","Audio","Text layers","Sound tracks","Tags","Image layers","Drawing","Subject cutout","Command studio")
+                                val tabs=listOf("Edit","Clip editor","Transcript","Pause cuts","Scenes","Beats","Follow crop","Models","Subtitles","Audio","Text layers","Sound tracks","Tags","Image layers","Drawing","Subject cutout","Scene stems","Command studio")
                                 if(project.sources.size>1)FlowRowCompat {
                                     project.sources.forEachIndexed {i,source->FilterChip(controller.selectedSource==i,{controller.selectSource(i)},label={Text("${i+1}: ${File(source.path).name.take(20)}")},enabled=!controller.busy)}
                                 }
@@ -152,6 +154,23 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                                         "Beats" -> BeatsPanel(controller.smartUi())
                                         "Follow crop" -> FollowCropPanel(controller.smartUi())
                                         "Transcript" -> TranscriptPanel(controller,project)
+                                        "Scene stems" -> PanelCard {
+                                            Text("Dialogue, music and effects",style=MaterialTheme.typography.titleLarge)
+                                            Text("Separate the selected original file offline with the original pinned Bandit int8 model. This exports three stereo 48 kHz WAV files, not the edited timeline. Source edits and existing tracks are not changed.")
+                                            Text("Up to 10 minutes per file. At least 1.5 GiB free RAM is required. Results can contain bleed or missing sound. Review them before using them. Instrument splitting is not yet ported.")
+                                            Text("Import the 40 MB model in Models first. Licence and attribution travel with the exported folder.")
+                                            Button(onClick={
+                                                val dialog=FileDialog(window,"Choose a new folder name for scene stems",FileDialog.SAVE)
+                                                dialog.file="scene-stems-${System.currentTimeMillis()}";dialog.isVisible=true
+                                                dialog.file?.let {name->
+                                                    val destination=File(dialog.directory,name)
+                                                    controller.work("Starting isolated scene separation…") {
+                                                        controller.models.stems(project.sources[controller.selectedSource].path,DesktopModels.stemsFile,destination) {controller.status=it}
+                                                        controller.status="Three stems saved with licences: ${destination.absolutePath}. Review the audio before use."
+                                                    }
+                                                }
+                                            },enabled=!controller.busy && project.sources[controller.selectedSource].info.hasAudio) {Text("Export scene stems to a new folder")}
+                                        }
                                         "Models" -> PanelCard {
                                             Text("Offline models",style=MaterialTheme.typography.titleLarge)
                                             Text(controller.modelStatus)
@@ -165,6 +184,9 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                                             Text("Select encoder.int8.onnx, decoder.int8.onnx and joiner.int8.onnx together. The original token list is included. About 670 MB on disk; speech needs substantial free RAM.",style=MaterialTheme.typography.bodySmall)
                                             OutlinedButton(onClick={ Desktop.getDesktop().browse(java.net.URI(com.cuscus.ffmpeggui.cutout.CutoutModel.FAST.downloadUrl)) },enabled=!controller.busy) { Text("Open U2-NetP download") }
                                             Button(onClick={ pick()?.let { file -> controller.work("Checking and importing subject model…") { DesktopModels.importCutout(file);controller.modelStatus=DesktopModels.present();controller.status=controller.modelStatus } } },enabled=!controller.busy) { Text("Import u2netp.onnx") }
+                                            OutlinedButton(onClick={Desktop.getDesktop().browse(java.net.URI(DesktopStems.URL))},enabled=!controller.busy) {Text("Open original Bandit int8 download")}
+                                            Button(onClick={pick()?.let {file->controller.work("Checking and importing scene-stem model…") {DesktopModels.importStems(file);controller.modelStatus=DesktopModels.present();controller.status=controller.modelStatus}}},enabled=!controller.busy) {Text("Import Bandit scene-stem model")}
+                                            Text("Bandit v2 by Karn N. Watcharasupat, Chih-Wei Wu and Iroro Orife. Model: CC BY-SA 4.0. Code: Apache 2.0. Exported WAVs include the original licence and provenance notices.",style=MaterialTheme.typography.bodySmall)
                                             Text("Models and licences: NVIDIA Parakeet, CC BY 4.0; U2-NetP by Xuebin Qin et al., Apache 2.0. See the source project model record for attributions.",style=MaterialTheme.typography.bodySmall)
                                             OutlinedButton(onClick={ Desktop.getDesktop().browse(java.net.URI("https://github.com/whitegeraph-hue/FFmpegGUI/blob/linux-desktop/docs/MODELS.md")) }) { Text("Model licences and sources") }
                                         }

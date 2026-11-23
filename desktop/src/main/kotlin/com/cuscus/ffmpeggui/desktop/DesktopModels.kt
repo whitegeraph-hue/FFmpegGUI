@@ -10,10 +10,12 @@ object DesktopModels {
     val root:File = File(System.getenv("XDG_DATA_HOME") ?: File(System.getProperty("user.home"),".local/share").path,"ffmpeggui-linux/models")
     val speechDirectory:File get()=File(root,"parakeet")
     val cutoutFile:File get()=File(root,"cutout/u2netp.onnx")
+    val stemsFile:File get()=File(root,"stems/${DesktopStems.NAME}")
     val speechNames:List<String> get()=SpeechModel.PARAKEET.files.map { it.name }
     fun present():String = buildString {
         append("Speech files: ${speechNames.count { File(speechDirectory,it).isFile }} / 4. ")
         append(if(cutoutFile.isFile) "Subject model installed." else "Subject model not installed.")
+        append(if(stemsFile.isFile) " Scene-stem model installed." else " Scene-stem model not installed.")
         append(" Every model is hash-checked again before use.")
     }
     suspend fun importSpeech(files:List<File>)=withContext(Dispatchers.IO) {
@@ -32,6 +34,10 @@ object DesktopModels {
                 DesktopModelFiles.importFile(temporary,File(speechDirectory,"tokens.txt"),tokens.sha256,tokens.bytes)
             } finally { temporary.delete() }
         }
+    }
+    suspend fun importStems(file:File) {
+        require(file.name==DesktopStems.NAME) {"Choose the original Bandit int8 file"}
+        DesktopModelFiles.importFile(file,stemsFile,DesktopStems.HASH,DesktopStems.BYTES)
     }
     suspend fun importCutout(file:File) {
         require(file.name==CutoutModel.FAST.fileName) { "Choose u2netp.onnx from the original download link." }

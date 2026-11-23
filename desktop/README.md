@@ -72,3 +72,28 @@ artifacts is a development milestone, not completion of the Linux request.
 
 EUPL-1.2, same as the app. See ../LICENSE. Native dependencies retain their own
 licences. Model weights are not committed to git. No paid services are used.
+
+### Scene stems
+
+The Scene stems tab exports dialogue, music and effects from the selected
+original source, not the edited timeline. Import the original pinned
+`bandit-v2-multi-int8.onnx` using Models. No model is downloaded automatically.
+Bandit v2 model authors: Karn N. Watcharasupat, Chih-Wei Wu and Iroro Orife.
+Model licence: CC BY-SA 4.0; upstream code: Apache 2.0. The original
+licence, notice and provenance files travel with each exported directory.
+The model release is linked from Models; the pinned SHA-256 is checked
+both on import and on use. No model weights are included in this package.
+
+This path uses the original shared separator in a disposable process, with
+three stereo 48 kHz WAV outputs. It requires at least 1.5 GiB free RAM and
+limits each source to ten minutes. A short speech-only fixture peaked near
+1.13 GiB RSS with CPU memory arena/pattern reuse disabled. This is not a
+general memory or audio-quality guarantee. Existing output directories
+are rejected; failures and cancellation remove the new partial directory.
+Review the results. Instrument splitting and automatic timeline integration
+are not yet ported.
+
+Opt-in actual-model check: set `FFMPEGGUI_STEMS_CHECKS` to a folder containing
+`input.wav` and the pinned model. It verifies independent durable outputs,
+durations, notices, existing-folder rejection and cancellation cleanup.
+It writes `proof-output` and refuses to replace it.

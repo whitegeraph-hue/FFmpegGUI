@@ -13,7 +13,7 @@ import java.util.concurrent.TimeUnit
 /** A native crash must not take the unsaved editor down. No network or shell. */
 class DesktopModelWorker {
     private val gate=Mutex()
-    private suspend fun run(kind:String,path:String,model:File,duration:Long=0,progress:(String)->Unit):JsonObject = gate.withLock {
+    private suspend fun run(kind:String,path:String,model:File,duration:Long=0,output:File?=null,progress:(String)->Unit):JsonObject = gate.withLock {
         withContext(Dispatchers.IO) {
             val directory=Files.createTempDirectory("ffmpeggui-model-worker-").toFile()
             var process:Process?=null
@@ -44,7 +44,17 @@ class DesktopModelWorker {
                 check(process.exitValue()==0) { "Offline model process stopped (${process.exitValue()}). " + File(directory,"worker.log").readText().take(2000) }
                 val resultFile=File(directory,"result.json")
                 check(resultFile.length() in 1..32_000_000) { "Invalid offline model response size" }
-                Json.parseToJsonElement(resultFile.readText()).jsonObject
+                val response=Json.parseToJsonElement(resultFile.readText()).jsonObject
+                if(kind=="stems") {
+                    val target=requireNotNull(output)
+                    check(response["files"]!!.jsonArray.map {it.jsonPrimitive.content}==DesktopStems.names) {"Unexpected stem names"}
+                    DesktopStems.names.forEach {name->
+                        val source=File(directory,name)
+                        check(source.isFile && !Files.isSymbolicLink(source.toPath()) && source.length() in 45..250_000_000) {"Invalid stem output"}
+                        source.inputStream().use {input->Files.newOutputStream(File(target,name).toPath(),java.nio.file.StandardOpenOption.CREATE_NEW).use {input.copyTo(it)}}
+                    }
+                }
+                response
                 } finally { Runtime.getRuntime().removeShutdownHook(shutdown) }
             } finally {
                 process?.let { p ->
@@ -56,6 +66,17 @@ class DesktopModelWorker {
                 directory.deleteRecursively()
             }
         }
+    }
+    /** Destination must not exist. A failed/cancelled run leaves no partial stem directory. */
+    suspend fun stems(path:String,model:File,destination:File,progress:(String)->Unit):List<File> {
+        require(destination.mkdir()) {"Choose a new, writable output folder"}
+        try {
+            run("stems",path,model,output=destination,progress=progress)
+            listOf("LICENSE.txt","NOTICE.txt","PROVENANCE.txt").forEach {name->
+                DesktopModelWorker::class.java.getResourceAsStream("/bandit-int8/$name")!!.use {input->File(destination,name).outputStream().use {input.copyTo(it)}}
+            }
+            return DesktopStems.names.map {File(destination,it)}
+        } catch(t:Throwable) {destination.deleteRecursively();throw t}
     }
     suspend fun transcribe(path:String,model:File,onWarning:(String)->Unit={},progress:(String)->Unit):List<SpokenWord> {
         val result=run("speech",path,model,progress=progress)
@@ -100,6 +121,10 @@ fun runModelWorker(folder:String)=runBlocking {
                 check(javax.imageio.ImageIO.write(image,"png",bytes))
                 buildJsonObject {put("png",java.util.Base64.getEncoder().encodeToString(bytes.toByteArray()))}
             } finally {image.flush()}
+        }
+        "stems" -> {
+            val files=DesktopStems.separate(path,model,directory,::progress)
+            buildJsonObject {put("files",buildJsonArray {files.forEach {add(JsonPrimitive(it.name))}})}
         }
         "subject" -> {
             val track=runtime.track(path,request["duration"]!!.jsonPrimitive.long,model,progress={ progress(it.toString()) })

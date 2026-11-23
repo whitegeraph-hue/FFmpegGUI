@@ -28,3 +28,7 @@ This collection is an engineering audit, not legal certification.
 
 Corresponding port source is bundled under licenses/source/ in this runtime.
 Third-party library sources and licence evidence are linked in sources.json.
+
+Bandit v2 int8 scene model attribution, CC BY-SA 4.0 model licence,
+Apache 2.0 code notice and original export provenance are bundled under
+bandit-int8/. Model weights remain a separate hash-checked import.
