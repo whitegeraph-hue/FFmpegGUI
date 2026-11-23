@@ -49,7 +49,15 @@ internal fun runNativeChecks(args:Array<String>)=runBlocking {
         } finally {c.close();scope.cancel()}
     }
     verify("layer alignment moved saved project renders actual picture and text positions") {
-        val still=media.probe(File(folder,"sticker.png").path)
+        // Own this fixture: a later check creates sticker.png, which does not exist on clean CI.
+        val sticker=File(folder,"alignment-sticker.png")
+        val image=java.awt.image.BufferedImage(64,64,java.awt.image.BufferedImage.TYPE_INT_ARGB)
+        try {
+            val g=image.createGraphics()
+            try {g.color=java.awt.Color.WHITE;g.fillRect(0,0,64,64)}finally {g.dispose()}
+            check(javax.imageio.ImageIO.write(image,"png",sticker))
+        } finally {image.flush()}
+        val still=media.probe(sticker.path)
         val base=DesktopProject.create(video).copy(timeline=Timeline(listOf(Clip("alignment-export",video.path,endMs=1000))),pictures=listOf(DesktopPicture(still,ImagePlacement(x=.1f,y=.1f,widthFraction=.2f,aspect=1f))),captions=listOf(TextOverlay(id="alignment-text",text="ALIGN",size=.1f,x=.1f,y=.1f)))
         val scope=CoroutineScope(Dispatchers.Default+SupervisorJob());val c=EditorController(scope)
         try {
