@@ -201,8 +201,14 @@ class EditorController(val scope: CoroutineScope) {
             // Remember confirmed choices only after a completed export. Cancellation
             // and a failed export leave both the project and its Undo history alone.
             if(project!=p) {
-                project?.let {history.addLast(it);if(history.size>50)history.removeFirst()}
+                val previous=project
+                previous?.let {history.addLast(it);if(history.size>50)history.removeFirst()}
                 project=p
+                // The preview keeps its picture when only the delivery container changes.
+                // Encoding changes can change cached dimensions, cadence or audio quality.
+                if(previous?.encoding!=p.encoding) {
+                    player.stop();rendered?.delete();rendered=null;previewFrame=null
+                }
             }
             status="Export complete: ${result.path} · ${result.info.durationFormatted}"
         }

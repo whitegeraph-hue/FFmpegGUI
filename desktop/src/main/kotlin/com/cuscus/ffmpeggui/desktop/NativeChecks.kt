@@ -22,11 +22,17 @@ fun main(args:Array<String>)=runBlocking {
             c.project=base
             val draft=base.copy(format=OutputFormat.WAV,encoding=base.encoding.copy(audio=base.encoding.audio.copy(bitDepth=24)))
             check(c.project==base)
+            val stale=File(folder,"stale-preview.mp4").apply {writeText("cache")};c.rendered=stale;c.snap=true
             c.export(File(folder,"confirmed-options.wav"),draft);c.job?.join();check(c.error==null){c.error.orEmpty()}
             check(c.project==draft)
+            check(c.rendered==null && !stale.exists() && c.snap)
             val saved=File(folder,"confirmed-options.ffgui.json");DesktopProjects.save(c.project!!,saved)
             val loaded=DesktopProjects.load(saved,media);check(loaded.format==OutputFormat.WAV && loaded.encoding.audio.bitDepth==24)
             check(loaded.timeline==base.timeline)
+            c.undo();check(c.project==base)
+            val reusable=File(folder,"reusable-preview.mp4").apply {writeText("cache")};c.rendered=reusable;c.snap=true
+            c.export(File(folder,"format-only.wav"),base.copy(format=OutputFormat.WAV));c.job?.join();check(c.error==null){c.error.orEmpty()}
+            check(c.rendered==reusable && reusable.exists() && c.snap)
             c.undo();check(c.project==base)
         }finally {c.close();scope.cancel()}
     }
