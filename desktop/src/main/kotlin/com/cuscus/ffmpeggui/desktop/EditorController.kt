@@ -282,6 +282,23 @@ class EditorController(val scope: CoroutineScope) {
         if(local!=null)seek(next.timeline.startOf(next.timeline.clips.indexOfFirst {it.id==selected!!.id})+local)
         status="Moved clip ${from+1} to ${to+1}. Undo restores the order."
     }
+    fun positionCaption(expected:DesktopProject,id:String,x:Float,y:Float) {
+        val p=project ?: return
+        if(busy || p!==expected || !x.isFinite() || !y.isFinite() || x !in 0f..1f || y !in 0f..1f)return
+        val layer=p.captions.firstOrNull {it.id==id} ?: return
+        if(layer.hidden || layer.locked || layer.keyframes.hasPositionValues() || layer.x==x && layer.y==y)return
+        mutate(p.copy(captions=p.captions.map {if(it.id==id)it.copy(x=x,y=y)else it}))
+        status="Text alignment changed. Render to inspect. Undo restores the position."
+    }
+    fun positionPicture(expected:DesktopProject,index:Int,x:Float,y:Float) {
+        val p=project ?: return
+        if(busy || p!==expected || !x.isFinite() || !y.isFinite() || x !in 0f..1f || y !in 0f..1f)return
+        val layer=p.pictures.getOrNull(index) ?: return
+        val v=layer.placement
+        if(layer.hidden || v.cover || v.keyframes.hasPositionValues() || v.x==x && v.y==y)return
+        mutate(p.copy(pictures=p.pictures.mapIndexed {i,old->if(i==index)old.copy(placement=v.copy(x=x,y=y))else old}))
+        status="Picture alignment changed. Render to inspect. Undo restores the position."
+    }
     fun transcriptCut(block: WordBlock, keepOnly: Boolean) {
         val p=project ?: return
         val selected=p.timeline.clips.firstOrNull {it.id==smartClipId}

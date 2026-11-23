@@ -135,3 +135,14 @@ commits once. Saved occurrence IDs confirm normal/reverse insertion, Undo restor
 original order, Escape and outside release leave order/history unchanged.88 native
 checks passed in two non-overlapping44group local runs (a single full run exceeds
 the local command time limit). CI remains unfiltered. Not yet reviewed or packaged.
+
+### Local layer alignment pad
+
+Text and picture panels offer a compact dialog to set base X/Y together with
+one drag and one Undo. Both picture and independently visible text were rendered
+from moved saved-project positions and inspected. This is a normalized alignment guide, not a composite
+preview or direct spatial bounding-box editor: the shared model uses fractions
+of the free space around the layer. Render remains required. Position keys,
+hidden/locked layers and cover fills disable the pad; other key properties stay
+intact. Escape/outside release cancels. Local text/picture drag/save/Undo and
+rendered saved-project positions checked; package qualification pending.

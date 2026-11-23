@@ -20,6 +20,61 @@ internal fun runNativeChecks(args:Array<String>)=runBlocking {
     suspend fun verify(name:String,block:suspend ()->Unit) { if(filter==null || filter.containsMatchIn(name)){block();passed++;println("PASS $name")} }
 
     val video=media.probe(File(folder,"video.mp4").path)
+    verify("layer alignment fractions scope guards noops history and key overrides") {
+        check(layerAlignmentAt(50f,25f,100f,100f)==(.5f to .25f))
+        check(layerAlignmentAt(0f,100f,100f,100f)==(0f to 1f))
+        for(v in listOf(-1f,101f,Float.NaN))check(layerAlignmentAt(v,0f,100f,100f)==null)
+        check(layerAlignmentAt(0f,0f,0f,100f)==null)
+        val scope=CoroutineScope(Dispatchers.Default+SupervisorJob());val c=EditorController(scope)
+        try {
+            val a=TextOverlay(id="align-a",text="A");val b=a.copy(id="align-b")
+            val p=DesktopProject.create(video).copy(captions=listOf(a,b),pictures=listOf(DesktopPicture(video)))
+            c.project=p;c.positionCaption(p,a.id,.2f,.8f)
+            val changed=c.project!!;check(changed.captions[0].x==.2f && changed.captions[1]==b)
+            c.positionCaption(p,b.id,.1f,.1f);check(c.project===changed)
+            c.undo();check(c.project===p && !c.canUndo);c.redo();check(c.project===changed)
+            c.undo();c.project=p
+            c.positionCaption(p,a.id,a.x,a.y);c.positionCaption(p,a.id,Float.NaN,.2f);check(!c.canUndo)
+            c.busy=true;c.positionPicture(p,0,.8f,.2f);check(c.project===p);c.busy=false
+            c.positionPicture(p,0,.8f,.2f);check(c.project!!.pictures[0].placement.x==.8f && c.project!!.captions==p.captions)
+            c.undo();check(c.project===p)
+            val keys=Keyframes.NONE.set(0,mapOf(KeyProperty.X to .1f))
+            check(keys.hasPositionValues());check(!Keyframes.NONE.set(0,mapOf(KeyProperty.SIZE to .1f)).hasPositionValues())
+            for(layer in listOf(a.copy(hidden=true),a.copy(locked=true),a.copy(keyframes=keys))) {
+                val blocked=p.copy(captions=listOf(layer));c.project=blocked;c.positionCaption(blocked,a.id,.9f,.9f);check(c.project===blocked)
+            }
+            for(pic in listOf(p.pictures[0].copy(hidden=true),p.pictures[0].copy(placement=p.pictures[0].placement.copy(cover=true)),p.pictures[0].copy(placement=p.pictures[0].placement.copy(keyframes=keys)))) {
+                val blocked=p.copy(pictures=listOf(pic));c.project=blocked;c.positionPicture(blocked,0,.9f,.9f);check(c.project===blocked)
+            }
+        } finally {c.close();scope.cancel()}
+    }
+    verify("layer alignment moved saved project renders actual picture and text positions") {
+        val still=media.probe(File(folder,"sticker.png").path)
+        val base=DesktopProject.create(video).copy(timeline=Timeline(listOf(Clip("alignment-export",video.path,endMs=1000))),pictures=listOf(DesktopPicture(still,ImagePlacement(x=.1f,y=.1f,widthFraction=.2f,aspect=1f))),captions=listOf(TextOverlay(id="alignment-text",text="ALIGN",size=.1f,x=.1f,y=.1f)))
+        val scope=CoroutineScope(Dispatchers.Default+SupervisorJob());val c=EditorController(scope)
+        try {
+            c.project=base;c.positionPicture(base,0,.8f,.75f);val picture=c.project!!
+            c.positionCaption(picture,"alignment-text",.8f,.75f)
+            val saved=File(folder,"alignment-pad.ffgui.json");DesktopProjects.save(c.project!!,saved)
+            val restored=DesktopProjects.load(saved,media)
+            check(restored.pictures[0].placement.x==.8f && restored.captions[0].y==.75f)
+            // Text-only contrast proves its position independently of the white sticker.
+            val textBase=base.copy(pictures=emptyList(),captions=base.captions.map {it.copy(color=0xff000000L,look=TextLook(box=true))})
+            val textMoved=restored.copy(pictures=emptyList(),captions=restored.captions.map {it.copy(color=0xff000000L,look=TextLook(box=true))})
+            for((name,project) in listOf("before" to textBase,"after" to textMoved)) {
+                val result=exporter.export(project,File(folder,"alignment-text-$name.mp4"))
+                val frame=media.frame(result.path,500)!!
+                try {javax.imageio.ImageIO.write(frame,"png",File(folder,"alignment-text-$name.png"))}finally {frame.flush()}
+            }
+            val before=exporter.export(base,File(folder,"alignment-pad-before.mp4"));val after=exporter.export(restored,File(folder,"alignment-pad-after.mp4"))
+            val a=media.frame(before.path,500)!!;val b=media.frame(after.path,500)!!
+            try {
+                javax.imageio.ImageIO.write(a,"png",File(folder,"alignment-pad-before.png"));javax.imageio.ImageIO.write(b,"png",File(folder,"alignment-pad-after.png"))
+                var changed=0;for(y in 0 until a.height step 4)for(x in 0 until a.width step 4)if(a.getRGB(x,y)!=b.getRGB(x,y))changed++
+                check(changed>200)
+            } finally {a.flush();b.flush()}
+        } finally {c.close();scope.cancel()}
+    }
     verify("timeline reorder edge scroll scales bounds direction and outside cancellation") {
         for(d in listOf(1f,1.5f,2f)) {
             val w=1000*d

@@ -716,7 +716,7 @@ private fun EditPanel(c: EditorController,p: DesktopProject,window:java.awt.Fram
     if(!p.sources[0].info.isVideo && !p.sources[0].info.isStill){Text("Text layers need a picture or video.");return}
     PanelCard {
         Text("Text layers",style=MaterialTheme.typography.titleMedium)
-        Text("Whole-output or clip-bound layers. Render to inspect placement. Higher layer number is on top. Custom curves and direct dragging remain in progress.",style=MaterialTheme.typography.bodySmall)
+        Text("Whole-output or clip-bound layers. Render to inspect placement. Higher layer number is on top. The alignment pad changes base X/Y together; direct dragging on the composite and custom curves remain in progress.",style=MaterialTheme.typography.bodySmall)
         Button(onClick={c.mutate(p.copy(captions=p.captions+TextOverlay(text="Your text",layer=p.captions.size)))},enabled=!c.busy){Text("Add text layer")}
     }
     p.captions.forEachIndexed {index,t->
@@ -724,6 +724,8 @@ private fun EditPanel(c: EditorController,p: DesktopProject,window:java.awt.Fram
         PanelCard {
             Text("Layer ${index+1}",style=MaterialTheme.typography.titleMedium)
             OutlinedTextField(t.text,{update(t.copy(text=it))},label={Text("Text")},enabled=!c.busy,modifier=Modifier.isolateProjectHistory().fillMaxWidth())
+            LayerAlignmentPad(p,t.x,t.y,!c.busy && !t.hidden && !t.locked && !t.keyframes.hasPositionValues()){x,y->c.positionCaption(p,t.id,x,y)}
+            if(t.keyframes.hasPositionValues())Text("Position keys override base alignment. Use the key controls below.",style=MaterialTheme.typography.bodySmall)
             ValueSlider("X",t.x,0f..1f,!c.busy){update(t.copy(x=it))}
             ValueSlider("Y",t.y,0f..1f,!c.busy){update(t.copy(y=it))}
             ValueSlider("Size",t.size,.01f.. .3f,!c.busy){update(t.copy(size=it))}
@@ -852,7 +854,7 @@ private fun EditPanel(c: EditorController,p: DesktopProject,window:java.awt.Fram
     if(!p.sources[0].info.isVideo){Text("Image layers need a video or picture.");return}
     PanelCard {
         Text("Image layers",style=MaterialTheme.typography.titleMedium)
-        Text("Add local pictures or video. Video layer sound is not included; add it separately as a sound track. Render to inspect the composite. Direct dragging remains in progress.",style=MaterialTheme.typography.bodySmall)
+        Text("Add local pictures or video. Video layer sound is not included; add it separately as a sound track. Render to inspect the composite. The alignment pad changes base X/Y together, not by dragging on the composite.",style=MaterialTheme.typography.bodySmall)
         Button(onClick={pick()?.let {path->c.work("Reading image layer…"){val source=c.media.probe(path);require(source.info.isVideo){"Choose a picture or video."};c.mutate(p.copy(pictures=p.pictures+DesktopPicture(source,ImagePlacement(aspect=source.info.width.toFloat()/source.info.height,layer=p.pictures.size+p.captions.size,video=if(source.info.isStill)null else OverlayVideo(trimEndMs=source.info.durationMs)))));c.status="Image layer added."}}},enabled=!c.busy){Text("Add picture or video")}
     }
     p.pictures.forEachIndexed {index,picture->
@@ -861,6 +863,8 @@ private fun EditPanel(c: EditorController,p: DesktopProject,window:java.awt.Fram
         PanelCard {
             Text("${index+1}. ${File(picture.source.path).name}",style=MaterialTheme.typography.titleSmall)
             Row {Checkbox(picture.hidden,{hidden->c.mutate(p.copy(pictures=p.pictures.mapIndexed {i,old->if(i==index)old.copy(hidden=hidden)else old}))},enabled=!c.busy);Text("Hidden")}
+            LayerAlignmentPad(p,v.x,v.y,!c.busy && !picture.hidden && !v.cover && !v.keyframes.hasPositionValues()){x,y->c.positionPicture(p,index,x,y)}
+            if(v.keyframes.hasPositionValues())Text("Position keys override base alignment. Use the key controls below.",style=MaterialTheme.typography.bodySmall)
             ValueSlider("X",v.x,0f..1f,!c.busy){update(v.copy(x=it))}
             ValueSlider("Y",v.y,0f..1f,!c.busy){update(v.copy(y=it))}
             ValueSlider("Width",v.widthFraction,.02f..2f,!c.busy){update(v.copy(widthFraction=it))}
