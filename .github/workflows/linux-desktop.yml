@@ -20,7 +20,7 @@ jobs:
         with:
           gradle-version: '8.14.3'
       - name: Install Linux media and packaging tools
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg xvfb fakeroot desktop-file-utils fonts-dejavu-core
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg xvfb fakeroot desktop-file-utils fonts-dejavu-core espeak-ng
       - name: Compile unchanged core and native desktop
         run: gradle -p desktop compileKotlin --console=plain
       - name: Run shared core tests
@@ -57,13 +57,18 @@ jobs:
           FFMPEGGUI_MODEL_CHECKS=/tmp/ffmpeggui-models /tmp/deb-check/opt/ffmpeggui-linux/bin/ffmpeggui-linux
           FFMPEGGUI_ISOLATED_CHECKS=/tmp/ffmpeggui-models /tmp/deb-check/opt/ffmpeggui-linux/bin/ffmpeggui-linux
           date -u
+      - name: Test actual packaged marked dubbing
+        run: |
+          python3 desktop/scripts/prepare-dub-fixtures.py --output /tmp/ffmpeggui-dub
+          FFMPEGGUI_DUB_WORKER_ONLY=1 FFMPEGGUI_DUB_CHECKS=/tmp/ffmpeggui-dub /tmp/deb-check/opt/ffmpeggui-linux/bin/ffmpeggui-linux
       - name: Install Debian package and launch desktop entry
         run: |
           # Remove the runtime first so this step tests Depends resolution.
-          sudo apt-get remove -y ffmpeg fonts-dejavu-core
+          sudo apt-get remove -y ffmpeg fonts-dejavu-core espeak-ng
           ! dpkg-query -W -f='${Status}' ffmpeg 2>/dev/null | grep -q 'install ok installed'
           sudo apt-get install -y ./desktop/build/compose/binaries/main/deb/*.deb
-          dpkg-query -W ffmpeggui-linux
+          dpkg-query -W ffmpeggui-linux espeak-ng
+          FFMPEGGUI_DUB_WORKER_ONLY=1 FFMPEGGUI_DUB_CHECKS=/tmp/ffmpeggui-dub /opt/ffmpeggui-linux/bin/ffmpeggui-linux
           dpkg -V ffmpeggui-linux
           desktop=$(dpkg -L ffmpeggui-linux | grep '/applications/.*[.]desktop$' | head -1)
           test -n "$desktop"
@@ -89,3 +94,4 @@ jobs:
             /tmp/linux-output.mp4
             /tmp/linux-editor.png
             /tmp/installed-editor.png
+            /tmp/ffmpeggui-dub/isolated.wav
