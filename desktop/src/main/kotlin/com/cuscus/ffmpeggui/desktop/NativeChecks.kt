@@ -17,6 +17,38 @@ internal fun runNativeChecks(args:Array<String>)=runBlocking {
     var passed=0
     suspend fun verify(name:String,block:suspend ()->Unit) { block(); passed++;println("PASS $name") }
     val video=media.probe(File(folder,"video.mp4").path)
+    verify("playhead source marks bind occurrence clock preserve source frame and single undo") {
+        for(reverse in listOf(false,true))for(clipReverse in listOf(false,true))for(inPoint in listOf(false,true))for(cued in listOf(false,true)) {
+            val scope=CoroutineScope(Dispatchers.Default+SupervisorJob());val c=EditorController(scope)
+            try {
+                val base=DesktopProject.create(video);val clip=base.timeline.clips.single()
+                val first=clip.copy(id="mark-a",endMs=2000,effects=Effects(transition=Transition(TransitionKind.FADE,250)))
+                val chosen=clip.copy(id="mark-b",startMs=2000,endMs=8000,effects=Effects(speed=2f,reversed=clipReverse))
+                val p=base.copy(timeline=Timeline(listOf(first,chosen)),effects=Effects(speed=1.5f,reversed=reverse))
+                c.project=p;c.selectSmartClip(chosen.id)
+                val output=p.outputAt(4000)
+                c.seekOutput(output)
+                if(cued){c.position=0;c.player.cue(File(video.path),output)}
+                val visible=c.visibleFootagePosition();val sourceAt=chosen.startMs+visible-p.timeline.startOf(1)
+                c.trimSelectedAtPlayhead(inPoint);val marked=c.project!!
+                val edited=marked.timeline.clips[1]
+                check(marked.timeline.clips[0]==first && edited.id==chosen.id && edited.effects==chosen.effects)
+                check(edited.startMs==if(inPoint)sourceAt else chosen.startMs)
+                check(edited.endMs==if(inPoint)chosen.endMs else sourceAt)
+                val after=marked.timeline.locate(c.position)!!
+                check(after.index==1 && kotlin.math.abs(edited.startMs+after.offsetMs-sourceAt)<=1)
+                check(c.smartClipId==chosen.id && c.canUndo && !c.player.engaged)
+                c.undo();check(c.project===p && c.position==visible && !c.canUndo)
+                c.redo();check(c.project===marked)
+                c.undo();c.seek(500);c.trimSelectedAtPlayhead(inPoint);check(c.project===p && !c.canUndo)
+                c.seek(4000);c.busy=true;c.trimSelectedAtPlayhead(inPoint);check(c.project===p && !c.canUndo);c.busy=false
+                c.selectSmartClip(null);c.trimSelectedAtPlayhead(inPoint);check(c.project===p && !c.canUndo)
+                c.selectSmartClip(chosen.id);c.seek(if(inPoint)7999 else 2001);c.trimSelectedAtPlayhead(inPoint);check(c.project===p && !c.canUndo)
+                c.seek(if(inPoint)2000 else 8000);c.trimSelectedAtPlayhead(inPoint);check(c.project===p && !c.canUndo)
+                c.trimSelected(2000,8000);check(c.project===p && !c.canUndo)
+            } finally {c.close();scope.cancel()}
+        }
+    }
     verify("reorder by stable occurrence is one undo preserves selected footage and rejects stale no-op") {
         val scope=CoroutineScope(Dispatchers.Default+SupervisorJob());val c=EditorController(scope)
         try {

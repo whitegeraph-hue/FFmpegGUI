@@ -54,6 +54,8 @@ import java.io.File
             Key.DirectionLeft->{c.stepOutput(-1);true}
             Key.DirectionRight->{c.stepOutput(1);true}
             Key.Delete,Key.Backspace->{if(index>=0 && p.timeline.clips.size>1)c.removeClip(index);true}
+            Key.I->{c.trimSelectedAtPlayhead(true);true}
+            Key.O->{c.trimSelectedAtPlayhead(false);true}
             Key.S->{c.splitHere();true}
             Key.D->{c.duplicateSelected();true}
             else->false

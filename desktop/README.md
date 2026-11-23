@@ -196,3 +196,14 @@ debounced; drag seeking is not a live-effects preview.
 
 Ruler seeking stops playback and stays paused on release. Press Play (or Space
 with the timeline focused) to resume. Render/analysis jobs disable seeking.
+
+### Trim at the playhead
+
+Select an existing clip, scrub inside it, then press I for source in or O for
+source out with the timeline focused. The Trim panel has matching playhead
+buttons. These are source-time boundaries, even with reverse, so source in may
+be the visual end. Marks keep at least 0.12 seconds, affect only the selected
+occurrence and are one Undo each. Playback stops and the same source frame stays
+visible (out marks clamp one millisecond inside the retained range). A ruler
+seek does not change clip selection. To extend a trimmed range, type exact
+source times or use its sliders instead.

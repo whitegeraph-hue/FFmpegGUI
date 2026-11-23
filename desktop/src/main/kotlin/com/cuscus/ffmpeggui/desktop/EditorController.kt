@@ -201,10 +201,36 @@ class EditorController(val scope: CoroutineScope) {
         val next=id();mutate(p.copy(timeline=p.timeline.duplicate(clip.id,next),followCrop=null));selectSmartClip(next);status="Duplicated selected clip. Undo removes the copy."
     }
     fun trimSelected(start:Long,end:Long) {
+        if(busy)return
         val p=project ?: return;val clip=p.timeline.clips.firstOrNull {it.id==smartClipId} ?: return
         val source=p.sources.first {it.path==clip.sourceId}
         if(start<0 || end-start<120 || (!source.info.isStill && end>source.info.durationMs)) {error="Keep at least 0.12 seconds inside the source.";return}
+        if(start==clip.startMs && end==(clip.endMs ?: source.info.durationMs))return
         mutate(p.copy(timeline=p.timeline.trim(clip.id,start,end,source.info.durationMs),followCrop=null))
+    }
+    /** Marks source in/out, not visual left/right. Playback uses the edited output clock. */
+    fun trimSelectedAtPlayhead(inPoint:Boolean) {
+        if(busy)return
+        val p=project ?: return
+        val clip=p.timeline.clips.firstOrNull {it.id==smartClipId}
+        if(clip==null){status="Select a clip before marking source in or out.";return}
+        val source=p.sources.first {it.path==clip.sourceId}
+        if(source.info.isStill){status="Use Still duration for a picture clip.";return}
+        val visible=visibleFootagePosition()
+        val at=p.timeline.locate(visible) ?: return
+        if(p.timeline.clips[at.index].id!=clip.id){status="Move the playhead inside the selected clip before marking source in or out.";return}
+        val sourceMs=clip.startMs+at.offsetMs
+        val start=if(inPoint)sourceMs else clip.startMs
+        val end=if(inPoint)(clip.endMs ?: source.info.durationMs) else sourceMs
+        if(end-start<120){status="Keep at least 0.12 seconds in the selected clip.";return}
+        if(start==clip.startMs && end==(clip.endMs ?: source.info.durationMs)){status="That source boundary is already set.";return}
+        position=visible
+        trimSelected(start,end)
+        val next=project ?: return
+        val index=next.timeline.clips.indexOfFirst {it.id==clip.id}
+        // Keep the same source frame visible after earlier footage is removed.
+        seek(next.timeline.startOf(index)+(sourceMs-start).coerceIn(0,(end-start-1).coerceAtLeast(0)))
+        status=if(inPoint)"Source in set at the playhead. Undo restores the previous trim." else "Source out set at the playhead. Undo restores the previous trim."
     }
     val canUndo:Boolean get()=history.isNotEmpty()
     val canRedo:Boolean get()=future.isNotEmpty()

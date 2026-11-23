@@ -1,7 +1,7 @@
 # Current Linux preview status
 
-Audited 2026-11-23 through delivered a0ae310 and the local endpoint
-follow-through below. PARITY.md remains execution history. The original full
+Audited 2026-11-23 through delivered a0ae310 and qualified a188955
+ruler follow-through below. PARITY.md remains execution history. The original full
 Linux request remains open.
 
 ## Current checkpoint
@@ -43,11 +43,19 @@ Linux request remains open.
   success. Controlled unavailable-device motion/pause/resume checks pass;
   physical audio-device success remains unqualified.
 
-- Local endpoint follow-through after a0ae310: ruler and frame-step endpoint
+- Qualified a188955 follow-through after a0ae310: ruler and frame-step endpoint
   seeks share the Home/End visible-lane ownership. Regression reproduced a
   reversed-first-clip left-step at Home jumping to 750 ms. Local fix preserves
   zero/end; 86 native checks pass and actual compact endpoint pixels checked.
-  Not yet pushed, CI-tested or delivered.
+  All four exact-SHA CI pass. Independent Debian package86 native pass; exact
+  Debian/Arch launchers checked for active-play drag staying paused, field focus,
+  zoom+scroll, endpoints and busy seek rejection. Render completion after the busy
+  harness pause was not independently qualified. Not delivered.
+- Local source marking: timeline-focused I/O and trim-panel playhead buttons set
+  selected occurrence source in/out. Reverse keeps source-time semantics, not
+  visual left/right. Invalid range, other occurrence, still, busy and no-op marks
+  do not edit. One Undo restores trim/selection/position. Source tests/UI only
+  until the next checkpoint; package qualification not claimed.
 
 ## Implemented with bounded evidence
 
