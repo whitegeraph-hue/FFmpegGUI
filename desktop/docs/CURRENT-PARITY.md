@@ -1,13 +1,12 @@
 # Current Linux preview status
 
-Audited 2026-11-23 through delivered a0ae310 and qualified a188955
-ruler follow-through below. PARITY.md remains execution history. The original full
+Audited 2026-11-23 through delivered 6f1107. PARITY.md remains execution history. The original full
 Linux request remains open.
 
 ## Current checkpoint
 
-- Delivered a0ae310: all four CI green. Exact Debian and Arch packages checked;
-  Debian has 933 shared tests and both packages pass 85 native checks. Arch
+- Delivered 6f1107: all four CI green. Exact Debian and Arch packages checked;
+  Debian has 933 shared tests and both packages pass 87 native checks. Arch
   checks cover clean declared dependencies, 27 ELF library checks, non-root
   GUI/model workers, reinstall/file integrity and removal. Actual package drag,
   Undo and outside-release cancellation were checked on both packages.
@@ -23,7 +22,7 @@ Linux request remains open.
   Timeline-focused Alt+arrows reorder, Home/End seek output start/end with
   reversed lane ownership. Source thumbnail decode at the source endpoint uses
   the final frame interval without changing the edit clock. Local
-  source native suite and both exact package suites pass 85 checks.
+  source native suite and both exact package suites pass 87 checks.
 - Clip-bound speech, official Rounded Symbols, source thumbnails, viewport
   culling, Undo selection/seek and a full-lane output guide are qualified in
   their earlier source/package checkpoints. The synthetic100clip4K-source test
@@ -53,19 +52,21 @@ Linux request remains open.
   exact packages confirmed rendering resumed after the controlled process pause
   and reached Rendered/ready, with enabled controls and no error. Final screenshots
   were inspected. This is owner execution evidence, not a separate reviewer rerun.
-  Not delivered.
-- Local source marking: timeline-focused I/O and trim-panel playhead buttons set
+  Delivered with 6f1107.
+- Delivered 6f1107 source marking: timeline-focused I/O and trim-panel playhead buttons set
   selected occurrence source in/out. Reverse keeps source-time semantics, not
   visual left/right. Invalid range, other occurrence, still, busy and no-op marks
-  do not edit. One Undo restores trim/selection/position. Source tests/UI only
-  until the next checkpoint; package qualification not claimed.
+  do not edit. One Undo restores trim/selection/position. Exact Debian/Arch compact
+  launchers checked for buttons, focused keys, reverse, active-play pause,
+  Undo, field isolation and busy/render completion. These are owner checks,
+  not physical-target qualification.
 
 ## Implemented with bounded evidence
 
 | Area | Current behavior | Qualification limits / remaining work |
 |---|---|---|
 | Import and source geometry | Video/audio/stills, JPEG orientation1..8, supported Ultra HDR primary normalization, multi-video/still append | Audio-only timeline append and still-first mixed timeline blocked; broader formats/camera profiles need tests |
-| Timeline | Split/trim/duplicate/remove/handle and button reorder/Undo/Redo; selected occurrence; output ruler/zoom/playhead; speed/reverse/curves; overlap lanes | Source thumbnails are original footage, not live edits. Source mono peaks are qualified original sources, not an edited mix. No multitrack lanes or drag edge auto-scroll; richer layer editing remains |
+| Timeline | Split/trim/duplicate/remove/handle and button reorder/Undo/Redo; selected occurrence; output ruler/zoom/playhead; speed/reverse/curves; overlap lanes | Source thumbnails are original footage, not live edits. Source mono peaks are qualified original sources, not an edited mix. No multitrack lanes; local edge auto-scroll is not yet package-qualified; richer layer editing remains |
 | Clip effects | Framing/colour/speed/pitch/volume/fades, animation keys/easing, ordinary transition families; mixed video/still transition export | Companion-asset punch/punch-back/technical-difficulties gated; representative transitions tested, not every kind/input |
 | Preview | Labelled source seek; render-first edited picture/audio playback; pause/resume and output-clock frame steps | Not live edited preview; rendering delay; physical device playback untested |
 | Selected smart edits | Pause/scene/beat and transcript cut/keep bind selected occurrence; source-clock mapping; stale result invalidation | Suggestions transient; all-tools selected-clip parity not established; combined scene/subtitle workflow qualified in source/native/UI, not a blanket package test |
@@ -84,7 +85,9 @@ Linux request remains open.
 1. Continue the requested desktop editing experience, preserving the qualified
    saved-project, source-protection, cancel and occurrence-scope behavior.
 2. Timeline/layer interaction and keyboard access. Redo and short-window tool
-   access are qualified. Drag handle exact-package qualification is complete at 770. The next keyboard/button follow-through is local only. Live edited preview, edited-mix waveforms
+   access are qualified. Drag handle and keyboard/button follow-through are
+  exact-package qualified through 6f1107. Drag-edge scrolling remains local only.
+  Live edited preview, edited-mix waveforms
    and direct spatial layer dragging remain separate unfinished work.
 3. Remaining tool adapters and selected-clip semantics. Multi-source follow needs
    a per-clip filter pipeline, not removal of its current safety gate. Source
@@ -101,7 +104,7 @@ unchanged. More tests do not close the full request without the remaining workfl
 
 The monitor keeps its place while the 204dp timeline shows source thumbnails, file names, output-time clip spans and a fixed ruler. Fit/zoom and scrolling are separate from editing. Single click selects and seeks inside that occurrence, including its transition lane; double click opens its controls. A clip menu exposes very short clips without pixel hunting. The menu shows exact source durations in milliseconds.
 
-Clip controls are grouped as Trim, Motion, Colour, Sound and Transition. Exact source in/out drafts apply only on Apply; invalid ranges cannot change the edit. Timeline-local plain S, D, arrows, Space and Delete/Backspace split, duplicate, step, play or remove. Text fields keep their own keys. Reorder uses left/right buttons or the small arrow handle. Drag commits on release; Escape or outside release cancels. No edge auto-scroll. Local post-770 Alt+arrows use visible direction, including global reverse; buttons now share drag's selected-footage preservation. Thumbnails are original-source stills, not live effects previews. The cache is at most64 160x90 images, decoding one at a time with a10second process timeout.
+Clip controls are grouped as Trim, Motion, Colour, Sound and Transition. Exact source in/out drafts apply only on Apply; invalid ranges cannot change the edit. Timeline-local plain S, D, arrows, Space and Delete/Backspace split, duplicate, step, play or remove. Text fields keep their own keys. Reorder uses left/right buttons or the small arrow handle. Drag commits on release; Escape or outside release cancels. Local drag-edge scrolling uses a bounded speed near the viewport edge, keeps the dragged occurrence alive offscreen and preserves Escape/outside cancellation. Source-only qualification, not yet packaged. Delivered Alt+arrows use visible direction, including global reverse; buttons now share drag's selected-footage preservation. Thumbnails are original-source stills, not live effects previews. The cache is at most64 160x90 images, decoding one at a time with a10second process timeout.
 
 Qualification: real1366x768 click/keyboard workflow selected, sought, split, duplicated, trimmed, undid, saved with native chooser, reopened and rendered; dense9clips and60ms selection, grouped controls and rail scroll were inspected. S and Split agree at sped/overlap position. Native checks cover lane-owned seek under per-clip/global speed/reverse, ramps and transitions. Render succeeds in the test environment; physical Zorin audio and hardware are not qualified. Full app parity is still not complete.
 
@@ -111,7 +114,7 @@ UI checkpoint limits: a transition overlap switches the timeline to short altern
 ### Rounded Material Symbols
 Desktop header actions, tool categories, editing sub-tools, grouped clip controls, transport and timeline actions use bundled official Google Material Symbols Rounded static24px paths, retaining text labels. Selected category uses filled symbol variant as well as the tonal selected surface. These are actual current Symbols assets, not Unicode placeholders, and work offline. This does not claim the full Android Material3Expressive component library or animated variable-font interpolation is ported. Sources, hashes and Apache2 license are bundled under material-symbols in the app resources. Official guide: https://developers.google.com/fonts/docs/material_symbols .
 
-### Local ruler interaction follow-through
+### Delivered ruler interaction follow-through
 
 Ruler click and drag now focus the timeline, so Home/End and frame-step keys
 work after leaving a trim field. Dragging seeks the output clock without
@@ -123,3 +126,12 @@ horizontally scrolled ruler coordinates and rendered-preview cueing.
 
 Ruler seeking stops playback and stays paused on release. Press Play (or Space
 with the timeline focused) to resume. Render/analysis jobs disable seeking.
+
+### Local drag-edge scrolling
+
+At2.25x zoom, an8occurrence project was dragged beyond the original viewport
+right and left. Actual compact pixels show scrolling while held and release
+commits once. Saved occurrence IDs confirm normal/reverse insertion, Undo restores
+original order, Escape and outside release leave order/history unchanged.88 native
+checks passed in two non-overlapping44group local runs (a single full run exceeds
+the local command time limit). CI remains unfiltered. Not yet reviewed or packaged.

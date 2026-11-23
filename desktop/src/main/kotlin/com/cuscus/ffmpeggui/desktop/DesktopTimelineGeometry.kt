@@ -39,3 +39,15 @@ internal fun DesktopProject.reorderMarker(draggedId:String,target:Int):Long {
     val visual=(if(effects.reversed)remaining.size-target else target).coerceIn(0,remaining.size)
     return remaining.getOrNull(visual)?.startMs ?: remaining.lastOrNull()?.endMs ?: 0L
 }
+
+/** Pixels per 40 ms tick. Outside the viewport/lane is cancellation, never scrolling. */
+internal fun timelineDragEdgeStep(x:Float,y:Float,viewport:Float,density:Float):Float {
+    if(!x.isFinite() || !y.isFinite() || !viewport.isFinite() || !density.isFinite() ||
+        density<=0f || viewport<=0f || x !in 0f..viewport || y !in -20*density..115*density)return 0f
+    val edge=minOf(48*density,viewport/4)
+    return when {
+        x<edge -> -24*density*(1-x/edge)
+        x>viewport-edge -> 24*density*(1-(viewport-x)/edge)
+        else -> 0f
+    }
+}

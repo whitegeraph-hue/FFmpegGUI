@@ -15,8 +15,27 @@ fun main(args:Array<String>)=runNativeChecks(args)
 internal fun runNativeChecks(args:Array<String>)=runBlocking {
     val folder=File(args[0]); val media=DesktopMedia(); val exporter=DesktopExport(media)
     var passed=0
-    suspend fun verify(name:String,block:suspend ()->Unit) { block(); passed++;println("PASS $name") }
+    // Optional named-check filter permits bounded local runs; CI still runs every group.
+    val filter=args.getOrNull(1)?.toRegex()
+    suspend fun verify(name:String,block:suspend ()->Unit) { if(filter==null || filter.containsMatchIn(name)){block();passed++;println("PASS $name")} }
+
     val video=media.probe(File(folder,"video.mp4").path)
+    verify("timeline reorder edge scroll scales bounds direction and outside cancellation") {
+        for(d in listOf(1f,1.5f,2f)) {
+            val w=1000*d
+            check(timelineDragEdgeStep(0f,0f,w,d)==-24*d)
+            check(timelineDragEdgeStep(w,0f,w,d)==24*d)
+            check(timelineDragEdgeStep(24*d,0f,w,d)==-12*d)
+            check(timelineDragEdgeStep(w-24*d,0f,w,d)==12*d)
+            check(timelineDragEdgeStep(w/2,0f,w,d)==0f)
+            for(x in listOf(-1f,w+1))check(timelineDragEdgeStep(x,0f,w,d)==0f)
+            for(y in listOf(-21*d,116*d))check(timelineDragEdgeStep(0f,y,w,d)==0f)
+        }
+        check(timelineDragEdgeStep(Float.NaN,0f,100f,1f)==0f)
+        check(timelineDragEdgeStep(0f,0f,0f,1f)==0f)
+        check(timelineDragEdgeStep(0f,0f,100f,0f)==0f)
+    }
+
     verify("playhead source marks bind occurrence clock preserve source frame and single undo") {
         for(reverse in listOf(false,true))for(clipReverse in listOf(false,true))for(inPoint in listOf(false,true))for(cued in listOf(false,true)) {
             val scope=CoroutineScope(Dispatchers.Default+SupervisorJob());val c=EditorController(scope)

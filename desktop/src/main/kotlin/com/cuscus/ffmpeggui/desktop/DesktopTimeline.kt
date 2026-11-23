@@ -3,6 +3,7 @@ package com.cuscus.ffmpeggui.desktop
 import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -99,6 +100,21 @@ import java.io.File
                         delay(250)
                     }
                 }
+                // Keep the pointer fixed in viewport space while the content moves beneath it.
+                LaunchedEffect(dragging,c.busy,width) {
+                    while(dragging!=null && !c.busy) {
+                        val delta=timelineDragEdgeStep(dragX-scroll.value,dragY,viewportWidth,density)
+                        if(delta!=0f) {
+                            val id=dragging
+                            val moved=scroll.scrollBy(delta)
+                            if(id!=null && dragging==id) {
+                                dragX+=moved
+                                dropIndex=p.reorderTarget(id,(dragX/(width*density)*duration).toLong())
+                            }
+                        }
+                        delay(40)
+                    }
+                }
                 Column(Modifier.fillMaxSize().horizontalScroll(scroll)) {
                     Box(Modifier.width(width.dp).height(22.dp)
                         .pointerInput(p,width,c.busy){detectTapGestures {at->if(!c.busy){focus.requestFocus();c.seekOutput((at.x/size.width*duration).toLong())}}}
@@ -119,7 +135,7 @@ import java.io.File
                             val clipLeft=width*span.startMs/duration
                             val clipWidth=(width*(span.endMs-span.startMs)/duration).coerceAtLeast(2f)
                             // Keep one small prefetch margin, not a task per offscreen clip.
-                            if(clipLeft+clipWidth<viewportLeft-160 || clipLeft>viewportRight+160)return@forEach
+                            if(dragging!=clip.id && (clipLeft+clipWidth<viewportLeft-160 || clipLeft>viewportRight+160))return@forEach
                             val source=p.sources.first {it.path==clip.sourceId}
                             val selected=clip.id==c.smartClipId
                             val lane=if(overlapping)span.index%2 else 0
@@ -191,7 +207,7 @@ import java.io.File
                                         onDragStart={at->focus.requestFocus();dragging=clip.id;dragX=(clipLeft+clipWidth-27)*density+at.x;dragY=lane*49*density+at.y;dropIndex=span.index},
                                         onDragCancel={dragging=null;dropIndex=null},
                                         onDragEnd={val target=dropIndex;if(dragging==clip.id && target!=null && dragY in -20*density..115*density && dragX in scroll.value.toFloat()..(scroll.value+viewportWidth))c.reorderClip(p,clip.id,target);dragging=null;dropIndex=null},
-                                        onDrag={change,_->change.consume();dragX=(clipLeft+clipWidth-27)*density+change.position.x;dragY=lane*49*density+change.position.y;dropIndex=if(dragging!=clip.id)null else if(dragY in -20*density..115*density && dragX in scroll.value.toFloat()..(scroll.value+viewportWidth))p.reorderTarget(clip.id,(dragX/(width*density)*duration).toLong()) else null}
+                                        onDrag={change,_->change.consume();if(dragging==clip.id){dragX=(clipLeft+clipWidth-27)*density+change.position.x;dragY=lane*49*density+change.position.y;dropIndex=if(dragging!=clip.id)null else if(dragY in -20*density..115*density && dragX in scroll.value.toFloat()..(scroll.value+viewportWidth))p.reorderTarget(clip.id,(dragX/(width*density)*duration).toLong()) else null}}
                                     )
                                 },contentAlignment=Alignment.Center) {Row {Symbol("arrow_back",size=10);Symbol("arrow_forward",size=10)}}
                                 }
@@ -216,7 +232,7 @@ import java.io.File
                 }
             }
             HorizontalScrollbar(rememberScrollbarAdapter(scroll),Modifier.fillMaxWidth().height(7.dp))
-            Text(if(dragging!=null)dropIndex?.let {"Release to move to clip ${it+1}. Drag outside the timeline to cancel."} ?: "Outside drop area. Release to cancel." else if(compact)"${if(index>=0)"Clip ${index+1} · " else ""}Source thumbnails & peaks · drag ruler to seek · shortcuts in Settings" else if(index>=0)"Clip ${index+1} selected · click within a clip to seek · double-click for controls · drag ↔ to reorder · S split · D duplicate · arrows step · Alt+arrows move · Home/End seek · original source thumbnails & peaks" else "Click within a clip to select & seek · double-click for controls · drag ruler to seek · output time · thumbnails & peaks are original sources",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(if(dragging!=null)dropIndex?.let {"Release to move to clip ${it+1}. Hold near an edge to scroll; outside cancels."} ?: "Outside drop area. Release to cancel." else if(compact)"${if(index>=0)"Clip ${index+1} · " else ""}Source thumbnails & peaks · drag ruler to seek · shortcuts in Settings" else if(index>=0)"Clip ${index+1} selected · click within a clip to seek · double-click for controls · drag ↔ to reorder · S split · D duplicate · arrows step · Alt+arrows move · Home/End seek · original source thumbnails & peaks" else "Click within a clip to select & seek · double-click for controls · drag ruler to seek · output time · thumbnails & peaks are original sources",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
