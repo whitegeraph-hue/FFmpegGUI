@@ -193,3 +193,6 @@ Arch Linux x86_64 packaging and validation: [Arch preview](docs/ARCH-LINUX.md).
 Timeline ruler: click or drag to seek and focus timeline shortcuts. Seeking
 does not select another clip or add an Undo entry. Source frame updates are
 debounced; drag seeking is not a live-effects preview.
+
+Ruler seeking stops playback and stays paused on release. Press Play (or Space
+with the timeline focused) to resume. Render/analysis jobs disable seeking.

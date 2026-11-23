@@ -109,3 +109,6 @@ clamps endpoints and blocks seeks during a job. Source frame decoding keeps
 the existing 120ms debounce; this is not continuous live effect rendering.
 Actual 1024px checks cover normal/global-reverse projects, 2.25x zoom,
 horizontally scrolled ruler coordinates and rendered-preview cueing.
+
+Ruler seeking stops playback and stays paused on release. Press Play (or Space
+with the timeline focused) to resume. Render/analysis jobs disable seeking.
