@@ -132,8 +132,12 @@ import java.io.File
                         Canvas(Modifier.fillMaxSize()) {
                             val at=if(c.player.engaged)c.player.positionMs else p.outputAt(c.position)
                             val x=size.width*at/duration
-                            drawLine(Color(0xff16bba1),Offset(x,0f),Offset(x,if(overlapping)4.dp.toPx() else minOf(size.height,48.dp.toPx())),3f)
-                            drawCircle(Color(0xff16bba1),5f,Offset(x,4f))
+                            // A continuous two-tone guide remains legible across both lanes.
+                            val bottom=minOf(size.height,if(overlapping)95.dp.toPx() else 88.dp.toPx())
+                            drawLine(Color.White.copy(alpha=.9f),Offset(x,0f),Offset(x,bottom),4.dp.toPx())
+                            drawLine(Color(0xff006b5e),Offset(x,0f),Offset(x,bottom),1.5.dp.toPx())
+                            drawCircle(Color.White,5.dp.toPx(),Offset(x,4.dp.toPx()))
+                            drawCircle(Color(0xff006b5e),3.dp.toPx(),Offset(x,4.dp.toPx()))
                         }
                     }
                 }

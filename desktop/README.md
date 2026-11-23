@@ -55,6 +55,11 @@ building, project model JSON and smart-detector logic come from the shared core.
   plays it inside the editor with an audio-sample clock, including cuts and effects. Physical target audio remains unverified.
 - Split, duplicate, precise source trim, remove and reorder clips. Undo restores
   the edit, selected clip and seek position (50 in-memory history entries).
+- Unsaved project changes are shown in the header. Opening another source or
+  project, or closing the window, asks before discarding edits. Keep editing or
+  Escape cancels that action. A successful Save project clears the warning;
+  failed saves and rejected project loads do not. This is not autosave or crash
+  recovery. Save projects explicitly before leaving the app.
 - Zoomable output-time timeline with separate lanes during transitions and
   original-source thumbnails. Thumbnail tasks are limited to the visible area
   plus a small margin, use one decoder at a time and a 64-image cache. They are

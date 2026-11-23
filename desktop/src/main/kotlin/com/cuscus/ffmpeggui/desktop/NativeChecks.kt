@@ -34,6 +34,26 @@ fun main(args:Array<String>)=runBlocking {
             c.moveClip(1,-1);c.undo();check(c.project===pair && c.smartClipId=="second-undo" && c.position==1500L)
         }finally {c.close();scope.cancel()}
     }
+    verify("unsaved edit state survives failed saves loads and Undo and resets on success") {
+        val scope=CoroutineScope(Dispatchers.Default+SupervisorJob());val c=EditorController(scope)
+        try {
+            c.open(video.path);c.job?.join();check(c.error==null && !c.hasUnsavedChanges)
+            val base=c.project!!;val clip=base.timeline.clips.single()
+            c.selectSmartClip(clip.id);c.trimSelected(200,2200);check(c.hasUnsavedChanges)
+            c.undo();check(!c.hasUnsavedChanges)
+            c.trimSelected(300,2300);val edited=c.project!!;check(c.hasUnsavedChanges)
+            c.saveProject(video.let {File(it.path)});c.job?.join();check(c.error!=null && c.project===edited && c.hasUnsavedChanges)
+            val invalid=File(folder,"dirty-invalid.ffgui.json").apply {writeText("{}")}
+            c.openProject(invalid);c.job?.join();check(c.error!=null && c.project===edited && c.hasUnsavedChanges && c.canUndo)
+            val saved=File(folder,"dirty-saved.ffgui.json")
+            c.saveProject(saved);c.job?.join();check(c.error==null && !c.hasUnsavedChanges)
+            c.duplicateSelected();check(c.hasUnsavedChanges);c.undo();check(!c.hasUnsavedChanges)
+            c.undo();check(c.hasUnsavedChanges)
+            c.openProject(saved);c.job?.join();check(c.error==null && !c.hasUnsavedChanges && !c.canUndo && c.smartClipId==null)
+            c.mutate(c.project!!.copy(effects=Effects(speed=1.5f)));check(c.hasUnsavedChanges);c.undo();check(!c.hasUnsavedChanges)
+            c.markProjectSaved(base);check(c.hasUnsavedChanges)
+        } finally {c.close();scope.cancel()}
+    }
     verify("timeline lane seeking owns overlapping reversed sped and ramp clips") {
         val a=Clip("lane-a",video.path,0,4000,Effects(speed=2f,reversed=true,transition=Transition(TransitionKind.FADE,500)))
         val b=Clip("lane-b",video.path,4000,8000)

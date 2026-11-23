@@ -24,6 +24,17 @@ class EditorController(val scope: CoroutineScope) {
     }
     var selectedSource by mutableStateOf(0)
     var project by mutableStateOf<DesktopProject?>(null)
+    private var savedProject by mutableStateOf<DesktopProject?>(null)
+    val hasUnsavedChanges:Boolean get()=project!=null && project!=savedProject
+    fun markProjectSaved(saved:DesktopProject) { savedProject=saved }
+    fun saveProject(file:File) {
+        val snapshot=project ?: return
+        work("Saving project…") {
+            DesktopProjects.save(snapshot,file)
+            markProjectSaved(snapshot)
+            status="Project saved: ${file.path}"
+        }
+    }
     var sourceFrame by mutableStateOf<ImageBitmap?>(null)
     var previewFrame by mutableStateOf<ImageBitmap?>(null)
     var drawingFrame by mutableStateOf<ImageBitmap?>(null)
@@ -71,7 +82,7 @@ class EditorController(val scope: CoroutineScope) {
     private suspend fun replaceProject(loaded:DesktopProject) {
         frameJob?.cancelAndJoin();frameJob=null
         player.stop();rendered?.delete();rendered=null;previewFrame=null;sourceFrame=null;drawingFrame=null
-        project=loaded;selectedSource=0;smartClipId=null;history.clear();resetAnalysis()
+        project=loaded;savedProject=loaded;selectedSource=0;smartClipId=null;history.clear();resetAnalysis()
         position=0;pruneMasks();seek(0)
     }
     fun openProject(file:File)=work("Opening project…") {

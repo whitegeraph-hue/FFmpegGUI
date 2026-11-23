@@ -60,8 +60,10 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
     var lightTheme by remember {mutableStateOf(preferences.getBoolean("lightTheme",false))}
     var showSettings by remember {mutableStateOf(false)}
     var showExport by remember {mutableStateOf(false)}
-    Window(onCloseRequest={ controller.close(); exitApplication() }, title="FFmpegGUI · Linux development preview", state=rememberWindowState(width=1280.dp,height=850.dp),onKeyEvent={event->
-        if(event.type==KeyEventType.KeyDown && !showSettings && !showExport) {
+    var pendingDiscard by remember {mutableStateOf<(() -> Unit)?>(null)}
+    fun protectEdits(action:()->Unit) {if(controller.hasUnsavedChanges || controller.busy)pendingDiscard=action else action()}
+    Window(onCloseRequest={ protectEdits {controller.close();exitApplication()} }, title="FFmpegGUI · Linux development preview", state=rememberWindowState(width=1280.dp,height=850.dp),onKeyEvent={event->
+        if(event.type==KeyEventType.KeyDown && !showSettings && !showExport && pendingDiscard==null) {
             when {
                 event.isCtrlPressed && event.key==Key.Z -> {if(!controller.busy)controller.undo();true}
                 event.key==Key.Escape -> {controller.selectSmartClip(null);controller.status="Clip selection cleared. Tools now apply to the whole output or selected source, as shown in Apply to.";true}
@@ -93,11 +95,11 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                     Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                         Column(Modifier.weight(1f)) {
                             Text("FFmpegGUI",style=MaterialTheme.typography.titleLarge)
-                            Text("Desktop preview",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.primary)
+                            Text(if(controller.hasUnsavedChanges)"Desktop preview · Unsaved changes" else "Desktop preview",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.primary)
                         }
-                        OutlinedButton(onClick={ pick()?.let { controller.open(it.path) } },enabled=!controller.busy) { SymbolLabel("folder_open","Open media") }
-                        OutlinedButton(onClick={ pick()?.let { file -> controller.openProject(file) } },enabled=!controller.busy) { SymbolLabel("folder","Open project") }
-                        OutlinedButton(onClick={ controller.project?.let { p -> pick(true,"project.ffgui.json","Save project")?.let { file -> controller.work("Saving project…") { DesktopProjects.save(p,file); controller.status="Project saved: ${file.path}" } } } },enabled=!controller.busy && controller.project!=null) { SymbolLabel("save","Save project") }
+                        OutlinedButton(onClick={ protectEdits {pick()?.let {file->controller.open(file.path)}} },enabled=!controller.busy) { SymbolLabel("folder_open","Open media") }
+                        OutlinedButton(onClick={ protectEdits {pick(title="Open project")?.let {file->controller.openProject(file)}} },enabled=!controller.busy) { SymbolLabel("folder","Open project") }
+                        OutlinedButton(onClick={ controller.project?.let { _ -> pick(true,"project.ffgui.json","Save project")?.let { file -> controller.saveProject(file) } } },enabled=!controller.busy && controller.project!=null) { SymbolLabel("save","Save project") }
                         OutlinedButton(onClick={ controller.undo() },enabled=!controller.busy && controller.canUndo) { SymbolLabel("undo","Undo") }
                         FilledTonalButton(onClick={showSettings=true}) {SymbolLabel("settings","Settings")}
                         Button(onClick={showExport=true},enabled=!controller.busy && controller.project!=null){SymbolLabel("file_upload","Export ${controller.project?.format?.name ?: ""}")}
@@ -111,7 +113,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                                 Text("Your files. Your machine.",style=MaterialTheme.typography.headlineMedium)
                                 Text("Open a clip to edit its timeline, find scene changes and musical beats, and export locally.")
                                 Text("Offline speech and subject models are imported once from their original downloads. This is not a finished release.",style=MaterialTheme.typography.bodyMedium)
-                                Button(onClick={ pick()?.let { controller.open(it.path) } },enabled=!controller.busy) { Text("Choose a file") }
+                                Button(onClick={ protectEdits {pick()?.let {file->controller.open(file.path)}} },enabled=!controller.busy) { Text("Choose a file") }
                             }
                         }
                     } else {
@@ -246,6 +248,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                             Text("Development preview. Not every mobile feature is available yet. Original files are never edited.",style=MaterialTheme.typography.bodySmall)
                         }
                     },confirmButton={TextButton(onClick={showSettings=false}){Text("Done")}})
+                    pendingDiscard?.let { action -> AlertDialog(onDismissRequest={pendingDiscard=null},title={Text(if(controller.busy)"Local work is still running" else "Unsaved project changes")},text={Text(if(controller.busy)"Closing now stops the current local task. Any unsaved project changes will be lost. Keep editing to wait or save first." else "Save your project first to keep these edits. Discarding changes cannot be undone after opening another file or closing the app.")},confirmButton={TextButton(onClick={pendingDiscard=null;action()}){Text(if(controller.busy)"Stop & close" else "Discard changes")}},dismissButton={TextButton(onClick={pendingDiscard=null}){Text("Keep editing")}}) }
                     controller.error?.let { message -> AlertDialog(onDismissRequest={ controller.error=null },title={ Text("Could not finish") },text={ Box(Modifier.heightIn(max=350.dp).verticalScroll(rememberScrollState())) { Text(message) } },confirmButton={ TextButton(onClick={ controller.error=null }) { Text("Close") } }) }
                 }
             }
