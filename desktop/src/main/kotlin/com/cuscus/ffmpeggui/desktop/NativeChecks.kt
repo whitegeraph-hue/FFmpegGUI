@@ -37,6 +37,55 @@ internal fun runNativeChecks(args:Array<String>)=runBlocking {
             c.undo();check(c.project===p && c.position==1500L && !c.canUndo);c.redo();check(c.project===moved && c.position==500L)
         }finally {c.close();scope.cancel()}
     }
+    verify("button and keyboard reorder preserve footage reverse direction boundaries and history") {
+        val scope=CoroutineScope(Dispatchers.Default+SupervisorJob());val c=EditorController(scope)
+        try {
+            val base=DesktopProject.create(video);val clip=base.timeline.clips.single()
+            val clips=listOf(clip.copy(id="key-a",endMs=1000),clip.copy(id="key-b",startMs=1000,endMs=3000),clip.copy(id="key-c",startMs=3000,endMs=4000))
+            for(reverse in listOf(false,true)) {
+                val p=base.copy(timeline=Timeline(clips),effects=Effects(speed=1.5f,reversed=reverse))
+                c.project=p;c.selectSmartClip("key-b");c.seek(1500)
+                c.moveSelectedVisual(-1);val moved=c.project!!
+                check(moved.timeline.clips.indexOfFirst {it.id=="key-b"}==if(reverse)2 else 0)
+                val selectedStart=moved.timeline.startOf(if(reverse)2 else 0)
+                check(c.position==selectedStart+500 && c.smartClipId=="key-b")
+                c.moveSelectedVisual(-1);check(c.project===moved)
+                c.undo();check(c.project===p && c.position==1500L);c.redo();check(c.project===moved && c.position==selectedStart+500)
+                c.undo();c.moveSelectedVisual(1);check(c.project!!.timeline.clips.indexOfFirst {it.id=="key-b"}==if(reverse)0 else 2)
+                c.undo();c.busy=true;c.moveSelectedVisual(-1);c.seekOutputEdge(true);check(c.project===p && c.position==1500L);c.busy=false
+                c.moveClip(-1,1);c.moveClip(99,-1);c.moveSelectedVisual(0);check(c.project===p)
+                c.seekOutputEdge(false);check(p.outputAt(c.position)<=1)
+                c.seekOutputEdge(true);check(kotlin.math.abs(p.outputAt(c.position)-p.outputDurationMs)<=2)
+                c.selectSmartClip(null);c.moveSelectedVisual(-1);check(c.project===p)
+            }
+        }finally {c.close();scope.cancel()}
+    }
+    verify("output edge seeks own reversed transition lanes and stay inside actual footage") {
+        val scope=CoroutineScope(Dispatchers.Default+SupervisorJob());val c=EditorController(scope)
+        try {
+            val base=DesktopProject.create(video);val clip=base.timeline.clips.single()
+            for(reverse in listOf(false,true))for(firstReverse in listOf(false,true))for(lastReverse in listOf(false,true)) {
+                val a=clip.copy(id="edge-a",endMs=2000,effects=Effects(speed=2f,reversed=firstReverse,transition=Transition(TransitionKind.FADE,250)))
+                val b=clip.copy(id="edge-b",startMs=4000,endMs=8000,effects=Effects(reversed=lastReverse))
+                val p=base.copy(timeline=Timeline(listOf(a,b)),effects=Effects(reversed=reverse))
+                c.project=p;c.seekOutputEdge(false)
+                check(p.outputAt(c.position)<=2) {"Home: $reverse $firstReverse $lastReverse: ${p.outputAt(c.position)}"}
+                check(p.timeline.locate(c.position)!!.index==if(reverse)1 else 0)
+                c.seekOutputEdge(true)
+                check(kotlin.math.abs(p.outputAt(c.position)-p.outputDurationMs)<=2) {"End: $reverse $firstReverse $lastReverse: ${p.outputAt(c.position)}/${p.outputDurationMs}"}
+                check(p.timeline.locate(c.position)!!.index==if(reverse)0 else 1)
+            }
+        }finally {c.close();scope.cancel()}
+    }
+    verify("source frame at reversed output start uses the final decodable frame") {
+        val scope=CoroutineScope(Dispatchers.Default+SupervisorJob());val c=EditorController(scope)
+        try {
+            c.project=DesktopProject.create(video).copy(effects=Effects(reversed=true))
+            c.seekOutputEdge(false)
+            withTimeout(5000) {while(c.sourceFrame==null)delay(50)}
+            check(c.project!!.outputAt(c.position)<=1 && c.sourceFrame!!.width>0)
+        }finally {c.close();scope.cancel()}
+    }
     verify("source waveform bounded real decode silence levels cache and trim clock") {
         val source=media.probe(File(folder,"waveform-check.wav").path)
         val reader=DesktopWaveforms(media);val data=reader.source(source)

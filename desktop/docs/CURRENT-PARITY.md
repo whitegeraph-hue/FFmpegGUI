@@ -1,18 +1,29 @@
 # Current Linux preview status
 
-Audited 2026-11-23 through delivered004face and local drag qualification. PARITY.md
-remains execution history. The original full Linux request remains open.
+Audited 2026-11-23 through delivered 770d1cf and the local keyboard/reorder
+follow-through below. PARITY.md remains execution history. The original full
+Linux request remains open.
 
 ## Current checkpoint
 
-- Delivered004face: all three CI green,933shared tests and80native checks against
-  exact package jars. Bundled launcher checks cover responsive controls, Undo/Redo,
-  focused field history isolation, source peaks and Save/Save as destination.
-  Save overwrites without backup. Save as switches the destination. History is
-  50 in-memory entries, not autosave or crash recovery.
-- Next drag checkpoint: local compile and81native pass. Actual virtual display
-  checks include1024x640,1280x720, global reverse, zoomed/scrolled content,
-  one Undo, no-op, Escape and outside release. Exact package is pending.
+- Delivered 770d1cf: all four CI green. Exact Debian and Arch packages checked;
+  Debian has 933 shared tests and both packages pass 81 native checks. Arch
+  checks cover clean declared dependencies, 27 ELF library checks, non-root
+  GUI/model workers, reinstall/file integrity and removal. Actual package drag,
+  Undo and outside-release cancellation were checked on both packages.
+- Arch package is x86_64 with bundled Java, not an AUR submission. Its userspace
+  version record, generated PKGBUILD and namcap warnings ship in the CI proof.
+  No claim of physical Arch audio, Wayland, touchpad or HiDPI qualification.
+- Bundled launcher checks cover responsive controls, Undo/Redo, focused field
+  history isolation, source peaks and Save/Save as destination. Save overwrites
+  without backup. Save as switches the destination. History is 50 in-memory
+  entries, not autosave or crash recovery.
+- Next local keyboard/reorder batch: buttons use the same occurrence-preserving
+  move as drag; Left/Right refer to visible direction under global reverse.
+  Timeline-focused Alt+arrows reorder, Home/End seek output start/end with
+  reversed lane ownership. Source thumbnail decode at the source endpoint uses
+  the final frame interval without changing the edit clock. Local
+  source native suite passes 84 checks; exact next package qualification pending.
 - Clip-bound speech, official Rounded Symbols, source thumbnails, viewport
   culling, Undo selection/seek and a full-lane output guide are qualified in
   their earlier source/package checkpoints. The synthetic100clip4K-source test
@@ -46,7 +57,7 @@ remains execution history. The original full Linux request remains open.
 1. Continue the requested desktop editing experience, preserving the qualified
    saved-project, source-protection, cancel and occurrence-scope behavior.
 2. Timeline/layer interaction and keyboard access. Redo and short-window tool
-   access are qualified. Drag handle exact-package qualification is next. Live edited preview, edited-mix waveforms
+   access are qualified. Drag handle exact-package qualification is complete at 770. The next keyboard/button follow-through is local only. Live edited preview, edited-mix waveforms
    and direct spatial layer dragging remain separate unfinished work.
 3. Remaining tool adapters and selected-clip semantics. Multi-source follow needs
    a per-clip filter pipeline, not removal of its current safety gate. Source
@@ -63,7 +74,7 @@ unchanged. More tests do not close the full request without the remaining workfl
 
 The monitor keeps its place while the 204dp timeline shows source thumbnails, file names, output-time clip spans and a fixed ruler. Fit/zoom and scrolling are separate from editing. Single click selects and seeks inside that occurrence, including its transition lane; double click opens its controls. A clip menu exposes very short clips without pixel hunting. The menu shows exact source durations in milliseconds.
 
-Clip controls are grouped as Trim, Motion, Colour, Sound and Transition. Exact source in/out drafts apply only on Apply; invalid ranges cannot change the edit. Timeline-local plain S, D, arrows, Space and Delete/Backspace split, duplicate, step, play or remove. Text fields keep their own keys. Reorder uses left/right buttons, not drag. Thumbnails are original-source stills, not live effects previews. The cache is at most64 160x90 images, decoding one at a time with a10second process timeout.
+Clip controls are grouped as Trim, Motion, Colour, Sound and Transition. Exact source in/out drafts apply only on Apply; invalid ranges cannot change the edit. Timeline-local plain S, D, arrows, Space and Delete/Backspace split, duplicate, step, play or remove. Text fields keep their own keys. Reorder uses left/right buttons or the small arrow handle. Drag commits on release; Escape or outside release cancels. No edge auto-scroll. Local post-770 Alt+arrows use visible direction, including global reverse; buttons now share drag's selected-footage preservation. Thumbnails are original-source stills, not live effects previews. The cache is at most64 160x90 images, decoding one at a time with a10second process timeout.
 
 Qualification: real1366x768 click/keyboard workflow selected, sought, split, duplicated, trimmed, undid, saved with native chooser, reopened and rendered; dense9clips and60ms selection, grouped controls and rail scroll were inspected. S and Split agree at sped/overlap position. Native checks cover lane-owned seek under per-clip/global speed/reverse, ramps and transitions. Render succeeds in the test environment; physical Zorin audio and hardware are not qualified. Full app parity is still not complete.
 

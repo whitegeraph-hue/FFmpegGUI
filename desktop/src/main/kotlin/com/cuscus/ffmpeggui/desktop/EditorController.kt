@@ -156,7 +156,11 @@ class EditorController(val scope: CoroutineScope) {
                 rendered?.let {player.cue(it,p.outputAt(position));return@launch}
                 val info=p.sources.first { it.path==clip.sourceId }.info
                 if (!info.isVideo) { sourceFrame=null; return@launch }
-                val frame=media.frame(clip.sourceId,clip.startMs+pos.offsetMs)
+                // Source seek at duration-1 may be after the last decodable video frame.
+                // Keep the edit clock exact; clamp only the source thumbnail request.
+                val frameMs=kotlin.math.ceil(1000.0/(info.frameRate.takeIf {it>0} ?: 25f).toDouble()).toLong().coerceAtLeast(1)
+                val decodeAt=(clip.startMs+pos.offsetMs).coerceAtMost((info.durationMs-frameMs).coerceAtLeast(0))
+                val frame=media.frame(clip.sourceId,decodeAt)
                 sourceFrame=frame?.toComposeImageBitmap()
             } catch (e: CancellationException) { throw e } catch (_: Exception) { sourceFrame=null }
         }
@@ -205,7 +209,29 @@ class EditorController(val scope: CoroutineScope) {
     val canUndo:Boolean get()=history.isNotEmpty()
     val canRedo:Boolean get()=future.isNotEmpty()
     fun removeClip(index: Int) { val p=project ?: return; mutate(p.copy(timeline=p.timeline.remove(p.timeline.clips[index].id),followCrop=null)) }
-    fun moveClip(index: Int, offset: Int) { val p=project ?: return; mutate(p.copy(timeline=p.timeline.move(p.timeline.clips[index].id,offset),followCrop=null)) }
+    fun moveClip(index: Int, offset: Int) {
+        val p=project ?: return
+        if(index !in p.timeline.clips.indices)return
+        val target=(index.toLong()+offset).coerceIn(0L,p.timeline.clips.lastIndex.toLong()).toInt()
+        reorderClip(p,p.timeline.clips[index].id,target)
+    }
+    /** Left and right refer to the output shown, even when global reverse is on. */
+    fun moveSelectedVisual(direction:Int) {
+        val p=project ?: return
+        val index=p.timeline.clips.indexOfFirst {it.id==smartClipId}
+        if(index<0 || direction !in listOf(-1,1))return
+        moveClip(index,if(p.effects.reversed)-direction else direction)
+    }
+    fun seekOutputEdge(end:Boolean) {
+        val p=project ?: return
+        if(busy)return
+        val spans=p.outputClipSpans()
+        val span=if(end)spans.maxByOrNull {it.endMs} else spans.minByOrNull {it.startMs}
+        span ?: return
+        // An exact footage boundary can belong to a different clip after reversal.
+        // Keep the endpoint inside the lane that actually owns this output edge.
+        seek(p.mediaForClipOutput(span.index,if(end)span.endMs else span.startMs))
+    }
     fun reorderClip(expected:DesktopProject,clipId:String,to:Int) {
         val p=project ?: return
         if(busy || p!==expected)return

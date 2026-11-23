@@ -57,6 +57,9 @@ building, project model JSON and smart-detector logic come from the shared core.
   arrow handle to an insertion marker, then release to commit one move. Escape
   or releasing outside the timeline cancels. No edge auto-scroll yet; use Fit
   or scroll first, or use the Left/Right buttons. Handles require clips over45dp.
+  Timeline-focused Alt+Left/Right reorder in visible output direction, including
+  global reverse. Home/End seek to output start/end. These keys stay out of text
+  fields. Buttons and keys share drag's occurrence/footage preservation.
   A transition moves with its clip, changing its neighbor/fade pair, as with
   the arrow buttons. Drag is mouse-tested, not physical touchpad/HiDPI qualified.
   Reordering keeps a selected occurrence and its source offset. Undo restores

@@ -37,11 +37,19 @@ import java.io.File
     val duration=p.outputDurationMs.coerceAtLeast(1)
     val index=p.timeline.clips.indexOfFirst {it.id==c.smartClipId}
     val density=LocalDensity.current.density
+    val visualIndex=if(index<0)-1 else if(p.effects.reversed)p.timeline.clips.lastIndex-index else index
     BoxWithConstraints {
     val compact=maxWidth<1200.dp
     Surface(Modifier.fillMaxWidth().height(if(compact)244.dp else 204.dp).focusRequester(focus).onKeyEvent {event->
-        if(event.type!=KeyEventType.KeyDown || c.busy || event.isCtrlPressed || event.isAltPressed || event.isMetaPressed)false else when(event.key) {
+        if(event.type!=KeyEventType.KeyDown || c.busy || event.isCtrlPressed || event.isMetaPressed)false
+        else if(event.isAltPressed)when(event.key) {
+            Key.DirectionLeft->{c.moveSelectedVisual(-1);true}
+            Key.DirectionRight->{c.moveSelectedVisual(1);true}
+            else->false
+        } else when(event.key) {
             Key.Escape->{if(dragging!=null){dragging=null;dropIndex=null;true}else false}
+            Key.Home->{c.seekOutputEdge(false);true}
+            Key.MoveEnd->{c.seekOutputEdge(true);true}
             Key.Spacebar->{c.togglePlayback();true}
             Key.DirectionLeft->{c.stepOutput(-1);true}
             Key.DirectionRight->{c.stepOutput(1);true}
@@ -55,8 +63,8 @@ import java.io.File
             @Composable fun RowScope.ClipActions() {
                 TextButton(onClick={c.splitHere()},enabled=!c.busy){SymbolLabel("content_cut","Split")}
                 TextButton(onClick={c.duplicateSelected()},enabled=!c.busy && index>=0){SymbolLabel("content_copy","Duplicate")}
-                TextButton(onClick={c.moveClip(index,-1)},enabled=!c.busy && index>0){SymbolLabel("arrow_back","Left")}
-                TextButton(onClick={c.moveClip(index,1)},enabled=!c.busy && index>=0 && index<p.timeline.clips.lastIndex){SymbolLabel("arrow_forward","Right")}
+                TextButton(onClick={c.moveSelectedVisual(-1)},enabled=!c.busy && visualIndex>0){SymbolLabel("arrow_back","Left")}
+                TextButton(onClick={c.moveSelectedVisual(1)},enabled=!c.busy && visualIndex>=0 && visualIndex<p.timeline.clips.lastIndex){SymbolLabel("arrow_forward","Right")}
                 TextButton(onClick={c.removeClip(index)},enabled=!c.busy && index>=0 && p.timeline.clips.size>1){SymbolLabel("delete","Remove")}
                 FilledTonalButton(onClick=onAdd,enabled=!c.busy && !p.sources[0].info.isStill){SymbolLabel("add","Add")}
             }
@@ -202,7 +210,7 @@ import java.io.File
                 }
             }
             HorizontalScrollbar(rememberScrollbarAdapter(scroll),Modifier.fillMaxWidth().height(7.dp))
-            Text(if(dragging!=null)dropIndex?.let {"Release to move to clip ${it+1}. Drag outside the timeline to cancel."} ?: "Outside drop area. Release to cancel." else if(index>=0)"Clip ${index+1} selected · click within a clip to seek · double-click for controls · drag ↔ to reorder · S split · D duplicate · arrows step · thumbnails & peaks are original sources" else "Click within a clip to select & seek · double-click for controls · output time · thumbnails & peaks are original sources",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(if(dragging!=null)dropIndex?.let {"Release to move to clip ${it+1}. Drag outside the timeline to cancel."} ?: "Outside drop area. Release to cancel." else if(index>=0)"Clip ${index+1} selected · click within a clip to seek · double-click for controls · drag ↔ to reorder · S split · D duplicate · arrows step · Alt+arrows move · Home/End seek · original source thumbnails & peaks" else "Click within a clip to select & seek · double-click for controls · output time · thumbnails & peaks are original sources",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
