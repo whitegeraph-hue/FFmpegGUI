@@ -1,6 +1,7 @@
 package com.cuscus.ffmpeggui.desktop
 
 import com.cuscus.ffmpeggui.core.editing.*
+import com.cuscus.ffmpeggui.conversion.SceneSplitsStatus
 import com.cuscus.ffmpeggui.core.model.*
 import com.cuscus.ffmpeggui.core.timeline.*
 import com.cuscus.ffmpeggui.core.subtitles.*
@@ -59,6 +60,34 @@ fun main(args:Array<String>)=runBlocking {
             c.open(video.path);c.job?.join();check(c.error==null){c.error.orEmpty()}
             val mediaProject=c.project;check(c.smartClipId==null && c.position==0L && c.rendered==null)
             c.undo();check(c.project===mediaProject)
+        }finally {c.close();scope.cancel()}
+    }
+    verify("selected scene apply embedded subtitles reopen and rendered preview compose") {
+        val sceneSource=media.probe(File(folder,"scenes.mp4").path)
+        val first=Clip("combined-first",sceneSource.path,0,3000)
+        val second=Clip("combined-second",sceneSource.path,3000,6000)
+        val initial=DesktopProject.create(sceneSource).copy(timeline=Timeline(listOf(first,second)))
+        val scope=CoroutineScope(Dispatchers.Default+SupervisorJob());val c=EditorController(scope)
+        try {
+            c.project=initial;c.selectSmartClip(second.id);c.findScenes();c.job?.join();check(c.error==null){c.error.orEmpty()}
+            val suggestions=c.sceneStatus as SceneSplitsStatus.Ready
+            check(suggestions.points.size==1 && suggestions.points.single() in 3900..4100)
+            c.smartUi().onApplySceneSplits();val applied=c.project!!
+            check(applied.timeline.clips.size==3 && applied.timeline.clips.first()==first)
+            val subtitle=File(folder,"combined-workflow.srt").apply {writeText("1\n00:00:04,200 --> 00:00:05,500\nRESTORED SUBTITLE\n")}
+            c.mutate(applied.copy(externalSubtitles=DesktopSubtitles.import(subtitle,0),subtitleStyle=SubtitleStyle()))
+            val saved=File(folder,"combined-workflow.ffgui.json");DesktopProjects.save(c.project!!,saved)
+            subtitle.delete();c.openProject(saved);c.job?.join();check(c.error==null){c.error.orEmpty()}
+            check(c.project!!.timeline==applied.timeline && c.project!!.externalSubtitles!!.content.contains("RESTORED SUBTITLE"))
+            check(c.smartClipId==null && c.sceneStatus==SceneSplitsStatus.Idle)
+            c.preview();c.job?.join();check(c.error==null){c.error.orEmpty()}
+            val rendered=c.rendered!!;check(media.probe(rendered.path).info.durationMs in 5900..6100)
+            val actual=media.frame(rendered.path,4700)!!;val plain=media.frame(sceneSource.path,4700)!!
+            var changed=0
+            for(y in 220 until minOf(actual.height,plain.height))for(x in 40 until minOf(actual.width,plain.width)-40)if(actual.getRGB(x,y)!=plain.getRGB(x,y))changed++
+            check(changed>100){"Subtitle pixels missing: $changed"}
+            rendered.copyTo(File(folder,"combined-workflow-rendered.mp4"),overwrite=true)
+            c.undo();check(c.project!!.timeline==applied.timeline)
         }finally {c.close();scope.cancel()}
     }
     verify("desktop output ruler spans speed reverse whole reverse and transition overlap") {

@@ -1,4 +1,7 @@
-# Linux parity inventory
+# Linux parity execution history
+
+For current scope and priority, see [CURRENT-PARITY.md](CURRENT-PARITY.md).
+The opening table below is an early snapshot, not current status.
 
 Base: edited Android `9f55613e9ca3ef97c8f762142ed5a4d0d9ac3157`.
 Status is implementation evidence, not a promise that unchecked behavior works.
