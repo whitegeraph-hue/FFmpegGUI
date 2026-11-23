@@ -49,8 +49,11 @@ Linux request remains open.
   zero/end; 86 native checks pass and actual compact endpoint pixels checked.
   All four exact-SHA CI pass. Independent Debian package86 native pass; exact
   Debian/Arch launchers checked for active-play drag staying paused, field focus,
-  zoom+scroll, endpoints and busy seek rejection. Render completion after the busy
-  harness pause was not independently qualified. Not delivered.
+  zoom+scroll, endpoints and busy seek rejection. Later owner-run checks on both
+  exact packages confirmed rendering resumed after the controlled process pause
+  and reached Rendered/ready, with enabled controls and no error. Final screenshots
+  were inspected. This is owner execution evidence, not a separate reviewer rerun.
+  Not delivered.
 - Local source marking: timeline-focused I/O and trim-panel playhead buttons set
   selected occurrence source in/out. Reverse keeps source-time semantics, not
   visual left/right. Invalid range, other occurrence, still, busy and no-op marks
