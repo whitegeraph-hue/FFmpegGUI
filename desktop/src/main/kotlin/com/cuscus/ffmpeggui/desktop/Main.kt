@@ -61,7 +61,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
     var showSettings by remember {mutableStateOf(false)}
     var showExport by remember {mutableStateOf(false)}
     Window(onCloseRequest={ controller.close(); exitApplication() }, title="FFmpegGUI · Linux development preview", state=rememberWindowState(width=1280.dp,height=850.dp),onPreviewKeyEvent={event->
-        if(event.type==KeyEventType.KeyDown && !showSettings) {
+        if(event.type==KeyEventType.KeyDown && !showSettings && !showExport) {
             when {
                 event.isCtrlPressed && event.key==Key.Z -> {if(!controller.busy)controller.undo();true}
                 event.key==Key.Escape -> {controller.selectSmartClip(null);true}
@@ -232,7 +232,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                             FilledTonalButton(onClick={controller.tab="Models";showSettings=false}){Text("Manage models")}
                             Text("Export settings",style=MaterialTheme.typography.titleMedium)
                             TextButton(onClick={showExport=true;showSettings=false}){Text("Open format & quality")}
-                            
+
                             Text("Preview",style=MaterialTheme.typography.titleMedium)
                             Text("Play edit renders the edited result first, then plays it with sound. Edits invalidate that render. Source view does not show effects live.")
                             Text("Shortcuts: Ctrl+Z undoes the last edit. Esc clears clip selection. Click a timeline clip to select it; use Move left/right to reorder. Drag reordering is not available.",style=MaterialTheme.typography.bodySmall)

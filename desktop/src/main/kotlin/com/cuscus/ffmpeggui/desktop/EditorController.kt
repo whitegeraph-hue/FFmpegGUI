@@ -206,7 +206,13 @@ class EditorController(val scope: CoroutineScope) {
         if(current.format==OutputFormat.SVG || current.format.isTextArt) {
             status="SVG and text art can be exported. Their in-editor preview is still being ported.";return
         }
-        val p=if(current.format.isTranscript) current.copy(format=if(current.sources[0].info.isVideo) OutputFormat.MP4 else OutputFormat.MP3) else current
+        // Playback previews the edit, not the chosen delivery container. Exporting
+        // audio from a video project must not remove its picture from the monitor.
+        val p=current.copy(format=when {
+            current.sources[0].info.isStill -> OutputFormat.PNG
+            current.sources[0].info.isVideo -> OutputFormat.MP4
+            else -> OutputFormat.WAV
+        })
         player.stop()
         val file=File.createTempFile("ffmpeggui-preview-", ".${p.format.extension}").apply { delete() }
         work("Rendering an exact edited preview. This includes cuts and effects…") {
