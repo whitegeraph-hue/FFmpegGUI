@@ -76,11 +76,11 @@ class EditorController(val scope: CoroutineScope) {
     }
     fun append(path:String)=work("Adding source…") {
         val p=project ?: return@work
-        require(p.sources.all {it.info.isVideo && !it.info.isStill}){"Start a video timeline to combine files."}
+        require(p.sources.first().info.isVideo && !p.sources.first().info.isStill && p.sources.all {it.info.isVideo}){"Start with a video to combine video and still clips. Audio files can be added as sound tracks."}
         val source=media.probe(path)
-        require(source.info.isVideo && !source.info.isStill){"Choose a video clip for this timeline. Still and audio-only timeline sources are still being ported."}
+        require(source.info.isVideo){"Choose a video or still picture. Add audio-only files under Sound tracks."}
         val sources=if(p.sources.any {it.path==source.path})p.sources else p.sources+source
-        mutate(p.copy(sources=sources,timeline=p.timeline.append(Clip(id(),source.path,endMs=source.info.durationMs)),followCrop=null))
+        mutate(p.copy(sources=sources,timeline=p.timeline.append(Clip(id(),source.path,endMs=if(source.info.isStill)5000 else source.info.durationMs)),followCrop=null))
         selectedSource=sources.indexOfFirst {it.path==source.path};resetAnalysis();status="Source added: ${File(source.path).name}"
     }
     private fun pruneMasks(){DesktopMasks.prune((history.toList()+listOfNotNull(project)).flatMap {listOfNotNull(it.image.key?.mask,it.image.hdr?.mask,it.image.hdr?.brush)}.toSet())}

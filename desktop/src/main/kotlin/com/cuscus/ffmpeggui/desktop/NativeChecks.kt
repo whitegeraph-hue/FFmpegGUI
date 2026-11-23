@@ -374,6 +374,22 @@ fun main(args:Array<String>)=runBlocking {
         fun power(a:Int,b:Int)=pcm.sliceArray(a*16000 until b*16000).maxOf {kotlin.math.abs(it)}
         check(power(0,2)<.005f && power(4,6)>.02f)
     }
+    verify("video still video timeline exports silent still and persists") {
+        val still=media.probe(File(folder,"sticker.png").path)
+        val timeline=Timeline(listOf(Clip("mixed-v1",video.path,0,1000),Clip("mixed-still",still.path,0,1500),Clip("mixed-v2",video.path,0,1000)))
+        val project=DesktopProject(listOf(video,still),timeline)
+        val saved=File(folder,"video-still.ffgui.json");DesktopProjects.save(project,saved)
+        check(DesktopProjects.load(saved,media).timeline==timeline)
+        val output=withTimeout(30000){exporter.export(project,File(folder,"video-still.mp4"))}
+        check(output.info.hasAudio && output.info.durationMs in 3400..3650)
+        val frame=media.frame(output.path,1750)!!
+        try {check((frame.getRGB(frame.width/2,frame.height/2) and 0xffffff)>0xeeeeee)}finally {frame.flush()}
+        val sound=media.samples(output.path)
+        check((18000 until 38000).maxOf {kotlin.math.abs(sound[it])}<.001f) {"Still clip did not get silence"}
+        media.process.checked(listOf("ffmpeg","-v","error","-i",output.path,"-f","null","-"))
+        val scope=CoroutineScope(Dispatchers.Default+SupervisorJob());val c=EditorController(scope)
+        try {c.project=DesktopProject.create(video);c.append(still.path);c.job?.join();check(c.error==null){c.error.orEmpty()};check(c.project!!.timeline.clips.last().lengthMs==5000L);c.undo();check(c.project!!.timeline.clips.size==1)}finally {c.close();scope.cancel()}
+    }
     verify("mixed saved timeline types rejected") {
         val audio=media.probe(File(folder,"beat.wav").path)
         val mixed=p.copy(sources=listOf(video,audio),timeline=Timeline(listOf(Clip("v",video.path,endMs=1000),Clip("a",audio.path,endMs=1000))))

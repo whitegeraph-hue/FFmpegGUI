@@ -127,7 +127,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                                 }
                                 Row(verticalAlignment=Alignment.CenterVertically) {
                                     Text("Timeline · ${project.timeline.clips.size} clips",style=MaterialTheme.typography.titleSmall,modifier=Modifier.weight(1f))
-                                    OutlinedButton(onClick={pick()?.let {controller.append(it.path)}},enabled=!controller.busy && !project.sources[0].info.isStill){Text("Add clip")}
+                                    OutlinedButton(onClick={pick()?.let {controller.append(it.path)}},enabled=!controller.busy && !project.sources[0].info.isStill){Text("Add video / still")}
                                 }
                                 LazyColumn(Modifier.heightIn(max=180.dp),verticalArrangement=Arrangement.spacedBy(5.dp)) {
                                     itemsIndexed(project.timeline.clips) { index,clip ->
@@ -780,6 +780,10 @@ private fun EditPanel(c: EditorController,p: DesktopProject,window:java.awt.Fram
         if(!source.info.isStill) {
             ValueSlider("Source in (seconds)",clip.startMs/1000f,0f..((clip.endMs ?: source.info.durationMs)-120).coerceAtLeast(1)/1000f,!c.busy){c.mutate(p.copy(timeline=p.timeline.trim(clip.id,(it*1000).toLong(),clip.endMs ?: source.info.durationMs,source.info.durationMs),followCrop=null))}
             ValueSlider("Source out (seconds)",(clip.endMs ?: source.info.durationMs)/1000f,(clip.startMs+120)/1000f..source.info.durationMs/1000f,!c.busy){c.mutate(p.copy(timeline=p.timeline.trim(clip.id,clip.startMs,(it*1000).toLong(),source.info.durationMs),followCrop=null))}
+        }
+        if(source.info.isStill) {
+            Text("Still picture shown as a clip. Duration is footage time, before clip speed. The original picture is unchanged.")
+            ValueSlider("Still duration seconds",clip.lengthMs/1000f,.2f..60f,!c.busy){value->c.mutate(p.copy(timeline=p.timeline.trim(clip.id,0,(value*1000).toLong(),0),followCrop=null))}
         }
         ValueSlider("Clip speed",f.speed,.25f..4f,!c.busy){v->change {it.copy(speed=v)}}
         Text("Speed ramp",style=MaterialTheme.typography.titleMedium)
