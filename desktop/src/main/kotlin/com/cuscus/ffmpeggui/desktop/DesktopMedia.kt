@@ -225,10 +225,11 @@ class DesktopExport(private val media: DesktopMedia = DesktopMedia()) {
                 val fontFile=File(subtitleFontDirectory,"subtitle."+original.extension.lowercase()).also {original.copyTo(it)}
                 val facts=FontFacts.read(fontFile)
                 File(auxiliaries,"subtitles.ass").apply {
-                    writeText(AssSubtitles.write(SubtitleLayout.ofWords(words,style,request.subtitleFrameRatio,facts),style,request.subtitleFrameRatio,facts?.family ?: "DejaVu Sans"))
+                    writeText(AssSubtitles.write(SubtitleLayout.ofWords(words,style,request.subtitleFrameRatio,facts),style,request.subtitleFrameRatio,DesktopFonts.assFamily(facts?.family ?: "DejaVu Sans")))
                 }
             } else null
-            val hdr=project.image.hdr?.takeIf {project.format==OutputFormat.JPG}
+            require(project.image.hdr==null || project.format==OutputFormat.JPG) {"HDR is enabled but this output is not JPG. Choose JPG or turn HDR off."}
+            val hdr=project.image.hdr
             require(hdr==null || (hdr.mode==HdrMode.GENERATED && hdr.area==HdrArea.EVERYWHERE && project.image.canvas==null)) {"This HDR mode needs an adapter still being ported."}
             val hdrPictures=hdr?.let {HdrPictures(File(auxiliaries,"hdr-final.png").path,File(auxiliaries,"hdr-plain.png").path)}
             val paths=MediaPaths(project.sources.map { DesktopStillInputs.resolve(it.path,auxiliaries) },temporary.path,imageOverlays=project.pictures.filter {it.activeOn(project.timeline)}.map {DesktopStillInputs.resolve(it.source.path,auxiliaries)}+listOfNotNull(drawing?.path),sounds=project.sounds.filter {!it.muted}.map {it.source.path},hdrPictures=hdrPictures,subtitles=subtitles?.path,subtitleFonts=subtitleFontDirectory?.path)

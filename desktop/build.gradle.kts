@@ -116,3 +116,10 @@ tasks.named<ProcessResources>("processResources") {
     dependsOn(correspondingSource)
     from(layout.buildDirectory.dir("corresponding-source")) { into("licenses/source") }
 }
+
+tasks.register<JavaExec>("largeHdrChecks") {
+    classpath = sourceSets.main.get().runtimeClasspath
+    mainClass.set("com.cuscus.ffmpeggui.desktop.DesktopHdrChecks")
+    maxHeapSize = "256m"
+    args = listOf(project.findProperty("largeHdrDir")?.toString() ?: "/tmp/ffmpeggui-large-hdr")
+}

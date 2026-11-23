@@ -51,6 +51,11 @@ fun main(args:Array<String>)=runBlocking {
         check(File(folder,"subtitles.srt").readText()==text)
     }
     verify("custom subtitle font colour shadow limits and missing-font fallback") {
+        val hostile="Font,Name\r\n[Events]\u0000"
+        val safe=DesktopFonts.assFamily(hostile)
+        check(safe.none {it==',' || it.isISOControl()})
+        val ass=AssSubtitles.write(emptyList(),SubtitleStyle(),16f/9f,safe)
+        check(ass.lines().count {it=="[Events]"}==1)
         val custom=File(folder,"custom font's.ttf")
         File("/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf").copyTo(custom,overwrite=true)
         DesktopFonts.validate(custom)
@@ -453,6 +458,11 @@ fun main(args:Array<String>)=runBlocking {
         val saved=File(folder,"ultra-hdr.ffgui.json");DesktopProjects.save(project,saved);check(DesktopProjects.load(saved,media).image==project.image)
         javax.imageio.ImageIO.write(sdr,"png",File(folder,"ultra-hdr-sdr-proof.png"))
         javax.imageio.ImageIO.write(map,"png",File(folder,"ultra-hdr-map-proof.png"))
+    }
+    verify("HDR non-JPG output explicitly rejected") {
+        val still=media.probe(File(folder,"exif-6.jpg").path)
+        val error=runCatching {exporter.export(DesktopProject.create(still).copy(format=OutputFormat.PNG,image=ImageEdit(hdr=ImageHdr())),File(folder,"hdr-rejected.png"))}.exceptionOrNull()
+        check(error?.message?.contains("not JPG")==true)
     }
     verify("picture canvas placement transparency and save") {
         val source=media.probe(File(folder,"sticker.png").path)

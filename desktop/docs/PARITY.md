@@ -290,3 +290,9 @@ rejected until its adapter exists. Latest full package8b6predatesHDR/canvas.
 - Export copies only the selected font into its temporary font directory, not the user's full directory. Original FontFacts, SubtitleLayout and ASS writer are reused. Other built-in families remain unexposed.
 - 46 native checks pass, including genuine custom-serif versus fallback-sans pixel differences, green burn-in, invalid-font rejection, save/reload and missing-file fallback. Colour editing was actually typed through UI and inspected, rendered serif/green/shadow output inspected. Font chooser UI itself is not yet a clicked proof.
 - First same-family bold/regular difference assertion did not establish a difference because libass selected regular by style weight; replaced with distinct-family proof, not counted as a functional pass.
+
+### 2026-11-23 02:10 EET: review follow-through
+- Missing/unreadable custom subtitle fonts show a visible fallback warning on reopened projects. UI inspected. Desktop ASS-family boundary removes commas and control characters; core unchanged. Native assertion ensures a crafted family string cannot add an Events record.
+- HDR enabled with non-JPG output is explicitly rejected with a useful message, and the image controls warn. No silent SDR export with the toggle enabled.
+- 47 native checks pass. Dedicated 8MP HDR assembly succeeds at 256MB heap with32MiB reserve in4.73s (fixture preparation included); sampled peak RSS189864KiB,5.03s wall. This is adapter proof, not full editor export or HDR hardware appearance. CI adds largeHdrChecks.
+- d9dc528 exact incremental package exists with816archived tracked-source files aligned; package checksum573aba34bf79810878105e5d33c2c21029ef6c809d8be038ddaf8408af491aab. Extracted package worker suite passes02:04:08–02:04:32. It predates this review follow-through.

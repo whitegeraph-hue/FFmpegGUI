@@ -305,6 +305,7 @@ private fun EditPanel(c: EditorController,p: DesktopProject) {
             FlowRowCompat { SubtitleLook.entries.forEach { look -> FilterChip(style.look==look,{c.mutate(p.copy(subtitleStyle=style.copy(look=look)))},label={Text(look.name.lowercase())},enabled=!c.busy) } }
             Row(verticalAlignment=Alignment.CenterVertically) { Checkbox(style.bold,{c.mutate(p.copy(subtitleStyle=style.copy(bold=it)))},enabled=!c.busy);Text("Bold");Checkbox(style.uppercase,{c.mutate(p.copy(subtitleStyle=style.copy(uppercase=it)))},enabled=!c.busy);Text("Uppercase") }
             Text("Font: "+(style.fontFile?.let {File(it).name} ?: "DejaVu Sans"),style=MaterialTheme.typography.bodySmall)
+            if(style.fontFile?.let { !File(it).isFile || !File(it).canRead() }==true)Text("Font missing or unreadable. Rendering uses DejaVu Sans until you choose the font again.",color=MaterialTheme.colorScheme.error)
             Row {
                 OutlinedButton(onClick={pick()?.let {file->c.work("Checking font…"){DesktopFonts.validate(file);c.mutate(p.copy(subtitleStyle=style.copy(fontFile=file.absolutePath)));c.status="Font selected. Render preview to see the result."}}},enabled=!c.busy) {Text("Choose TTF / OTF")}
                 TextButton(onClick={c.mutate(p.copy(subtitleStyle=style.copy(fontFile=null)))},enabled=!c.busy) {Text("Default font")}
@@ -433,6 +434,7 @@ private fun EditPanel(c: EditorController,p: DesktopProject) {
         ValueSlider("Round corners",e.corners,0f..1f,!c.busy){edit(e.copy(corners=it))}
         Row {Switch(e.hdr!=null,{on->edit(e.copy(hdr=if(on)ImageHdr()else null))},enabled=!c.busy);Text("Generated Ultra HDR JPG")}
         e.hdr?.let {hdr->
+            if(p.format!=OutputFormat.JPG)Text("HDR is on, but export requires JPG. Choose JPG or turn HDR off.",color=MaterialTheme.colorScheme.error)
             ValueSlider("HDR intensity",hdr.intensity,0f..1f,!c.busy){edit(e.copy(hdr=hdr.copy(intensity=it)))}
             Text("JPG only, up to 8 megapixels. Gain map is generated from the edited light, not AI. SDR screens keep the ordinary JPG. HDR hardware display is not verified. Original-camera gain maps and area masks are still being ported.")
         }
