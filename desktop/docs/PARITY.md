@@ -587,3 +587,9 @@ rejected until its adapter exists. Latest full package8b6predatesHDR/canvas.
   stems and other tool-specific selected-clip adapters remain open. This is not
   fulfillment of all-tools scope. Analysis can still read whole source for
   context; only selected clip results mutate the edit.
+
+- Follow-up: Android selected-clip tool row now exposes pause/scene/beat tools
+  (audio clips: pause/beats). Linux Clip2 and Find scenes clicked; selected
+  scope/result screens inspected. Unsplit near-edge scene/beat points are
+  filtered before counts. Full-selected-clip removal and curve-window unit
+  assertions added. Android and Linux CI checks remain pending for this batch.

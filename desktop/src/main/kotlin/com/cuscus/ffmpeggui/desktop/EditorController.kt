@@ -154,7 +154,7 @@ class EditorController(val scope: CoroutineScope) {
         sceneStatus=SceneSplitsStatus.Working
         work("Finding scene changes locally…") {
             try {
-                val points=ClipToolScope.points(p.timeline,smartClipId,p.sources[selectedSource].path,media.scenes(p.sources[selectedSource]))
+                val points=ClipToolScope.points(p.timeline,smartClipId,p.sources[selectedSource].path,media.scenes(p.sources[selectedSource])).filter(p.timeline::canSplitAt)
                 sceneStatus=SceneSplitsStatus.Ready(points,points.indices.toSet()); status="Review the scene boundaries, then choose Split."
             } catch (e: Exception) { sceneStatus=SceneSplitsStatus.Failed; throw e }
         }
@@ -166,7 +166,7 @@ class EditorController(val scope: CoroutineScope) {
             try {
                 val result=withContext(Dispatchers.Default) { BeatTrack.analyze(media.samples(p.sources[selectedSource].path),16000,p.sources[selectedSource].info.durationMs) }
                 check(result.tempoBpm!=null && result.beatsMs.isNotEmpty()) { "No steady beat found. Use at least five seconds of rhythmic music." }
-                val points=ClipToolScope.points(p.timeline,smartClipId,p.sources[selectedSource].path,result.beatsMs)
+                val points=ClipToolScope.points(p.timeline,smartClipId,p.sources[selectedSource].path,result.beatsMs).filter(p.timeline::canSplitAt)
                 beatStatus=BeatsStatus.Ready(result.onsetsMs,points,result.tempoBpm); status="Review the beats. Snapping also applies to Split here."
             } catch (e: Exception) { beatStatus=BeatsStatus.Failed; throw e }
         }

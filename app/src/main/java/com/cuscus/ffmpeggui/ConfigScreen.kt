@@ -1164,6 +1164,8 @@ fun ConfigScreen(
                 item(EditorTool.AUDIO_DENOISE, clip.id),
                 item(EditorTool.VOICE_SPLIT, clip.id),
                 item(EditorTool.FADE, clip.id),
+                item(EditorTool.SMART_CUTS,clip.id),
+                item(EditorTool.SMART_BEATS,clip.id),
             )
         }
         listOfNotNull(
@@ -1182,6 +1184,10 @@ fun ConfigScreen(
             item(EditorTool.KEY, clip.id),
             item(EditorTool.FADE, clip.id),
             item(EditorTool.TRANSITION, clip.id),
+        ) + if(selectedClipIsStill)emptyList()else listOf(
+            item(EditorTool.SMART_CUTS,clip.id),
+            item(EditorTool.SMART_SCENES,clip.id),
+            item(EditorTool.SMART_BEATS,clip.id),
         )
     }
     // The selected sound's own tools.

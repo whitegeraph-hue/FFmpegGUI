@@ -21,6 +21,16 @@ class ClipToolScopeTest {
         assertEquals(listOf(5000L),ClipToolScope.points(t,"b","source",listOf(1000,2000,5000)))
         assertTrue(ClipToolScope.cuts(t,"c","source",listOf(CutRange(1000,2000))).isEmpty())
     }
+    @Test fun fullClipDisappearsAndCurveWindowStaysLocal() {
+        val curve=SpeedCurve(listOf(SpeedPoint(0f,.5f),SpeedPoint(1f,3f)))
+        val a=Clip("a","s",0,4000,Effects(reversed=true,speedCurve=curve));val b=a.copy(id="b")
+        val t=Timeline(listOf(a,b))
+        val full=ClipToolScope.remove(t,ClipToolScope.cuts(t,"b","s",listOf(CutRange(0,4000)))){"n"}
+        assertEquals(listOf(a),full.clips)
+        val partial=ClipToolScope.remove(t,ClipToolScope.cuts(t,"b","s",listOf(CutRange(0,1000)))){"n"}
+        assertEquals(a,partial.clips.first())
+        assertEquals(a.effects.windowed(.25,1.0),partial.clips.last().effects)
+    }
     @Test fun edgeCutIsNotSkippedAndCannotTouchNeighbour() {
         val a=Clip("a","s",0,1000);val b=Clip("b","s",0,1000)
         val t=Timeline(listOf(a,b))

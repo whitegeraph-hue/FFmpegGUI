@@ -4227,7 +4227,7 @@ class ConversionViewModel(
                     _beats.value = BeatsStatus.Failed
                     return@launch
                 }
-                val beats = ClipToolScope.points(beatTimeline!!,clipId,sourceId,found.beatsMs)
+                val beats = ClipToolScope.points(beatTimeline!!,clipId,sourceId,found.beatsMs).filter(beatTimeline!!::canSplitAt)
                 val onsets = ClipToolScope.points(beatTimeline!!,clipId,sourceId,found.onsetsMs)
                 if(_settings.value.timeline!=beatTimeline || smartClipId!=clipId)return@launch
                 if (beats.isEmpty()) {

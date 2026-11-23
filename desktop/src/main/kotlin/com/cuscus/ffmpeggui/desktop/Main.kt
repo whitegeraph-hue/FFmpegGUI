@@ -156,7 +156,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                                             FilterChip(controller.smartClipId==null,{controller.selectSmartClip(null)},label={Text("Selected source, all clips")},enabled=!controller.busy)
                                             project.timeline.clips.forEachIndexed {i,clip->FilterChip(controller.smartClipId==clip.id,{controller.selectSmartClip(clip.id)},label={Text("Clip ${i+1}")},enabled=!controller.busy)}
                                         }
-                                        Text("Only this clip occurrence is changed. Existing clip effects stay; cuts shift later content earlier. Originals are unchanged.")
+                                        Text(if(controller.smartClipId==null)"All occurrences of the selected source can change. Choose Clip N to limit the tool." else "Only this clip occurrence is changed. Existing clip effects stay; cuts shift later content earlier. Originals are unchanged.")
                                     }
 
                                     when(controller.tab) {
