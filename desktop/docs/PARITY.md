@@ -375,3 +375,14 @@ rejected until its adapter exists. Latest full package8b6predatesHDR/canvas.
 - Model licence must be checked per model. Live tested en-fr base README
   lists Apache2.0, unlike blanketCC-BY4.0 in original Android OpusMt registry.
   No translation weights bundled; model-specific sources in desktop README.
+
+### 2026-11-23 04:00 EET: translation import hardening
+- Streaming bounded protobuf preflight refuses all tensor external_data and
+  data_location fields, including nested graph attributes. Also refuses
+  sparse tensors, training graphs, local functions and malformed wire data.
+  Runs before native ONNX session creation both during import and use.
+- Config language pair must match the repository pair; cue failures include
+  their one-based index. Local hashes are integrity checks, not publisher trust.
+  Disposable workers have ordinary account file access, not OS sandboxing.
+-55 native checks pass; synthetic external-data/nested/malformed forms reject.
+  Real single-file en-fr import/inference/cancel/retry regression passes again.

@@ -628,6 +628,22 @@ fun main(args:Array<String>)=runBlocking {
         check(DesktopTranslation.validRepo("Xenova/opus-mt-en-fr"))
         check(!DesktopTranslation.validRepo("../../opus-mt-en-fr") && !DesktopTranslation.validRepo("Xenova/opus-mt-en-mul"))
     }
+    verify("ONNX external data nested graph and unsupported containers rejected") {
+        fun field(n:Int,data:ByteArray):ByteArray {
+            fun varint(v:Int):ByteArray {var x=v;val bytes=mutableListOf<Byte>();do {val b=x and 127;x=x ushr 7;bytes+=(b or if(x>0)128 else 0).toByte()}while(x>0);return bytes.toByteArray()}
+            return varint((n shl 3) or 2)+varint(data.size)+data
+        }
+        val file=File(folder,"external-data-test.onnx")
+        val tensor=field(13,field(1,"location".toByteArray())+field(2,"outside.bin".toByteArray()))
+        file.writeBytes(field(7,field(5,tensor)))
+        check(runCatching {DesktopOnnx.singleFile(file)}.exceptionOrNull()!!.message!!.contains("External-data"))
+        val nested=field(7,field(1,field(5,field(6,field(5,tensor)))))
+        file.writeBytes(nested);check(runCatching {DesktopOnnx.singleFile(file)}.isFailure)
+        file.writeBytes(field(7,field(5,byteArrayOf(112,1))));check(runCatching {DesktopOnnx.singleFile(file)}.isFailure)
+        for(n in listOf(20,25)){file.writeBytes(field(n,byteArrayOf()));check(runCatching {DesktopOnnx.singleFile(file)}.isFailure)}
+        file.writeBytes(field(7,field(5,field(9,byteArrayOf(1,2,3)))));DesktopOnnx.singleFile(file)
+        file.writeBytes(byteArrayOf(58,127));check(runCatching {DesktopOnnx.singleFile(file)}.isFailure)
+    }
     verify("cancel real process") {
         val start=System.currentTimeMillis()
         val job=launch { media.process.run(listOf("ffmpeg","-re","-f","lavfi","-i","testsrc2=size=640x360:rate=25","-t","30","-f","null","-")) }

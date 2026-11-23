@@ -11,7 +11,7 @@ import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import java.security.MessageDigest
 
-/** Original Marian tokenizer/greedy decoding, contained in a disposable process. */
+/** Original Marian tokenizer/greedy decoding in a disposable worker, not an OS security sandbox. */
 object DesktopTranslation {
     val files=listOf("config.json","vocab.json","source.spm","encoder_model_quantized.onnx","decoder_model_quantized.onnx")
     val root:File get()=File(DesktopModels.root,"translation")
@@ -62,9 +62,12 @@ object DesktopTranslation {
         verify(directory)
         DesktopSmartModels.checkAvailableMemory(700L*1024*1024)
         require(texts.size<=500 && texts.sumOf {it.length}<=100_000 && texts.all {it.length<=1000}) {"Translate up to 500 short cues at once (1000 characters each, 100000 total)"}
+        files.filter {it.endsWith(".onnx")}.forEach {DesktopOnnx.singleFile(File(directory,it))}
         val vocab=MarianTokenizer.vocab(File(directory,"vocab.json").readText())
         require(vocab.size in 100..100_000 && vocab.values.all {it in 0..100_000}) {"Invalid translation vocabulary"}
         val config=MarianConfig.parse(File(directory,"config.json").readText())
+        val claimedRepo=Json.parseToJsonElement(File(directory,"manifest.json").readText()).jsonObject["repo"]!!.jsonPrimitive.content
+        require(config.name?.let {Languages.pairOf(it)}==Languages.pairOf(claimedRepo)) {"Model repository language pair does not match config.json"}
         val tokenizer=MarianTokenizer(SentencePieceModel.parse(File(directory,"source.spm").readBytes()),vocab,config)
         require(config.vocabSize==0 || config.vocabSize in 100..100_001) {"Invalid translation vocabulary size"}
         require(tokenizer.targetTokens.isEmpty()) {"Multilingual target-token models are not supported yet"}
@@ -79,6 +82,7 @@ object DesktopTranslation {
                     texts.mapIndexed {index,text->
                         currentCoroutineContext().ensureActive();progress("Translating cue ${index+1} of ${texts.size}")
                         if(text.isBlank())text else {
+                            try {
                             val ids=tokenizer.encode(text,maxTokens=257)
                             require(ids.size<=256) {"A cue is too long for translation. Split it into shorter cues first."}
                             val mask=LongArray(ids.size){1L};val shape=longArrayOf(1,ids.size.toLong())
@@ -107,6 +111,7 @@ object DesktopTranslation {
                             }
                             require(written.size<maxNew && !(written.size>=3 && written.takeLast(3).distinct().size==1)) {"Translation stopped at its length/repetition limit. Split this cue and retry; no subtitles were replaced."}
                             tokenizer.decode(written).also {require(it.isNotBlank()){ "The model returned an empty translation. No subtitles were replaced." }}
+                            } catch(e:CancellationException){throw e} catch(e:Exception){throw IllegalArgumentException("Cue ${index+1}: ${e.message}",e)}
                         }
                     }
                 }
