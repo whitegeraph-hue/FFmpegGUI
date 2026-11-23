@@ -375,7 +375,7 @@ private fun EditPanel(c: EditorController,p: DesktopProject) {
     fun change(value:AudioEffects) {c.mutate(p.copy(audioEffects=value))}
     PanelCard {
         Text("Audio mastering",style=MaterialTheme.typography.titleLarge)
-        Text("The original ten-band EQ and mastering filter chain. Render edited preview to hear the actual result. Live waveform and multi-track editing remain unported.",style=MaterialTheme.typography.bodySmall)
+        Text("The original ten-band EQ and mastering filter chain. Render edited preview to hear the actual result. Live DSP preview and waveform editing remain unported; sound tracks are edited separately.",style=MaterialTheme.typography.bodySmall)
         OutlinedButton(onClick={change(AudioEffects.NONE)},enabled=!c.busy) {Text("Reset mastering")}
         AudioEffects.EQ_BANDS_HZ.forEachIndexed { index,hz -> ValueSlider("$hz Hz (dB)",a.equalizerGains[index],-12f..12f,!c.busy) { value ->change(a.copy(equalizer=a.equalizerGains.toMutableList().also {it[index]=value}))} }
         ValueSlider("Low cut Hz (0 = off)",a.lowCutHz.toFloat(),0f..500f,!c.busy) {change(a.copy(lowCutHz=it.toInt()))}
@@ -385,14 +385,30 @@ private fun EditPanel(c: EditorController,p: DesktopProject) {
     PanelCard {
         Text("Dynamics and space",style=MaterialTheme.typography.titleMedium)
         Row(verticalAlignment=Alignment.CenterVertically) {Switch(a.gate!=null,{change(a.copy(gate=if(it)NoiseGate() else null))},enabled=!c.busy);Text("Noise gate")}
-        a.gate?.let { g ->ValueSlider("Gate threshold dB",g.thresholdDb,-70f..-10f,!c.busy) {change(a.copy(gate=g.copy(thresholdDb=it)))} }
+        a.gate?.let { g ->
+            ValueSlider("Gate threshold dB",g.thresholdDb,-70f..-10f,!c.busy) {change(a.copy(gate=g.copy(thresholdDb=it)))}
+            ValueSlider("Gate reduction dB",g.reductionDb,-60f..0f,!c.busy) {change(a.copy(gate=g.copy(reductionDb=it)))}
+        }
         Row(verticalAlignment=Alignment.CenterVertically) {Switch(a.compressor!=null,{change(a.copy(compressor=if(it)Compressor() else null))},enabled=!c.busy);Text("Compressor")}
         a.compressor?.let { comp ->ValueSlider("Threshold dB",comp.thresholdDb,-40f..0f,!c.busy) {change(a.copy(compressor=comp.copy(thresholdDb=it)))};ValueSlider("Ratio",comp.ratio,1f..12f,!c.busy) {change(a.copy(compressor=comp.copy(ratio=it)))} }
+        a.compressor?.let {comp->
+            ValueSlider("Compressor attack ms",comp.attackMs,1f..200f,!c.busy) {change(a.copy(compressor=comp.copy(attackMs=it)))}
+            ValueSlider("Compressor release ms",comp.releaseMs,10f..1000f,!c.busy) {change(a.copy(compressor=comp.copy(releaseMs=it)))}
+            ValueSlider("Compressor makeup dB",comp.makeupDb,0f..24f,!c.busy) {change(a.copy(compressor=comp.copy(makeupDb=it)))}
+        }
         Row(verticalAlignment=Alignment.CenterVertically) {Switch(a.limiter!=null,{change(a.copy(limiter=if(it)Limiter() else null))},enabled=!c.busy);Text("Limiter")}
+        a.limiter?.let {limit->ValueSlider("Limiter ceiling dB",limit.ceilingDb,-12f..0f,!c.busy) {change(a.copy(limiter=limit.copy(ceilingDb=it)))}}
         Row(verticalAlignment=Alignment.CenterVertically) {Switch(a.echo!=null,{change(a.copy(echo=if(it)Echo() else null))},enabled=!c.busy);Text("Echo")}
         a.echo?.let { echo ->ValueSlider("Echo delay ms",echo.delayMs.toFloat(),20f..1000f,!c.busy) {change(a.copy(echo=echo.copy(delayMs=it.toInt())))};ValueSlider("Echo feedback",echo.feedback,0f..0.8f,!c.busy) {change(a.copy(echo=echo.copy(feedback=it)))} }
         Row(verticalAlignment=Alignment.CenterVertically) {Switch(a.reverb!=null,{change(a.copy(reverb=if(it)Reverb() else null))},enabled=!c.busy);Text("Reverb")}
         a.reverb?.let { r ->FlowRowCompat {RoomSize.entries.forEach { size ->FilterChip(r.size==size,{change(a.copy(reverb=r.copy(size=size)))},label={Text(size.name.lowercase())},enabled=!c.busy)}};ValueSlider("Reverb mix",r.mix,0f..1f,!c.busy) {change(a.copy(reverb=r.copy(mix=it)))} }
+        ValueSlider("Lo-fi bits (0 = off)",a.lofiBits.toFloat(),0f..16f,!c.busy) {change(a.copy(lofiBits=it.toInt().let {n->if(n<2)0 else n}))}
+        Row(verticalAlignment=Alignment.CenterVertically) {Switch(a.modulation!=null,{change(a.copy(modulation=if(it)Modulation(ModulationKind.CHORUS) else null))},enabled=!c.busy);Text("Modulation")}
+        a.modulation?.let {m->
+            FlowRowCompat {ModulationKind.entries.forEach {kind->FilterChip(m.kind==kind,{change(a.copy(modulation=m.copy(kind=kind)))},label={Text(kind.name.lowercase())},enabled=!c.busy)}}
+            ValueSlider("Modulation rate Hz",m.rateHz,.1f..10f,!c.busy) {change(a.copy(modulation=m.copy(rateHz=it)))}
+            ValueSlider("Modulation depth",m.depth,0f..1f,!c.busy) {change(a.copy(modulation=m.copy(depth=it)))}
+        }
         ValueSlider("Stereo width",a.stereo.width,0f..2f,!c.busy) {change(a.copy(stereo=a.stereo.copy(width=it)))}
         ValueSlider("Stereo balance",a.stereo.balance,-1f..1f,!c.busy) {change(a.copy(stereo=a.stereo.copy(balance=it)))}
         Row(verticalAlignment=Alignment.CenterVertically) {Checkbox(a.stereo.mono,{change(a.copy(stereo=a.stereo.copy(mono=it)))},enabled=!c.busy);Text("Mono");Checkbox(a.stereo.swapSides,{change(a.copy(stereo=a.stereo.copy(swapSides=it)))},enabled=!c.busy);Text("Swap sides")}

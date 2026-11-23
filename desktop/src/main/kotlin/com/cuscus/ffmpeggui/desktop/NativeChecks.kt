@@ -552,6 +552,21 @@ fun main(args:Array<String>)=runBlocking {
             val saved=File(folder,"transition-${kind.name}.ffgui.json");DesktopProjects.save(project,saved);check(DesktopProjects.load(saved,media).timeline==project.timeline)
         }
     }
+    verify("all modulation families lo-fi and dynamics actual PCM and persistence") {
+        val audio=media.probe(File(folder,"beat.wav").path)
+        val base=DesktopProject.create(audio).copy(format=OutputFormat.WAV)
+        val plain=media.process.checked(listOf("ffmpeg","-v","error","-i",audio.path,"-f","md5","-"))
+        for(kind in ModulationKind.entries) {
+            val fx=AudioEffects(lofiBits=8,modulation=Modulation(kind=kind,rateHz=2f,depth=.6f),gate=NoiseGate(-60f,-20f),compressor=Compressor(-20f,2f,10f,100f,2f),limiter=Limiter(-2f))
+            val project=base.copy(audioEffects=fx)
+            val result=exporter.export(project,File(folder,"modulation-${kind.name}.wav"))
+            check(kotlin.math.abs(result.info.durationMs-audio.info.durationMs)<50)
+            val hash=media.process.checked(listOf("ffmpeg","-v","error","-i",result.path,"-f","md5","-"));check(hash!=plain)
+            val saved=File(folder,"modulation-${kind.name}.ffgui.json");DesktopProjects.save(project,saved);check(DesktopProjects.load(saved,media).audioEffects==fx)
+        }
+        val failed=runCatching {exporter.export(base.copy(format=OutputFormat.OGG),File(folder,"invalid-vorbis.ogg"))}
+        check(failed.isFailure && failed.exceptionOrNull()!!.message.orEmpty().contains("Vorbis rejected"))
+    }
     verify("portable album art attached picture and Ogg metadata exports") {
         val art=File(folder,"album-art-source.png")
         val bitmap=java.awt.image.BufferedImage(900,600,java.awt.image.BufferedImage.TYPE_INT_RGB)

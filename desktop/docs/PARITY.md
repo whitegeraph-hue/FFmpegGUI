@@ -337,3 +337,12 @@ rejected until its adapter exists. Latest full package8b6predatesHDR/canvas.
   rejection. Defaults at16kHz mono192kbps fail Vorbis in this FFmpeg; cover
   proof explicitly uses48kHz96kbps. This encoding combination issue remains.
   Embedded source art automatic import and final package/Zorin checks remain.
+
+### 2026-11-23 03:33 EET: remaining mastering parameters
+- Modulation CHORUS/FLANGER/PHASER/TREMOLO/VIBRATO with rate/depth, lo-fi
+  bit depth, gate reduction, compressor attack/release/makeup and limiter
+  ceiling exposed using original AudioEffects and filter chain.
+-52native checks pass including actual five-family modulated PCM difference,
+  duration and full saved AudioEffects recovery. UI scrolled/inspected; no
+  physical-listening or live DSP claim. Vorbis encoder setup rejection now
+  gives specific sample-rate/bitrate guidance, never silently changes settings.

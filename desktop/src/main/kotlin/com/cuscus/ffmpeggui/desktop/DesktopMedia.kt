@@ -252,7 +252,13 @@ class DesktopExport(private val media: DesktopMedia = DesktopMedia()) {
                 require(File(paths.stabilizationTransforms!!).length()>0){"Stabilization analysis produced no transforms"}
             }
             onPhase(if(request.stabilization!=null)"Stabilization pass 2 of 2: rendering smoothed output…" else "Rendering edited output…")
-            media.process.checked(listOf("ffmpeg", "-nostdin") + builder.build(request,paths).arguments)
+            try {
+                media.process.checked(listOf("ffmpeg", "-nostdin") + builder.build(request,paths).arguments)
+            } catch(e:IllegalStateException) {
+                if(project.format==OutputFormat.OGG && e.message.orEmpty().contains("encoder setup failed"))
+                    throw IllegalArgumentException("Vorbis rejected this sample-rate/channel/bitrate combination. Try 48000 Hz and 96 kbps in Encoding, or choose FLAC. No encoding settings were changed automatically.",e)
+                throw e
+            }
             if(hdr!=null && hdrPictures!=null)DesktopHdr.assemble(temporary,File(hdrPictures.finalPng),File(hdrPictures.plainPng),hdr)
             val result = media.probe(temporary.path)
             require(result.info.isStill || result.info.durationMs > 0) { "Export verification failed." }
