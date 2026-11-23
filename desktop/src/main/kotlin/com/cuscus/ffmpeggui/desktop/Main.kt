@@ -367,7 +367,7 @@ private fun EditPanel(c: EditorController,p: DesktopProject,window:java.awt.Fram
         Text("Word taps seek the source on the current timeline. Line edits use the same cut/keep logic as Android.")
         if(DesktopSpeech.words(p,c.selectedSource,c.smartClipId).isEmpty()) Text("No lines yet. Import the speech model in Models, then listen to this file.")
         Button(onClick={ c.listen() },enabled=!c.busy && p.sources[c.selectedSource].info.hasAudio) { Text(if(DesktopSpeech.words(p,c.selectedSource,c.smartClipId).isEmpty()) if(c.smartClipId==null) "Listen to this source" else "Listen to selected clip" else "Listen again in this scope") }
-        Text("Listen uses raw audio before speed, reverse and effects. Clip words override source words only on that occurrence. With no clip selected, this view shows source words only. Source Listen does not replace clip words. Reselect a clip to see its words. Stop ends the isolated local model process.",style=MaterialTheme.typography.bodySmall)
+        Text("Listen uses raw audio before speed, reverse and effects. Clip words override source words only on that occurrence. With no clip selected, this view shows source words only. Source Listen does not replace clip words. Reselect a clip to see its words. After expanding a trim, Listen again to recognize newly included audio. Stop ends the isolated local model process.",style=MaterialTheme.typography.bodySmall)
         val blocks=remember(DesktopSpeech.words(p,c.selectedSource,c.smartClipId)) { DesktopSpeech.words(p,c.selectedSource,c.smartClipId).wordBlocks().second }
         blocks.forEach { block ->
             HorizontalDivider()

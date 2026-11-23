@@ -17,5 +17,5 @@ import java.util.Locale
         OutlinedTextField(to,{to=it},label={Text("Source out · sec")},singleLine=true,modifier=Modifier.weight(1f),enabled=!c.busy)
     }
     FilledTonalButton(onClick={c.selectSmartClip(clipId);c.trimSelected(a!!,b!!)},enabled=!c.busy && a!=null && b!=null && b-a>=120 && (a!=start || b!=end)) {Text("Apply trim")}
-    Text("Type exact source times, then Apply. Sliders below commit on release. Undo restores the previous trim.",style=MaterialTheme.typography.bodySmall)
+    Text("Type exact source times, then Apply. Sliders below commit on release. Undo restores the previous trim. Expanding a recognized clip does not create words for newly included audio; Listen again for that range.",style=MaterialTheme.typography.bodySmall)
 }
