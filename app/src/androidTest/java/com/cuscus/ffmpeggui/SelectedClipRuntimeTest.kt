@@ -98,6 +98,9 @@ class SelectedClipRuntimeTest {
             waitFor("selected clip EQ did not change") {vm.settings.value.timeline.clips[1].effects.audioEffects.shapesTone}
             assertEquals(before.clips[0],vm.settings.value.timeline.clips[0])
             assertEquals(com.cuscus.ffmpeggui.core.model.AudioEffects.NONE,vm.settings.value.audioEffects)
+            // The model may update before Compose applies its frame; capture the settled UI.
+            instrumentation.waitForIdleSync()
+            Thread.sleep(1000)
             ShellShot.take("selected-clip2-equalizer-bass")
             instrumentation.runOnMainSync {vm.undo()}
             assertEquals(before,vm.settings.value.timeline)
