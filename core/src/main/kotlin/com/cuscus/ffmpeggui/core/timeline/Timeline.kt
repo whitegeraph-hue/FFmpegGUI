@@ -15,6 +15,8 @@ data class Clip(
     val startMs: Long = 0L,
     val endMs: Long? = null,
     val effects: Effects = Effects.NONE,
+    /** Optional occurrence speech lineage, retained by split/duplicate copies. */
+    val speechKey: String? = null,
 ) {
     val isOpenEnded: Boolean get() = endMs == null
 

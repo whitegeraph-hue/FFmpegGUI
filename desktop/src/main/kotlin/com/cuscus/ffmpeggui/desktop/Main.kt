@@ -430,10 +430,10 @@ private fun EditPanel(c: EditorController,p: DesktopProject,window:java.awt.Fram
     PanelCard {
         Text("Transcript",style=MaterialTheme.typography.titleLarge)
         Text("Word taps seek the source on the current timeline. Line edits use the same cut/keep logic as Android.")
-        if(p.sourceWords(c.selectedSource).isEmpty()) Text("No lines yet. Import the speech model in Models, then listen to this file.")
-        Button(onClick={ c.listen() },enabled=!c.busy && p.sources[c.selectedSource].info.hasAudio) { Text(if(p.sourceWords(c.selectedSource).isEmpty()) "Listen to the video" else "Listen again") }
-        Text("Native inference runs in an isolated local process. Stop ends that process.",style=MaterialTheme.typography.bodySmall)
-        val blocks=remember(p.sourceWords(c.selectedSource)) { p.sourceWords(c.selectedSource).wordBlocks().second }
+        if(DesktopSpeech.words(p,c.selectedSource,c.smartClipId).isEmpty()) Text("No lines yet. Import the speech model in Models, then listen to this file.")
+        Button(onClick={ c.listen() },enabled=!c.busy && p.sources[c.selectedSource].info.hasAudio) { Text(if(DesktopSpeech.words(p,c.selectedSource,c.smartClipId).isEmpty()) if(c.smartClipId==null) "Listen to this source" else "Listen to selected clip" else "Listen again in this scope") }
+        Text("Listen uses raw audio before speed, reverse and effects. Clip words override source words only on that occurrence. Stop ends the isolated local model process.",style=MaterialTheme.typography.bodySmall)
+        val blocks=remember(DesktopSpeech.words(p,c.selectedSource,c.smartClipId)) { DesktopSpeech.words(p,c.selectedSource,c.smartClipId).wordBlocks().second }
         blocks.forEach { block ->
             HorizontalDivider()
             Text("Line at ${time(block.startMs)}",style=MaterialTheme.typography.labelLarge)
@@ -488,12 +488,12 @@ private fun EditPanel(c: EditorController,p: DesktopProject,window:java.awt.Fram
             Row(verticalAlignment=Alignment.CenterVertically) {Switch(v.enabled,{c.mutate(p.copy(externalSubtitles=v.copy(enabled=it)))},enabled=!c.busy);Text("Use imported subtitles",Modifier.weight(1f))}
             TextButton(onClick={c.mutate(p.copy(externalSubtitles=null))},enabled=!c.busy){Text("Remove imported subtitles")}
         }
-        val canStyle=p.externalSubtitles?.enabled==true || p.sources.indices.any {p.sourceWords(it).isNotEmpty()}
+        val canStyle=p.externalSubtitles?.enabled==true || p.wordsByClip.values.any {it.isNotEmpty()} || p.sources.indices.any {p.sourceWords(it).isNotEmpty()}
         Row(verticalAlignment=Alignment.CenterVertically) {
             Switch(p.subtitleStyle!=null,{c.mutate(p.copy(subtitleStyle=if(it)style else null))},enabled=!c.busy && canStyle)
             Text(if(p.externalSubtitles?.enabled==true)"Style SRT (ASS keeps its own look)" else "Burn spoken subtitles")
         }
-        Text("${p.sources.indices.sumOf {p.sourceWords(it).size}} source words. Imported subtitles take priority while enabled. SRT/TXT transcript export still uses spoken words.",style=MaterialTheme.typography.bodySmall)
+        Text("${p.sources.indices.sumOf {p.sourceWords(it).size}} source words and ${p.wordsByClip.values.sumOf {it.size}} clip-bound words. Imported subtitles take priority while enabled. SRT/TXT transcript export still uses spoken words.",style=MaterialTheme.typography.bodySmall)
         Text("Style presets")
         FlowRowCompat { SubtitleStyle.PRESETS.forEach { preset -> FilterChip(SubtitlePreset.of(style)==preset,{c.mutate(p.copy(subtitleStyle=preset.apply(style)))},label={Text(preset.name.lowercase())},enabled=!c.busy && canStyle) } }
         if(p.subtitleStyle!=null) {

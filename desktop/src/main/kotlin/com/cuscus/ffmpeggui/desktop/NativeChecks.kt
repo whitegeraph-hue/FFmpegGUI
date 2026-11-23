@@ -16,6 +16,58 @@ fun main(args:Array<String>)=runBlocking {
     var passed=0
     suspend fun verify(name:String,block:suspend ()->Unit) { block(); passed++;println("PASS $name") }
     val video=media.probe(File(folder,"video.mp4").path)
+    verify("clip speech source clock occurrence export persistence and raw extraction") {
+        val first=Clip("speech-first",video.path,1000,3000)
+        val second=first.copy(id="speech-second",effects=Effects(speed=2f,reversed=true))
+        val base=DesktopProject(listOf(video),Timeline(listOf(first,second)),subtitleStyle=SubtitleStyle())
+        val words=DesktopSpeech.onSourceClock(listOf(SpokenWord(200,600,"ONLY SECOND")),1000,3000)
+        val p=DesktopSpeech.apply(base,0,second.id,words)
+        check(p.sourceWords(0).isEmpty() && DesktopSpeech.words(p,0,first.id).isEmpty())
+        check(DesktopSpeech.words(p,0,second.id)==listOf(SpokenWord(1200,1600,"ONLY SECOND")))
+        val timed=p.request().timedWords();check(timed.size==1 && timed.single().startMs>=2000 && timed.single().endMs<=3000)
+        val saved=File(folder,"clip-speech.ffgui.json");DesktopProjects.save(p,saved)
+        val restored=DesktopProjects.load(saved,media);check(restored.wordsByClip==p.wordsByClip && restored.request().timedWords()==timed)
+        val transcript=exporter.transcript(restored,OutputFormat.SRT);check(transcript.split("ONLY SECOND").size==2)
+        var temp:String?=null
+        DesktopSpeech.useRawClip(p,second.id,media) {path,start,end->
+            temp=path;val raw=media.probe(path);check(start==1000L && end==3000L && raw.info.durationMs in 1990..2010)
+        }
+        check(!File(temp!!).exists())
+        val scoped=p.copy(wordsBySource=mapOf(video.path to listOf(SpokenWord(2000,2300,"SOURCE"))))
+        check(scoped.request().timedWords().size==2)
+        val divided=p.copy(timeline=p.splitFootageAt(listOf(3400)))
+        check(divided.timeline.clips.size==3 && divided.request().timedWords()==timed)
+        val duplicate=p.copy(timeline=p.timeline.duplicate(second.id,"speech-copy"))
+        check(duplicate.request().timedWords().size==2)
+        val reread=DesktopSpeech.apply(duplicate,0,"speech-copy",listOf(SpokenWord(1200,1600,"COPY ONLY")))
+        check(DesktopSpeech.words(reread,0,second.id)==words && DesktopSpeech.words(reread,0,"speech-copy").single().text=="COPY ONLY")
+        val partial=first.copy(id="speech-subset",startMs=1100,endMs=1500)
+        val overlap=first.copy(id="speech-overlap",startMs=1100,endMs=2800)
+        val repeats=p.copy(timeline=Timeline(listOf(first,partial,overlap,p.timeline.clips[1])))
+        check(repeats.request().timedWords().size==1)
+        val moved=duplicate.copy(timeline=duplicate.timeline.move(second.id,1))
+        check(moved.request().timedWords().size==2)
+        val removed=duplicate.copy(timeline=duplicate.timeline.remove(second.id))
+        check(removed.request().timedWords().size==1)
+        val directory=File(folder,"same-name").apply {mkdirs()}
+        val otherFile=File(directory,File(video.path).name);File(video.path).copyTo(otherFile,overwrite=true)
+        val other=media.probe(otherFile.path)
+        val multi=p.copy(sources=p.sources+other,timeline=Timeline(p.timeline.clips+first.copy(id="other-source",sourceId=other.path)))
+        check(multi.request().timedWords().size==1)
+        check(exporter.transcript(duplicate,OutputFormat.TXT).split("ONLY SECOND").size==3)
+        val legacy=base.copy(wordsBySource=mapOf(video.path to words))
+        val legacyFile=File(folder,"clip-speech-legacy.ffgui.json");DesktopProjects.save(legacy,legacyFile)
+        val legacyJson=Json.parseToJsonElement(legacyFile.readText()).jsonObject.toMutableMap();legacyJson.remove("wordsByClip")
+        legacyFile.writeText(JsonObject(legacyJson).toString())
+        check(DesktopProjects.load(legacyFile,media).request().timedWords().size==2)
+        val rendered=File(folder,"clip-speech-render.mp4");exporter.export(p,rendered)
+        val plain=File(folder,"clip-speech-plain.mp4");exporter.export(base,plain)
+        for((time,visible) in listOf(1400L to false,2800L to true)) {
+            val a=media.frame(rendered.path,time)!!;val b=media.frame(plain.path,time)!!
+            val changed=(0 until a.height).sumOf {y->(0 until a.width).count {x->a.getRGB(x,y)!=b.getRGB(x,y)}}
+            check(if(visible)changed>100 else changed==0) {"clip words leaked or missing at $time: $changed"}
+        }
+    }
     verify("confirmed export remembers settings one Undo restores and saved project retains them") {
         val base=DesktopProject.create(video).copy(timeline=Timeline(listOf(Clip("export-options",video.path,0,400))))
         val scope=CoroutineScope(Dispatchers.Default+SupervisorJob());val c=EditorController(scope)

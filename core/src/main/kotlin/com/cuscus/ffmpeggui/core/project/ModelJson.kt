@@ -349,6 +349,7 @@ object ModelJson {
     fun write(c: Clip): Json.Obj = jsonObject {
         put("id", c.id)
         put("sourceId", c.sourceId)
+        put("speechKey", c.speechKey)
         put("startMs", c.startMs)
         put("endMs", c.endMs)
         put("effects", write(c.effects))
@@ -360,6 +361,7 @@ object ModelJson {
         return Clip(
             id = id,
             sourceId = sourceId,
+            speechKey = o.stringOrNull("speechKey"),
             startMs = o.long("startMs", 0L),
             endMs = o.longOrNull("endMs"),
             effects = o.obj("effects")?.let(::effects) ?: Effects.NONE,

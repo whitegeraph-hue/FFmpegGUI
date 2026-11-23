@@ -141,7 +141,7 @@ class EditorController(val scope: CoroutineScope) {
     }
     fun seekWord(word: SpokenWord) {
         val p=project ?: return
-        val at=p.footageRanges(word.startMs,word.endMs,selectedSource).firstOrNull()?.first
+        val at=ClipToolScope.cuts(p.timeline,smartClipId,p.sources[selectedSource].path,listOf(CutRange(word.startMs,word.endMs))).firstOrNull()?.startMs
         if (at==null) status="This word is no longer on the edited timeline." else seek(at)
     }
     fun splitHere() {
@@ -160,20 +160,20 @@ class EditorController(val scope: CoroutineScope) {
         val p=project ?: return
         val selected=p.timeline.clips.firstOrNull {it.id==smartClipId}
         if(selected!=null && (selected.sourceId!=p.sources[selectedSource].path || block.endMs<=selected.startMs || block.startMs>=(selected.endMs ?: selected.startMs))) {status="That line is outside the selected clip. No change made.";return}
-        val sourceCuts=if (keepOnly) TranscriptEdits.keepOnly(p.sourceWords(selectedSource),block.firstIndex,block.lastIndex,p.sources[selectedSource].info.durationMs)
-            else listOfNotNull(p.sourceWords(selectedSource).cutRangeFor(block.firstIndex,block.lastIndex))
+        val sourceCuts=if (keepOnly) TranscriptEdits.keepOnly(DesktopSpeech.words(p,selectedSource,smartClipId),block.firstIndex,block.lastIndex,p.sources[selectedSource].info.durationMs)
+            else listOfNotNull(DesktopSpeech.words(p,selectedSource,smartClipId).cutRangeFor(block.firstIndex,block.lastIndex))
         val cuts=ClipToolScope.cuts(p.timeline,smartClipId,p.sources[selectedSource].path,sourceCuts)
         mutate(p.copy(timeline=ClipToolScope.remove(p.timeline,cuts,id),followCrop=null))
         status=if(selected!=null) {if(keepOnly)"Kept this line in the selected clip. Other clips are unchanged."else "Cut this line from the selected clip. Other clips are unchanged."} else if (keepOnly) "Kept this source line. Other sources are unchanged." else "Cut the selected line from the timeline."
     }
     fun findPauses() {
         val p=project ?: return
-        if (p.sourceWords(selectedSource).isEmpty()) { pauseStatus=PauseCutsStatus.NeedsWords; return }
+        if (DesktopSpeech.words(p,selectedSource,smartClipId).isEmpty()) { pauseStatus=PauseCutsStatus.NeedsWords; return }
         pauseStatus=PauseCutsStatus.Working
         work("Finding pauses and hesitations locally…") {
             try {
                 val silence=media.silence(p.sources[selectedSource])
-                val cuts=PauseCuts.suggest(p.sourceWords(selectedSource),silence,p.sources[selectedSource].info.durationMs).flatMap { c ->
+                val cuts=PauseCuts.suggest(DesktopSpeech.words(p,selectedSource,smartClipId),silence,p.sources[selectedSource].info.durationMs).flatMap { c ->
                     ClipToolScope.cuts(p.timeline,smartClipId,p.sources[selectedSource].path,listOf(c))
                 }
                 pauseStatus=PauseCutsStatus.Ready(cuts,cuts.indices.toSet()); status=if(cuts.isEmpty())"No pause or hesitation cuts found in this scope."else "Review the suggestions, then choose Cut."
@@ -247,13 +247,16 @@ class EditorController(val scope: CoroutineScope) {
     }
     fun listen() {
         val p=project ?: return
-        work("Listening locally. Stop ends the isolated model process…") {
+        val source=selectedSource;val clipId=smartClipId
+        work(if(clipId==null)"Listening to this source locally…" else "Listening to the selected clip only…") {
             val warnings=mutableListOf<String>()
-            val words=models.transcribe(p.sources[selectedSource].path,DesktopModels.speechDirectory,{warnings+=it}) { step ->
-                scope.launch { status="$step locally. Stop ends the isolated model process." }
+            suspend fun infer(path:String)=models.transcribe(path,DesktopModels.speechDirectory,{warnings+=it}) {step->
+                scope.launch {status="$step locally. Stop ends the isolated model process."}
             }
-            check(words.isNotEmpty()) {if(warnings.isEmpty())"No speech recognized. This does not prove the file has no speech." else "No words recognized. "+warnings.joinToString(" ")}
-            mutate(p.copy(wordsBySource=p.wordsBySource+(p.sources[selectedSource].path to words))); tab="Transcript";status="Heard ${words.size} words locally. Check the transcript against playback before cutting."
+            val words=if(clipId==null)infer(p.sources[source].path) else DesktopSpeech.useRawClip(p,clipId,media) {path,start,end->DesktopSpeech.onSourceClock(infer(path),start,end)}
+            check(words.isNotEmpty()) {if(warnings.isEmpty())"No speech recognized. This does not prove the scope has no speech." else "No words recognized. "+warnings.joinToString(" ")}
+            mutate(DesktopSpeech.apply(p,source,clipId,words))
+            tab="Transcript";status="Heard ${words.size} words in ${if(clipId==null)"this source" else "the selected clip only"}. Check against playback before cutting."
             if(warnings.isNotEmpty())error="Transcript may be incomplete. "+warnings.joinToString(" ")
         }
     }
