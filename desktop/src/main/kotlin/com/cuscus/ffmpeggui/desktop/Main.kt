@@ -129,7 +129,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                                 }
                             }
                             Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(10.dp)) {
-                                val tabs=listOf("Edit","Clip editor","Transcript","Pause cuts","Scenes","Beats","Follow crop","Models","Subtitles","Audio","Text layers","Sound tracks","Tags","Image layers","Drawing","Subject cutout","Scene stems","Command studio")
+                                val tabs=listOf("Edit","Clip editor","Transcript","Pause cuts","Scenes","Beats","Follow crop","Models","Subtitles","Audio","Text layers","Sound tracks","Tags","Image layers","Drawing","Subject cutout","Scene stems","Compression","Command studio")
                                 if(project.sources.size>1)FlowRowCompat {
                                     project.sources.forEachIndexed {i,source->FilterChip(controller.selectedSource==i,{controller.selectSource(i)},label={Text("${i+1}: ${File(source.path).name.take(20)}")},enabled=!controller.busy)}
                                 }
@@ -154,6 +154,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                                         "Beats" -> BeatsPanel(controller.smartUi())
                                         "Follow crop" -> FollowCropPanel(controller.smartUi())
                                         "Transcript" -> TranscriptPanel(controller,project)
+                                        "Compression" -> CompressionPanel(controller,project)
                                         "Scene stems" -> PanelCard {
                                             Text("Dialogue, music and effects",style=MaterialTheme.typography.titleLarge)
                                             Text("Separate the selected original file offline with the original pinned Bandit int8 model. This exports three stereo 48 kHz WAV files, not the edited timeline. Source edits and existing tracks are not changed.")
@@ -827,6 +828,25 @@ private fun EditPanel(c: EditorController,p: DesktopProject) {
             val text=recipe.fill(aliases)
             TextButton(onClick={c.studioText=text.orEmpty()},enabled=!c.busy && text!=null){Text(recipe.title)}
             Text(recipe.summary,style=MaterialTheme.typography.bodySmall)
+        }
+    }
+}
+
+@Composable private fun CompressionPanel(c:EditorController,p:DesktopProject) {
+    val v=p.compression ?: Compression()
+    fun update(value:Compression)=c.mutate(p.copy(compression=value))
+    PanelCard {
+        Text("File compression",style=MaterialTheme.typography.titleLarge)
+        Text("Export the edited result with the original compression settings. MP4/MKV use CPU HEVC; target video sizes use two passes. JPG quality can be fitted, PNG uses strong deflate with an optional palette. Lossy audio uses a smaller bitrate. Original files are unchanged.")
+        Row {Switch(p.compression!=null,{c.mutate(p.copy(compression=if(it)v else null))},enabled=!c.busy);Text("Use compression")}
+        if(p.compression!=null) {
+            FlowRowCompat {CompressionLevel.entries.forEach {level->FilterChip(v.level==level,{update(v.copy(level=level))},label={Text(level.name.lowercase())},enabled=!c.busy)}}
+            Text("A target is a hard maximum here: if the encoded file is larger, export fails without replacing your output. Exact size may be impossible. HDR must be off. Unsupported output formats are rejected.",style=MaterialTheme.typography.bodySmall)
+            var target by remember(v.targetBytes) {mutableStateOf(if(v.targetBytes==0L)""else v.targetBytes.toString())}
+            OutlinedTextField(target,{text->if(text.length<13 && text.all {it.isDigit()})target=text},label={Text("Target bytes (empty = preset)")},enabled=!c.busy)
+            Button(onClick={val n=target.toLongOrNull() ?: 0;update(v.copy(targetBytes=n.coerceIn(0,100_000_000_000)))},enabled=!c.busy){Text("Apply target")}
+            Row {Checkbox(v.pngPalette,{update(v.copy(pngPalette=it))},enabled=!c.busy);Text("PNG: reduce to 256 colours")}
+            Text("PNG target fitting is not supported. Lossy audio target fitting is bitrate-based and can fail for tiny files. HEVC support varies between players. Render/export to check the result.",style=MaterialTheme.typography.bodySmall)
         }
     }
 }

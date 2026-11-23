@@ -346,3 +346,15 @@ rejected until its adapter exists. Latest full package8b6predatesHDR/canvas.
   duration and full saved AudioEffects recovery. UI scrolled/inspected; no
   physical-listening or live DSP claim. Vorbis encoder setup rejection now
   gives specific sample-rate/bitrate guidance, never silently changes settings.
+
+### 2026-11-23 03:44 EET: compression
+- Original compression model and x265 two-pass builder exposed, distinct pass
+  status, bounded x265 native pools. JPG six-attempt quality fitting follows
+  original binary search; PNG palette/strong compression and lossy-audio
+  bitrate presets exposed. Settings persist in Linux envelope.
+- A target is enforced before output move. Impossible/oversize results fail,
+  preserving an existing destination. Unsupported formats, HDR and PNG target
+  fitting explicitly reject. No automatic dimension changes.
+-53native checks pass including actual HEVC decode/target/phase order/project,
+  JPG fit on seeded noise, PNG palette, MP3 preset, unsupported SVG and tiny
+  target preserving output/temporary cleanup. Not an all-input size guarantee.

@@ -589,6 +589,32 @@ fun main(args:Array<String>)=runBlocking {
         check(runCatching {exporter.export(restored.copy(format=OutputFormat.WAV),File(folder,"album-invalid.wav"))}.isFailure)
         check(runCatching {DesktopCover.decode("bad")}.isFailure)
     }
+    verify("compression two-pass HEVC JPG fit PNG palette and strict target failure") {
+        val phases=mutableListOf<String>()
+        val compressed=p.copy(compression=Compression(CompressionLevel.BALANCED,300_000))
+        val output=File(folder,"compressed-hevc.mp4")
+        val result=exporter.export(compressed,output){phases+=it}
+        check(output.length()<=300_000 && kotlin.math.abs(result.info.durationMs-p.outputDurationMs)<100)
+        check(phases.any {it.contains("Compression pass 1")} && phases.any {it.contains("Compression pass 2")})
+        val codec=media.process.checked(listOf("ffprobe","-v","error","-select_streams","v:0","-show_entries","stream=codec_name","-of","csv=p=0",output.path));check(codec.trim()=="hevc")
+        media.process.checked(listOf("ffmpeg","-v","error","-i",output.path,"-f","null","-"))
+        val saved=File(folder,"compressed.ffgui.json");DesktopProjects.save(compressed,saved);check(DesktopProjects.load(saved,media).compression==compressed.compression)
+        val image=java.awt.image.BufferedImage(480,320,java.awt.image.BufferedImage.TYPE_INT_RGB)
+        val random=java.util.Random(17)
+        for(y in 0 until image.height)for(x in 0 until image.width)image.setRGB(x,y,random.nextInt())
+        val photo=File(folder,"compression-source.png");javax.imageio.ImageIO.write(image,"png",photo);image.flush()
+        val still=DesktopProject.create(media.probe(photo.path))
+        val jpeg=File(folder,"fitted.jpg");exporter.export(still.copy(format=OutputFormat.JPG,compression=Compression(targetBytes=100_000)),jpeg);check(jpeg.length()<=100_000)
+        val png=File(folder,"palette.png");exporter.export(still.copy(compression=Compression(pngPalette=true)),png)
+        val audio=DesktopProject.create(media.probe(File(folder,"beat.wav").path)).copy(format=OutputFormat.MP3,compression=Compression(CompressionLevel.SMALLEST))
+        val sound=File(folder,"compressed-audio.mp3");exporter.export(audio,sound);check(sound.length()>100)
+        check(runCatching {exporter.export(still.copy(format=OutputFormat.SVG,compression=Compression()),File(folder,"bad-compressed.svg"))}.isFailure)
+        check(media.probe(png.path).info.width==480)
+        val protected=File(folder,"tiny-compressed.mp4").apply {writeText("keep existing output")}
+        check(runCatching {exporter.export(p.copy(compression=Compression(targetBytes=100)),protected)}.isFailure)
+        check(protected.readText()=="keep existing output")
+        check(folder.listFiles()!!.none {it.name.startsWith(".tiny-compressed-")})
+    }
     verify("cancel real process") {
         val start=System.currentTimeMillis()
         val job=launch { media.process.run(listOf("ffmpeg","-re","-f","lavfi","-i","testsrc2=size=640x360:rate=25","-t","30","-f","null","-")) }

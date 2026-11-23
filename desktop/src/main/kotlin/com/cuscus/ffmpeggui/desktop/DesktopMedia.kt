@@ -107,16 +107,16 @@ class DesktopMedia(val process: DesktopProcess = DesktopProcess()) {
 class DesktopProject(val sources: List<DesktopSource>, val timeline: Timeline,
     val format: OutputFormat = OutputFormat.MP4, val effects: Effects = Effects(),
     val encoding: EncodingSettings = EncodingSettings(), val words: List<SpokenWord> = emptyList(),
-    val followCrop: FollowCropTrack? = null, val subtitleStyle: SubtitleStyle? = null, val audioEffects:AudioEffects=AudioEffects.NONE,val image:ImageEdit=ImageEdit(),val captions:List<TextOverlay> = emptyList(),val sounds:List<DesktopSound> = emptyList(),val tags:MetadataTags=MetadataTags(),val canvas:CanvasRatio=CanvasRatio.FIT,val canvasFit:CanvasFit=CanvasFit.FIT,val normalize:Boolean=false,val pictures:List<DesktopPicture> = emptyList(),val wordsBySource:Map<String,List<SpokenWord>> = emptyMap(),val photoPlacement:ImagePlacement?=null,val externalSubtitles:DesktopSubtitles?=null,val stabilization:Stabilization?=null,val coverPng:String?=null) {
+    val followCrop: FollowCropTrack? = null, val subtitleStyle: SubtitleStyle? = null, val audioEffects:AudioEffects=AudioEffects.NONE,val image:ImageEdit=ImageEdit(),val captions:List<TextOverlay> = emptyList(),val sounds:List<DesktopSound> = emptyList(),val tags:MetadataTags=MetadataTags(),val canvas:CanvasRatio=CanvasRatio.FIT,val canvasFit:CanvasFit=CanvasFit.FIT,val normalize:Boolean=false,val pictures:List<DesktopPicture> = emptyList(),val wordsBySource:Map<String,List<SpokenWord>> = emptyMap(),val photoPlacement:ImagePlacement?=null,val externalSubtitles:DesktopSubtitles?=null,val stabilization:Stabilization?=null,val coverPng:String?=null,val compression:Compression?=null) {
     fun copy(sources:List<DesktopSource> = this.sources,timeline: Timeline = this.timeline, format: OutputFormat = this.format,
         effects: Effects = this.effects, encoding: EncodingSettings = this.encoding,
         words: List<SpokenWord> = this.words, followCrop: FollowCropTrack? = this.followCrop,
-        subtitleStyle: SubtitleStyle? = this.subtitleStyle,audioEffects:AudioEffects=this.audioEffects,image:ImageEdit=this.image,captions:List<TextOverlay> = this.captions,sounds:List<DesktopSound> = this.sounds,tags:MetadataTags=this.tags,canvas:CanvasRatio=this.canvas,canvasFit:CanvasFit=this.canvasFit,normalize:Boolean=this.normalize,pictures:List<DesktopPicture> = this.pictures,wordsBySource:Map<String,List<SpokenWord>> = this.wordsBySource,photoPlacement:ImagePlacement?=this.photoPlacement,externalSubtitles:DesktopSubtitles?=this.externalSubtitles,stabilization:Stabilization?=this.stabilization,coverPng:String?=this.coverPng) = DesktopProject(sources, timeline, format, effects, encoding, words, followCrop, subtitleStyle,audioEffects,image,captions,sounds,tags,canvas,canvasFit,normalize,pictures,wordsBySource,photoPlacement,externalSubtitles,stabilization,coverPng)
+        subtitleStyle: SubtitleStyle? = this.subtitleStyle,audioEffects:AudioEffects=this.audioEffects,image:ImageEdit=this.image,captions:List<TextOverlay> = this.captions,sounds:List<DesktopSound> = this.sounds,tags:MetadataTags=this.tags,canvas:CanvasRatio=this.canvas,canvasFit:CanvasFit=this.canvasFit,normalize:Boolean=this.normalize,pictures:List<DesktopPicture> = this.pictures,wordsBySource:Map<String,List<SpokenWord>> = this.wordsBySource,photoPlacement:ImagePlacement?=this.photoPlacement,externalSubtitles:DesktopSubtitles?=this.externalSubtitles,stabilization:Stabilization?=this.stabilization,coverPng:String?=this.coverPng,compression:Compression?=this.compression) = DesktopProject(sources, timeline, format, effects, encoding, words, followCrop, subtitleStyle,audioEffects,image,captions,sounds,tags,canvas,canvasFit,normalize,pictures,wordsBySource,photoPlacement,externalSubtitles,stabilization,coverPng,compression)
     fun request(): ConversionRequest = ConversionRequest(format, File(sources.first().path).name,
         sources = sources.map { s -> s.info.let { SourceInfo(it.durationMs, it.width, it.height, it.hasAudio, it.isStill, it.hdr, it.frameRate, it.hasAlpha) } },
         segments = timeline.clips.map { c -> Segment(sources.indexOfFirst { it.path == c.sourceId }, c.startMs, c.endMs, c.effects, c.id) },
         photoPlacement=photoPlacement,effects = effects, encoding = encoding, audioEffects=audioEffects,image=image,metadata=tags,canvas=canvas,canvasFit=canvasFit,normalizeAudio=normalize,imageOverlays=pictures.filter {it.activeOn(timeline)}.map {it.placement},sounds=sounds.filter {!it.muted}.map {it.placed},textOverlays=captions.filter { !it.hidden && (it.clipId==null || timeline.clips.any {c->c.id==it.clipId}) }, followCrop = followCrop, subtitleStyle = subtitleStyle,
-        cover=coverPng!=null,stabilization=stabilization,subtitleSource=externalSubtitles?.takeIf {it.enabled}?.sourceIndex,
+        compression=compression,cover=coverPng!=null,stabilization=stabilization,subtitleSource=externalSubtitles?.takeIf {it.enabled}?.sourceIndex,
         spokenWords = if(externalSubtitles?.enabled==true)emptyList() else sources.mapIndexedNotNull {i,_->sourceWords(i).takeIf {it.isNotEmpty()}?.let {SourceWords(i,it)} })
     fun clock()=PreviewTimeline(timeline.clips.map {PreviewTimeline.SegmentTiming(it.lengthMs,it.effects.speed,it.effects.reversed,it.effects.curve,it.effects.keepPitch,it.effects.transition)},effects.speed,effects.reversed,effects.keepPitch)
     val outputDurationMs:Long get()=request().expectedOutputDurationMs() ?: timeline.durationMs
@@ -177,6 +177,7 @@ class DesktopExport(private val media: DesktopMedia = DesktopMedia()) {
     suspend fun export(project: DesktopProject, output: File,onPhase:(String)->Unit={}): DesktopSource {
         require((project.sources+project.sounds.map {it.source}+project.pictures.map {it.source}).none { File(it.path).canonicalFile == output.canonicalFile }) { "Choose a new output. Source files are never overwritten." }
         require(project.image.key?.mask?.let {File(it).canonicalFile!=output.canonicalFile} ?: true) {"Cannot replace a subject mask with output."}
+        require(project.compression==null || project.format in listOf(OutputFormat.MP4,OutputFormat.MKV,OutputFormat.JPG,OutputFormat.PNG,OutputFormat.MP3,OutputFormat.M4A,OutputFormat.OGG,OutputFormat.OPUS)) {"Compression is not supported for this output format. Turn it off or choose another format."}
         require(project.format != OutputFormat.CUSTOM) { "This output needs an adapter that is still being ported." }
         val temporary = File(output.parentFile, ".${output.nameWithoutExtension}-${UUID.randomUUID()}.${project.format.extension}")
         val auxiliaries=Files.createTempDirectory("ffmpeggui-export-").toFile()
@@ -204,7 +205,16 @@ class DesktopExport(private val media: DesktopMedia = DesktopMedia()) {
                 Files.move(temporary.toPath(),output.toPath(),StandardCopyOption.REPLACE_EXISTING)
                 return DesktopSource(output.canonicalPath,project.sources[0].info)
             }
-            var request=project.request()
+            val compressed=project.compression?.let {c->
+                require(project.format in listOf(OutputFormat.MP4,OutputFormat.MKV,OutputFormat.JPG,OutputFormat.PNG,OutputFormat.MP3,OutputFormat.M4A,OutputFormat.OGG,OutputFormat.OPUS)) {"Compression is not supported for this output format. Turn it off or choose another format."}
+                require(project.image.hdr==null) {"Turn HDR off before compression"}
+                require(!project.encoding.streamCopy) {"Compression needs encoding, not stream copy"}
+                require(!c.hasTarget || project.format!=OutputFormat.PNG) {"PNG size fitting is not supported. Turn off the target size."}
+                if(project.format.isLossyAudio) project.copy(encoding=project.encoding.copy(audio=project.encoding.audio.copy(bitrateKbps=Compression.audioKbps(project.format,c,project.outputDurationMs))))
+                else if(project.format==OutputFormat.JPG) project.copy(image=project.image.copy(output=project.image.output.copy(quality=if(c.hasTarget).95f else c.level.jpegQuality)))
+                else project
+            } ?: project
+            var request=compressed.request()
             val drawing=if(project.format.isImage && project.image.strokes.isNotEmpty()) {
                 val source=project.sources.first().info
                 val (w,h)=project.image.canvas?.sane()?.let {it.width to it.height} ?: com.cuscus.ffmpeggui.core.image.editedSize(project.image,project.effects,source.width,source.height)
@@ -242,7 +252,7 @@ class DesktopExport(private val media: DesktopMedia = DesktopMedia()) {
                 File(auxiliaries,"cover.png").apply {writeBytes(DesktopCover.decode(encoded))}
             }
             val coverTags=cover?.takeIf {project.format.coverWriting==CoverWriting.PICTURE_TAG}?.let {picture->File(auxiliaries,"cover-tags.txt").apply {writeText(CoverTags.ffmetadata(picture.readBytes()))}}
-            val paths=MediaPaths(project.sources.map { DesktopStillInputs.resolve(it.path,auxiliaries) },temporary.path,cover=cover?.path,coverTags=coverTags?.path,imageOverlays=project.pictures.filter {it.activeOn(project.timeline)}.map {DesktopStillInputs.resolve(it.source.path,auxiliaries)}+listOfNotNull(drawing?.path),sounds=project.sounds.filter {!it.muted}.map {it.source.path},hdrPictures=hdrPictures,subtitles=subtitles?.path,subtitleFonts=subtitleFontDirectory?.path,stabilizationTransforms=project.stabilization?.let {File(auxiliaries,"transforms.trf").path})
+            val paths=MediaPaths(project.sources.map { DesktopStillInputs.resolve(it.path,auxiliaries) },temporary.path,cover=cover?.path,coverTags=coverTags?.path,imageOverlays=project.pictures.filter {it.activeOn(project.timeline)}.map {DesktopStillInputs.resolve(it.source.path,auxiliaries)}+listOfNotNull(drawing?.path),sounds=project.sounds.filter {!it.muted}.map {it.source.path},hdrPictures=hdrPictures,subtitles=subtitles?.path,subtitleFonts=subtitleFontDirectory?.path,stabilizationTransforms=project.stabilization?.let {File(auxiliaries,"transforms.trf").path},passLog=project.compression?.takeIf {it.hasTarget}?.let {File(auxiliaries,"x265-stats").path})
             val builder=CommandBuilder(fonts)
             if(builder.needsStabilizationAnalysis(request)) {
                 val filters=media.process.checked(listOf("ffmpeg","-hide_banner","-filters"))
@@ -251,14 +261,44 @@ class DesktopExport(private val media: DesktopMedia = DesktopMedia()) {
                 media.process.checked(listOf("ffmpeg","-nostdin")+builder.buildStabilizationAnalysis(request,paths).arguments)
                 require(File(paths.stabilizationTransforms!!).length()>0){"Stabilization analysis produced no transforms"}
             }
-            onPhase(if(request.stabilization!=null)"Stabilization pass 2 of 2: rendering smoothed output…" else "Rendering edited output…")
+            suspend fun encode(arguments:List<String>) {
+                // Bound x265's native thread pools on high-core-count desktops and CI hosts.
+                val args=arguments.toMutableList()
+                if(args.contains("libx265")) {
+                    val at=args.indexOf("-x265-params")
+                    if(at>=0)args[at+1]+=":pools=2:frame-threads=2" else args.addAll(args.lastIndex,listOf("-x265-params","pools=2:frame-threads=2"))
+                }
+                media.process.checked(listOf("ffmpeg","-nostdin")+args)
+            }
+            if(builder.needsFirstPass(request)) {
+                val encoders=media.process.checked(listOf("ffmpeg","-hide_banner","-encoders"))
+                require(encoders.contains("libx265")) {"Installed FFmpeg lacks the libx265 encoder needed for compression"}
+                onPhase("Compression pass 1 of 2: measuring edited video…")
+                encode(builder.buildFirstPass(request,paths).arguments)
+            }
+            onPhase(if(builder.needsFirstPass(request))"Compression pass 2 of 2: writing output…" else if(request.stabilization!=null)"Stabilization pass 2 of 2: rendering smoothed output…" else "Rendering edited output…")
             try {
-                media.process.checked(listOf("ffmpeg", "-nostdin") + builder.build(request,paths).arguments)
+                encode(builder.build(request,paths).arguments)
             } catch(e:IllegalStateException) {
                 if(project.format==OutputFormat.OGG && e.message.orEmpty().contains("encoder setup failed"))
                     throw IllegalArgumentException("Vorbis rejected this sample-rate/channel/bitrate combination. Try 48000 Hz and 96 kbps in Encoding, or choose FLAC. No encoding settings were changed automatically.",e)
                 throw e
             }
+            val target=project.compression?.targetBytes?.takeIf {it>0}
+            if(target!=null && project.format==OutputFormat.JPG && temporary.length()>target) {
+                val best=File(auxiliaries,"best-fit.jpg")
+                var low=0f;var high=request.image.output.quality
+                repeat(6) {step->
+                    currentCoroutineContext().ensureActive()
+                    val quality=(low+high)/2f
+                    onPhase("Fitting JPG size: attempt ${step+1} of 6…")
+                    encode(builder.build(request.copy(image=request.image.copy(output=request.image.output.copy(quality=quality))),paths).arguments)
+                    if(temporary.length()<=target){temporary.copyTo(best,true);low=quality}else high=quality
+                }
+                require(best.isFile) {"This target size is too small at the selected dimensions. Reduce output dimensions or increase the target. No output was replaced."}
+                best.copyTo(temporary,true)
+            }
+            require(target==null || temporary.length()<=target) {"Encoded output exceeds the target size. Increase the target or reduce resolution. No output was replaced."}
             if(hdr!=null && hdrPictures!=null)DesktopHdr.assemble(temporary,File(hdrPictures.finalPng),File(hdrPictures.plainPng),hdr)
             val result = media.probe(temporary.path)
             require(result.info.isStill || result.info.durationMs > 0) { "Export verification failed." }
