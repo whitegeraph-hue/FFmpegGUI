@@ -98,6 +98,25 @@ fun main(args:Array<String>)=runBlocking {
         val scope=CoroutineScope(Dispatchers.Default+SupervisorJob());val c=EditorController(scope)
         try {c.project=initial;c.mutate(changed);c.undo();check(c.project!!.timeline==initial.timeline)}finally {c.close();scope.cancel()}
     }
+    verify("mono clip normalization preserves impulses and 150ms clip is not silent") {
+        val source=media.probe(File(folder,"impulses.wav").path)
+        for(length in listOf(150L,2000L)) {
+            val clip=Clip("impulse",source.path,0,length)
+            val initial=DesktopProject.create(source).copy(format=OutputFormat.WAV,timeline=Timeline(listOf(clip)))
+            val plain=exporter.export(initial,File(folder,"impulses-plain-$length.wav"))
+            val normalized=exporter.export(initial.copy(timeline=initial.timeline.updateEffects(clip.id){it.copy(normalizeAudio=true)}),File(folder,"impulses-normalized-$length.wav"))
+            val a=media.samples(plain.path);val b=media.samples(normalized.path)
+            check(kotlin.math.abs(normalized.info.durationMs-length)<3)
+            val onsets=if(length==150L)listOf(.05)else listOf(.05,.5,1.0,1.8)
+            for(at in onsets) {
+                val range=(maxOf(0.0,at-.01)*16000).toInt() until ((at+.02)*16000).toInt().coerceAtMost(minOf(a.size,b.size))
+                val ai=range.maxByOrNull {kotlin.math.abs(a[it])}!!;val bi=range.maxByOrNull {kotlin.math.abs(b[it])}!!
+                check(kotlin.math.abs(ai-bi)<=2) {"Impulse shifted: $ai to $bi, length $length"}
+                check(kotlin.math.abs(b[bi])>.001) {"Short clip became silent"}
+            }
+            media.process.checked(listOf("ffmpeg","-v","error","-i",normalized.path,"-f","null","-"))
+        }
+    }
     verify("sub100ms selected edge residues export with audio and decode") {
         val first=Clip("edge-neighbour",video.path,0,2000)
         val selected=Clip("edge-selected",video.path,2000,4000)

@@ -18,6 +18,10 @@ class ClipAudioFiltersTest {
         assertTrue(filters.indexOf("apad=whole_dur=2.0000")>filters.indexOf("loudnorm"))
         assertTrue(filters.last().startsWith("afade"))
     }
+    @Test fun unknownDurationIsRefused() {
+        assertTrue(runCatching {AudioFilters().clipChain(Effects(normalizeAudio=true),null)}.isFailure)
+        assertTrue(runCatching {AudioFilters().clipChain(Effects(audioEffects=AudioEffects(echo=Echo())),null)}.isFailure)
+    }
     @Test fun neutralAndMutedDoNotProcess() {
         assertTrue(AudioFilters().clipChain(Effects.NONE,2.0).none {it.startsWith("apad")||it=="loudnorm"})
         val muted=Effects(muted=true,audioEffects=AudioEffects(echo=Echo()),normalizeAudio=true)

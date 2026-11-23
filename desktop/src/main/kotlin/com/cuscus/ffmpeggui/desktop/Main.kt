@@ -405,7 +405,7 @@ private fun EditPanel(c: EditorController,p: DesktopProject,window:java.awt.Fram
     PanelCard {
         Text(if(selected==null)"Audio mastering" else "Selected clip audio",style=MaterialTheme.typography.titleLarge)
         if(selected!=null) {
-            Text("This clip only, before the join and whole-project mastering. Export or render to hear it. Tails stop at the clip boundary.")
+            Text("This clip only, before the join and whole-project mastering. Export or render to hear it. Tails stop at the clip boundary. Splitting a normalized clip normalizes each new clip separately and can change their levels.")
             Row {Checkbox(selected.effects.normalizeAudio,{value->c.mutate(p.copy(timeline=p.timeline.updateEffects(selected.id){it.copy(normalizeAudio=value)}))},enabled=!c.busy);Text("Normalize selected clip")}
         }
         Text("The original ten-band EQ and mastering filter chain. Render edited preview to hear the actual result. Live DSP preview and waveform editing remain unported; sound tracks are edited separately.",style=MaterialTheme.typography.bodySmall)

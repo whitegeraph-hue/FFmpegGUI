@@ -43,11 +43,15 @@ internal class AudioFilters {
             }
             return atempo(effects.effectiveSpeed) + "volume=0"
         }
+        val ownProcessing = !effects.audioEffects.isNeutral || effects.normalizeAudio
+        require(!ownProcessing || (playedSeconds != null && playedSeconds > 0 && playedSeconds.isFinite())) {
+            "Clip audio processing needs a known positive clip duration. Wait for the source probe or set a clip end."
+        }
         val filters = mutableListOf<String>()
         filters += shaping(effects, fileTime, footageSeconds, playedSeconds, label)
         filters += masterChain(effects.audioEffects, playedSeconds)
-        if(effects.normalizeAudio) {filters += "loudnorm";filters += "aresample=$NORMALIZED_SAMPLE_RATE"}
-        if((effects.audioEffects!=AudioEffects.NONE || effects.normalizeAudio) && playedSeconds!=null)filters += exactly(playedSeconds)
+        if(effects.normalizeAudio) {filters += "aformat=channel_layouts=stereo";filters += "loudnorm";filters += "aresample=$NORMALIZED_SAMPLE_RATE"}
+        if(ownProcessing && playedSeconds!=null)filters += exactly(playedSeconds)
         filters += fades(effects, playedSeconds)
         return filters
     }

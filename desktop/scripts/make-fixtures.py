@@ -21,3 +21,7 @@ run('-f','lavfi','-i','color=red:size=640x360:rate=25:duration=2','-f','lavfi','
 run('-f','lavfi','-i','testsrc2=size=640x360:rate=25','-i',str(root/'beat.wav'),'-t','8','-c:v','libx264','-pix_fmt','yuv420p','-c:a','aac',str(root/'video.mp4'))
 run('-i',str(root/'video.mp4'),'-an','-c:v','copy',str(root/'silent.mp4'))
 print(root)
+
+with wave.open(str(root/'impulses.wav'),'wb') as w:
+ w.setparams((1,2,48000,0,'NONE','not compressed'))
+ w.writeframes(b''.join(struct.pack('<h',int(10000*math.sin(2*math.pi*600*i/48000))) if any(a<=i/48000<a+.01 for a in (.05,.5,1.,1.8)) else struct.pack('<h',0) for i in range(96000)))

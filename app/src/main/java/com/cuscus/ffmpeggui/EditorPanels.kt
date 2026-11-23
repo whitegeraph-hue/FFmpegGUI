@@ -415,7 +415,7 @@ internal fun AudioSectionContent(
                                 SwitchCard(
                                     icon = Icons.Rounded.GraphicEq,
                                     title = stringResource(R.string.audio_normalize),
-                                    subtitle = if(clipScope) "Only this clip, before the join. Heard on export; live preview does not include clip normalization." else stringResource(R.string.audio_normalize_hint),
+                                    subtitle = if(clipScope) "Only this clip, before the join. Splitting it normalizes each new clip separately and can change their levels. Heard on export, not live preview." else stringResource(R.string.audio_normalize_hint),
                                     checked = normalizeAudio,
                                     onCheckedChange = onNormalizeAudio,
                                 )
