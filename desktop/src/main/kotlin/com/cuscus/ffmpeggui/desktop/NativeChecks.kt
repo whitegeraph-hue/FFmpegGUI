@@ -86,6 +86,26 @@ internal fun runNativeChecks(args:Array<String>)=runBlocking {
             check(c.project!!.outputAt(c.position)<=1 && c.sourceFrame!!.width>0)
         }finally {c.close();scope.cancel()}
     }
+    verify("unavailable audio output permits silent video motion pause resume but not silent audio-only") {
+        val scope=CoroutineScope(Dispatchers.Default+SupervisorJob())
+        val player=DesktopPlayer(scope,media) {throw javax.sound.sampled.LineUnavailableException("controlled unavailable device")}
+        try {
+            player.play(File(video.path),0)
+            withTimeout(10000) {while(player.positionMs<400 && player.failure==null)delay(25)}
+            check(player.playing && player.frame!=null && player.notice!=null && player.failure==null)
+            val first=player.frame;val at=player.positionMs
+            withTimeout(5000) {while(player.positionMs<at+200)delay(25)}
+            check(player.frame!==first)
+            player.pause();delay(100);val paused=player.positionMs;delay(150);check(!player.playing && player.positionMs==paused)
+            player.play(File(video.path),paused)
+            withTimeout(10000) {while(player.positionMs<paused+200 && player.failure==null)delay(25)}
+            check(player.failure==null && player.notice!=null)
+            player.stop();delay(100);check(!player.engaged && player.notice==null)
+            player.play(File(folder,"beat.wav"),0)
+            withTimeout(10000) {while(player.failure==null)delay(25)}
+            check(!player.playing && player.notice==null)
+        }finally {player.stop();scope.cancel()}
+    }
     verify("source waveform bounded real decode silence levels cache and trim clock") {
         val source=media.probe(File(folder,"waveform-check.wav").path)
         val reader=DesktopWaveforms(media);val data=reader.source(source)

@@ -40,7 +40,7 @@ import java.io.File
     val visualIndex=if(index<0)-1 else if(p.effects.reversed)p.timeline.clips.lastIndex-index else index
     BoxWithConstraints {
     val compact=maxWidth<1200.dp
-    Surface(Modifier.fillMaxWidth().height(if(compact)244.dp else 204.dp).focusRequester(focus).onKeyEvent {event->
+    Surface(Modifier.fillMaxWidth().height(204.dp).focusRequester(focus).onKeyEvent {event->
         if(event.type!=KeyEventType.KeyDown || c.busy || event.isCtrlPressed || event.isMetaPressed)false
         else if(event.isAltPressed)when(event.key) {
             Key.DirectionLeft->{c.moveSelectedVisual(-1);true}
@@ -68,19 +68,18 @@ import java.io.File
                 TextButton(onClick={c.removeClip(index)},enabled=!c.busy && index>=0 && p.timeline.clips.size>1){SymbolLabel("delete","Remove")}
                 FilledTonalButton(onClick=onAdd,enabled=!c.busy && !p.sources[0].info.isStill){SymbolLabel("add","Add")}
             }
-            Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(6.dp)) {
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(6.dp)) {
                 var chooseClip by remember {mutableStateOf(false)}
                 Box {TextButton(onClick={chooseClip=true},enabled=!c.busy) {Text(if(index>=0)"Clip ${index+1} ▾" else "Timeline ▾")}
                     DropdownMenu(chooseClip,{chooseClip=false}) {
                         p.timeline.clips.forEachIndexed {i,clip->DropdownMenuItem(text={Text("${i+1} · ${File(clip.sourceId).name} · ${clip.lengthMs} ms")},onClick={c.selectSmartClip(clip.id);c.seek(p.mediaForClipOutput(i,spans[i].startMs));chooseClip=false})}
                     }}
-                Text("${p.timeline.clips.size} clips · ${time(duration)}",maxLines=1,overflow=TextOverflow.Ellipsis,style=MaterialTheme.typography.labelSmall,modifier=Modifier.weight(1f))
+                Text("${p.timeline.clips.size} clips · ${time(duration)}",maxLines=1,overflow=TextOverflow.Ellipsis,style=MaterialTheme.typography.labelSmall,modifier=if(compact)Modifier.width(100.dp) else Modifier.weight(1f))
                 TextButton(onClick={zoom=1f}) {SymbolLabel("fit_screen","Fit")}
                 TextButton(onClick={zoom=(zoom/1.5f).coerceAtLeast(1f)},enabled=zoom>1f){SymbolLabel("zoom_out","Out")}
                 TextButton(onClick={zoom=(zoom*1.5f).coerceAtMost(32f)}){SymbolLabel("zoom_in","In")}
-                if(!compact)ClipActions()
+                ClipActions()
             }
-            if(compact)Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(6.dp)) {ClipActions()}
 
             BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
                 val width=maxWidth.value*zoom
@@ -210,7 +209,7 @@ import java.io.File
                 }
             }
             HorizontalScrollbar(rememberScrollbarAdapter(scroll),Modifier.fillMaxWidth().height(7.dp))
-            Text(if(dragging!=null)dropIndex?.let {"Release to move to clip ${it+1}. Drag outside the timeline to cancel."} ?: "Outside drop area. Release to cancel." else if(index>=0)"Clip ${index+1} selected · click within a clip to seek · double-click for controls · drag ↔ to reorder · S split · D duplicate · arrows step · Alt+arrows move · Home/End seek · original source thumbnails & peaks" else "Click within a clip to select & seek · double-click for controls · output time · thumbnails & peaks are original sources",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(if(dragging!=null)dropIndex?.let {"Release to move to clip ${it+1}. Drag outside the timeline to cancel."} ?: "Outside drop area. Release to cancel." else if(compact)"${if(index>=0)"Clip ${index+1} · " else ""}Source thumbnails & peaks · click to seek · shortcuts in Settings" else if(index>=0)"Clip ${index+1} selected · click within a clip to seek · double-click for controls · drag ↔ to reorder · S split · D duplicate · arrows step · Alt+arrows move · Home/End seek · original source thumbnails & peaks" else "Click within a clip to select & seek · double-click for controls · output time · thumbnails & peaks are original sources",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

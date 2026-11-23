@@ -13,14 +13,17 @@ import java.util.concurrent.atomic.AtomicLong
 import javax.sound.sampled.AudioFormat
 import javax.sound.sampled.AudioSystem
 import javax.sound.sampled.SourceDataLine
+import javax.sound.sampled.LineUnavailableException
 
 /** Integrated preview of an actual rendered edit. Video clock follows played audio samples. */
-class DesktopPlayer(private val scope:CoroutineScope,private val media:DesktopMedia) {
+class DesktopPlayer(private val scope:CoroutineScope,private val media:DesktopMedia,private val openAudio:(AudioFormat)->SourceDataLine={format->AudioSystem.getSourceDataLine(format)}) {
     var frame by mutableStateOf<ImageBitmap?>(null)
     var playing by mutableStateOf(false)
     var positionMs by mutableStateOf(0L)
     var durationMs by mutableStateOf(0L)
     var failure by mutableStateOf<String?>(null)
+    var notice by mutableStateOf<String?>(null)
+        private set
     private var job:Job?=null
     private var audioLine:SourceDataLine?=null
     private var videoProcess:Process?=null
@@ -38,7 +41,7 @@ class DesktopPlayer(private val scope:CoroutineScope,private val media:DesktopMe
     fun play(file:File,at:Long=positionMs) {
         val previous=job
         stop(false)
-        source=file;failure=null;playing=true
+        source=file;failure=null;notice=null;playing=true
         job=scope.launch {
             previous?.join()
             playing=true
@@ -58,11 +61,21 @@ class DesktopPlayer(private val scope:CoroutineScope,private val media:DesktopMe
                         try {
                             if(info.hasAudio) {
                                 val format=AudioFormat(48000f,16,2,true,false)
-                                line=AudioSystem.getSourceDataLine(format).also { it.open(format,48000);it.start() }
+                                try {
+                                    line=openAudio(format)
+                                    line!!.open(format,48000);line!!.start()
+                                } catch(e:Exception) {
+                                    if(e !is LineUnavailableException && e !is IllegalArgumentException && e !is SecurityException)throw e
+                                    runCatching {line?.close()};line=null
+                                    if(!info.isVideo)throw e
+                                    withContext(Dispatchers.Main) {notice="Playing video silently: audio output is unavailable. Exported audio is unchanged."}
+                                }
                                 audioLine=line
+                                if(line!=null) {
                                 audioProcess=ProcessBuilder("ffmpeg","-nostdin","-v","error","-ss",(start/1000.0).toString(),"-i",file.path,"-vn","-ac","2","-ar","48000","-f","s16le","-")
                                     .redirectError(audioLog).start()
                                 audioProcess!!.outputStream.close()
+                                }
                             }
                             val actualLine=line
                             val audioJob=if(actualLine!=null) launch(Dispatchers.IO) {
@@ -133,6 +146,6 @@ class DesktopPlayer(private val scope:CoroutineScope,private val media:DesktopMe
         audioLine?.stop();audioLine?.flush();audioLine?.close();audioLine=null
         listOfNotNull(videoProcess,audioProcess).forEach { it.destroy() }
         job?.cancel();job=null;playing=false
-        if(reset) { positionMs=0;frame=null;source=null }
+        if(reset) { positionMs=0;frame=null;source=null;notice=null }
     }
 }

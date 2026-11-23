@@ -52,7 +52,9 @@ building, project model JSON and smart-detector logic come from the shared core.
 - Open video, audio and still images. Decode source frames and seek on the
   edited timeline. The source-frame view is labelled, it does not pretend to
   show effects. Render edited preview generates the actual edited output and
-  plays it inside the editor with an audio-sample clock, including cuts and effects. Physical target audio remains unverified.
+  plays it inside the editor with an audio-sample clock, including cuts and effects. Physical target audio remains unverified. If a video cannot open the audio
+  device, motion can continue with an explicit silent-video notice. Audio-only
+  playback still fails clearly. Decoder failures remain errors.
 - Split, duplicate, precise source trim, remove and reorder clips. Drag the small
   arrow handle to an insertion marker, then release to commit one move. Escape
   or releasing outside the timeline cancels. No edge auto-scroll yet; use Fit

@@ -62,6 +62,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
     val preferences=remember {java.util.prefs.Preferences.userRoot().node("ffmpeggui-desktop")}
     var lightTheme by remember {mutableStateOf(preferences.getBoolean("lightTheme",false))}
     var showSettings by remember {mutableStateOf(false)}
+    var playbackNotice by remember {mutableStateOf<String?>(null)}
     var showExport by remember {mutableStateOf(false)}
     var pendingDiscard by remember {mutableStateOf<(() -> Unit)?>(null)}
     fun protectEdits(action:()->Unit) {if(controller.hasUnsavedChanges || controller.busy)pendingDiscard=action else action()}
@@ -111,6 +112,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
             }) {
                 BoxWithConstraints {
                 val compact=maxWidth<1490.dp
+                val short=maxHeight<720.dp
                 Column(Modifier.padding(12.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
                     @Composable fun RowScope.ProjectActions() {
                         OutlinedButton(onClick=::openMedia,enabled=!controller.busy) { SymbolLabel("folder_open","Open media") }
@@ -136,7 +138,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                         WindowActions()
                     }
                     if(compact)Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {ProjectActions()}
-                    Text("Work in progress: not all Android editors and AI tools have been ported. Originals are never edited.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                    if(!short)Text("Work in progress: not all Android editors and AI tools have been ported. Originals are never edited.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                     HorizontalDivider()
                     val project=controller.project
                     if (project==null) {
@@ -154,15 +156,15 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                                 DesktopToolRail(controller)
                                 Column(Modifier.weight(1f).fillMaxHeight(),verticalArrangement=Arrangement.spacedBy(8.dp)) {
                                     Row(verticalAlignment=Alignment.CenterVertically) {
-                                        Text(File(project.sources[controller.selectedSource].path).name,maxLines=1,overflow=TextOverflow.Ellipsis,style=MaterialTheme.typography.titleSmall,modifier=Modifier.weight(1f))
-                                        Text("${project.sources[controller.selectedSource].info.width} × ${project.sources[controller.selectedSource].info.height}",style=MaterialTheme.typography.labelSmall)
+                                        Text((if(short){if(controller.player.frame!=null || controller.previewFrame!=null)"Rendered · " else "Source · "} else "")+File(project.sources[controller.selectedSource].path).name,maxLines=1,overflow=TextOverflow.Ellipsis,style=MaterialTheme.typography.titleSmall,modifier=Modifier.weight(1f))
+                                        Text(if(short)"%.3f s output".format(java.util.Locale.US,(if(controller.player.engaged)controller.player.positionMs else project.outputAt(controller.position))/1000.0) else "${project.sources[controller.selectedSource].info.width} × ${project.sources[controller.selectedSource].info.height}",style=MaterialTheme.typography.labelSmall)
                                     }
                                     Box(Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(28.dp)).background(Color.Black),contentAlignment=Alignment.Center) {
                                         val frame=controller.player.frame ?: controller.previewFrame ?: controller.sourceFrame
                                         if(frame!=null)Image(frame,if(controller.player.frame!=null || controller.previewFrame!=null)"Rendered edit" else "Source frame, render to inspect effects",Modifier.fillMaxSize())
                                         else Text(if(project.sources[controller.selectedSource].info.isVideo)"Reading frame…" else "Audio clip",color=Color.White)
                                     }
-                                    Text(if(controller.player.frame!=null)"Rendered preview · ${time(controller.player.positionMs)} / ${time(controller.player.durationMs)}" else if(controller.previewFrame!=null)"Rendered edit. Original unchanged." else "Source preview · Play edit renders first",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                                    if(!short)Text(if(controller.player.frame!=null)"Rendered preview · ${time(controller.player.positionMs)} / ${time(controller.player.durationMs)}" else if(controller.previewFrame!=null)"Rendered edit. Original unchanged." else "Source preview · Play edit renders first",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                                     Row(Modifier.horizontalScroll(rememberScrollState()),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                                         FilledTonalButton(onClick={controller.stepOutput(-1)},enabled=!controller.busy){Text("−1f")}
                                         Button(onClick={controller.togglePlayback()},enabled=!controller.busy){SymbolLabel(if(controller.player.playing)"pause" else "play_arrow",if(controller.player.playing)"Pause" else "Play edit")}
@@ -172,8 +174,9 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                                         if(!compact)Spacer(Modifier.weight(1f))
                                         if(!compact)Text("%.3f s output · 25fps".format(java.util.Locale.US,(if(controller.player.engaged)controller.player.positionMs else project.outputAt(controller.position))/1000.0),style=MaterialTheme.typography.labelSmall)
                                     }
-                                    if(compact)Text("%.3f s output · 25fps".format(java.util.Locale.US,(if(controller.player.engaged)controller.player.positionMs else project.outputAt(controller.position))/1000.0),style=MaterialTheme.typography.labelSmall,maxLines=1)
-                                    controller.player.failure?.let {Text(it,color=MaterialTheme.colorScheme.error,style=MaterialTheme.typography.labelSmall)}
+                                    if(compact && !short)Text("%.3f s output · 25fps".format(java.util.Locale.US,(if(controller.player.engaged)controller.player.positionMs else project.outputAt(controller.position))/1000.0),style=MaterialTheme.typography.labelSmall,maxLines=1)
+                                    controller.player.notice?.let {notice->Text(if(short)"Silent video · audio output unavailable" else notice,style=MaterialTheme.typography.labelSmall,maxLines=if(short)1 else 2,overflow=TextOverflow.Ellipsis,modifier=Modifier.clickable {playbackNotice=notice})}
+                                    controller.player.failure?.let {failure->Text(if(short)"Playback unavailable. Click for details." else failure,color=MaterialTheme.colorScheme.error,style=MaterialTheme.typography.labelSmall,maxLines=if(short)1 else 3,overflow=TextOverflow.Ellipsis,modifier=Modifier.clickable {controller.error=failure})}
                                 }
                                 Surface(Modifier.width(if(compact)320.dp else 360.dp).fillMaxHeight(),shape=RoundedCornerShape(28.dp),color=MaterialTheme.colorScheme.surfaceContainerLow) {
                                     Column(Modifier.padding(14.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
@@ -282,6 +285,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                         }
                     },confirmButton={TextButton(onClick={showSettings=false}){Text("Done")}})
                     pendingDiscard?.let { action -> AlertDialog(onDismissRequest={pendingDiscard=null},title={Text(if(controller.busy)"Local work is still running" else "Unsaved project changes")},text={Text(if(controller.busy)"Closing now stops the current local task. Any unsaved project changes will be lost. Keep editing to wait or save first." else "Save your project first to keep these edits. Discarding changes cannot be undone after opening another file or closing the app.")},confirmButton={TextButton(onClick={pendingDiscard=null;action()}){Text(if(controller.busy)"Stop & close" else "Discard changes")}},dismissButton={TextButton(onClick={pendingDiscard=null}){Text("Keep editing")}}) }
+                    playbackNotice?.let {notice->AlertDialog(onDismissRequest={playbackNotice=null},title={Text("Silent video preview")},text={Text(notice)},confirmButton={TextButton(onClick={playbackNotice=null}){Text("Close")}})}
                     controller.error?.let { message -> AlertDialog(onDismissRequest={ controller.error=null },title={ Text("Could not finish") },text={ Box(Modifier.heightIn(max=350.dp).verticalScroll(rememberScrollState())) { Text(message) } },confirmButton={ TextButton(onClick={ controller.error=null }) { Text("Close") } }) }
                 }
             }

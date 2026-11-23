@@ -23,7 +23,7 @@ Linux request remains open.
   Timeline-focused Alt+arrows reorder, Home/End seek output start/end with
   reversed lane ownership. Source thumbnail decode at the source endpoint uses
   the final frame interval without changing the edit clock. Local
-  source native suite passes 84 checks; exact next package qualification pending.
+  source native suite passes 85 checks; exact next package qualification pending.
 - Clip-bound speech, official Rounded Symbols, source thumbnails, viewport
   culling, Undo selection/seek and a full-lane output guide are qualified in
   their earlier source/package checkpoints. The synthetic100clip4K-source test
@@ -32,6 +32,16 @@ Linux request remains open.
   Java is bundled; FFmpeg, DejaVu fonts and eSpeak NG are package dependencies.
   Models are separate. Initial no-control-focused synthetic-launch shortcut
   behavior remains unverified; focused field/timeline shortcuts were checked.
+
+- Local compact workspace follow-through: at 1024x640, single scrollable timeline
+  action row, shorter help and combined source/output header leave full clip lanes
+  and a larger monitor. Actual trim/Apply/Undo/split/save/render checked. Wide
+  1600x900 layout inspected. Not physical HiDPI proof.
+- Local playback follow-through: a video may continue silently when audio-device
+  acquisition/open is unavailable, with an explicit notice. Audio-only playback
+  still reports failure. Decode/process failures are not converted to silent
+  success. Controlled unavailable-device motion/pause/resume checks pass;
+  physical audio-device success remains unqualified.
 
 ## Implemented with bounded evidence
 
