@@ -189,11 +189,13 @@ class EditorController(val scope: CoroutineScope) {
     fun listen() {
         val p=project ?: return
         work("Listening locally. Stop ends the isolated model process…") {
-            val words=models.transcribe(p.sources[selectedSource].path,DesktopModels.speechDirectory) { step ->
+            val warnings=mutableListOf<String>()
+            val words=models.transcribe(p.sources[selectedSource].path,DesktopModels.speechDirectory,{warnings+=it}) { step ->
                 scope.launch { status="$step locally. Stop ends the isolated model process." }
             }
-            check(words.isNotEmpty()) { "No speech found in this file." }
-            mutate(p.copy(wordsBySource=p.wordsBySource+(p.sources[selectedSource].path to words))); tab="Transcript";status="Heard ${words.size} words locally. Tap a word to seek."
+            check(words.isNotEmpty()) {if(warnings.isEmpty())"No speech recognized. This does not prove the file has no speech." else "No words recognized. "+warnings.joinToString(" ")}
+            mutate(p.copy(wordsBySource=p.wordsBySource+(p.sources[selectedSource].path to words))); tab="Transcript";status="Heard ${words.size} words locally. Check the transcript against playback before cutting."
+            if(warnings.isNotEmpty())error="Transcript may be incomplete. "+warnings.joinToString(" ")
         }
     }
     fun follow() {

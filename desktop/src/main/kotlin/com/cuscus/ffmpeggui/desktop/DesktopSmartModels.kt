@@ -107,6 +107,7 @@ class DesktopSmartModels(
         voiceStems: List<File>,
         progress: (SpeechStep, Float?) -> Unit,
         onWords: (List<SpokenWord>) -> Unit,
+        onWarning:(String)->Unit={},
     ): List<SpokenWord> = withContext(Dispatchers.IO) {
         desktopNativeModelGate.withLock {
             DesktopModelFiles.speech(modelDirectory)
@@ -155,6 +156,11 @@ class DesktopSmartModels(
                                 RecognizedWords.fromTokens(result.tokens.toList(), result.timestamps, result.durations,
                                     start * 1000 / 16000, (start + length) * 1000 / 16000)
                             } finally { stream.release() }
+                            if(found.isEmpty() && length>=16000) {
+                                var energy=0.0
+                                for(i in 0 until length)energy+=samples[i].toDouble()*samples[i]
+                                if(kotlin.math.sqrt(energy/length)>.003)onWarning("No words returned for non-silent audio from ${start*1000/16000} to ${(start+length)*1000/16000} ms. This may be music, noise, or missed speech. Review this section.")
+                            }
                             words += found
                             if (found.isNotEmpty()) onWords(found)
                             start += length

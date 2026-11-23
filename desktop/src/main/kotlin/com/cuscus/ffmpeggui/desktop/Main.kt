@@ -234,6 +234,7 @@ private fun EditPanel(c: EditorController,p: DesktopProject) {
 }
 @OptIn(ExperimentalLayoutApi::class)
 @Composable private fun TranscriptPanel(c:EditorController,p:DesktopProject) {
+    Text("Automatic transcripts can miss speech, sometimes an entire section. Play and review before using word cuts. A missing-audio warning only detects some empty non-silent chunks, not all omissions.",color=MaterialTheme.colorScheme.error,style=MaterialTheme.typography.bodySmall)
     PanelCard {
         Text("Transcript",style=MaterialTheme.typography.titleLarge)
         Text("Word taps seek the source on the current timeline. Line edits use the same cut/keep logic as Android.")

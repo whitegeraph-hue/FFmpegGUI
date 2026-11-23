@@ -57,8 +57,11 @@ class DesktopModelWorker {
             }
         }
     }
-    suspend fun transcribe(path:String,model:File,progress:(String)->Unit):List<SpokenWord> =
-        run("speech",path,model,progress=progress)["words"]!!.jsonArray.map { it.jsonObject.let { w -> SpokenWord(w["start"]!!.jsonPrimitive.long,w["end"]!!.jsonPrimitive.long,w["text"]!!.jsonPrimitive.content) } }
+    suspend fun transcribe(path:String,model:File,onWarning:(String)->Unit={},progress:(String)->Unit):List<SpokenWord> {
+        val result=run("speech",path,model,progress=progress)
+        result["warnings"]?.jsonArray?.forEach {onWarning(it.jsonPrimitive.content)}
+        return result["words"]!!.jsonArray.map { it.jsonObject.let { w -> SpokenWord(w["start"]!!.jsonPrimitive.long,w["end"]!!.jsonPrimitive.long,w["text"]!!.jsonPrimitive.content) } }
+    }
     suspend fun cutout(path:String,model:File):java.awt.image.BufferedImage {
         val result=run("cutout",path,model,progress={})
         val bytes=java.util.Base64.getDecoder().decode(result["png"]!!.jsonPrimitive.content)
@@ -86,8 +89,9 @@ fun runModelWorker(folder:String)=runBlocking {
     val model=File(request["model"]!!.jsonPrimitive.content)
     val result=when(request["kind"]!!.jsonPrimitive.content) {
         "speech" -> {
-            val words=runtime.transcribe(path,model,emptyList(),{ step,fraction -> progress("${step.name.lowercase()} ${fraction?.let { "${(it*100).toInt()}%" } ?: ""}") },{})
-            buildJsonObject { put("words",buildJsonArray { words.forEach { w -> add(buildJsonObject { put("start",w.startMs);put("end",w.endMs);put("text",w.text) }) } }) }
+            val warnings=mutableListOf<String>()
+            val words=runtime.transcribe(path,model,emptyList(),{ step,fraction -> progress("${step.name.lowercase()} ${fraction?.let { "${(it*100).toInt()}%" } ?: ""}") },{},{warnings+=it})
+            buildJsonObject { put("warnings",buildJsonArray {warnings.forEach {add(JsonPrimitive(it))}});put("words",buildJsonArray { words.forEach { w -> add(buildJsonObject { put("start",w.startMs);put("end",w.endMs);put("text",w.text) }) } }) }
         }
         "cutout" -> {
             val image=runtime.cutout(path,model)
