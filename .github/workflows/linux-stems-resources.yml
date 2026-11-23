@@ -1,0 +1,40 @@
+name: Linux stem resource bound
+on:
+  push:
+    branches: [linux-desktop]
+    paths: ['.github/workflows/linux-stems-resources.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  ten-minute-stems:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.14.3'
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - run: gradle -p desktop compileKotlin writeRuntimeClasspath --console=plain
+      - name: Prepare original pinned model and ten-minute synthetic mixed signal
+        run: |
+          mkdir -p /tmp/stems-bound
+          curl --fail --location --retry 2 -o /tmp/stems-bound/bandit.onnx https://github.com/marcomorosi06/FFmpegGUI/releases/download/bandit-int8-onnx-1/bandit-v2-multi-int8.onnx
+          ffmpeg -nostdin -v error -f lavfi -i 'sine=frequency=220:sample_rate=48000' -f lavfi -i 'anoisesrc=color=pink:sample_rate=48000:amplitude=0.02' -filter_complex '[0:a][1:a]amix=inputs=2,pan=stereo|c0=c0|c1=c0[a]' -map '[a]' -t 600 /tmp/stems-bound/input.wav
+          gradle --stop
+      - name: Run full ten-minute real inference with sampled RSS
+        run: |
+          python3 desktop/scripts/check-stems-resources.py --java "$JAVA_HOME/bin/java" --classpath "$(cat desktop/build/runtime-classpath.txt)" --input /tmp/stems-bound/input.wav --model /tmp/stems-bound/bandit.onnx --output /tmp/stems-bound/result
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: stems-resource-proof
+          path: |
+            /tmp/stems-bound/result/summary.json
+            /tmp/stems-bound/result/rss-samples.json
+            /tmp/stems-bound/result/worker.log

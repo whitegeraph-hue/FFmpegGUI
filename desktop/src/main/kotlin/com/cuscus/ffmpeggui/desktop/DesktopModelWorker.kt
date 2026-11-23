@@ -36,9 +36,10 @@ class DesktopModelWorker {
                 val shutdown=Thread { child.descendants().forEach { it.destroyForcibly() };child.destroyForcibly() }
                 Runtime.getRuntime().addShutdownHook(shutdown)
                 try {
+                var lastProgress:String?=null
                 while(!process.waitFor(100,TimeUnit.MILLISECONDS)) {
                     currentCoroutineContext().ensureActive()
-                    File(directory,"progress").takeIf { it.isFile }?.let { runCatching { it.readText() }.getOrNull()?.let(progress) }
+                    File(directory,"progress").takeIf { it.isFile }?.let { runCatching { it.readText() }.getOrNull()?.takeIf {it!=lastProgress}?.let {lastProgress=it;progress(it)} }
                 }
                 currentCoroutineContext().ensureActive()
                 check(process.exitValue()==0) { "Offline model process stopped (${process.exitValue()}). " + File(directory,"worker.log").readText().take(2000) }
@@ -47,6 +48,8 @@ class DesktopModelWorker {
                 val response=Json.parseToJsonElement(resultFile.readText()).jsonObject
                 if(kind=="stems") {
                     val target=requireNotNull(output)
+                    val total=DesktopStems.names.sumOf {File(directory,it).length()}
+                    check(target.usableSpace>total+10_000_000) {"Not enough free disk space in the output folder"}
                     check(response["files"]!!.jsonArray.map {it.jsonPrimitive.content}==DesktopStems.names) {"Unexpected stem names"}
                     DesktopStems.names.forEach {name->
                         val source=File(directory,name)

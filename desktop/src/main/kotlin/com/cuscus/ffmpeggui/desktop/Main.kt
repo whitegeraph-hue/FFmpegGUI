@@ -157,7 +157,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                                         "Scene stems" -> PanelCard {
                                             Text("Dialogue, music and effects",style=MaterialTheme.typography.titleLarge)
                                             Text("Separate the selected original file offline with the original pinned Bandit int8 model. This exports three stereo 48 kHz WAV files, not the edited timeline. Source edits and existing tracks are not changed.")
-                                            Text("Up to 10 minutes per file. At least 1.5 GiB free RAM is required. Results can contain bleed or missing sound. Review them before using them. Instrument splitting is not yet ported.")
+                                            Text("Files over 10 minutes are rejected. Only short clips are tested so far. At least 1.5 GiB free RAM is required. Results can contain bleed or missing sound. Review them before using them. Instrument splitting is not yet ported.")
                                             Text("Import the 40 MB model in Models first. Licence and attribution travel with the exported folder.")
                                             Button(onClick={
                                                 val dialog=FileDialog(window,"Choose a new folder name for scene stems",FileDialog.SAVE)
