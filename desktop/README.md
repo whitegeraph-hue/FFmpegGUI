@@ -150,3 +150,6 @@ The saved PNG must pass invisible TrustMark readback and carry XMP disclosure.
 It is not silently made the project source. Later edits or recompression can
 lose the invisible mark. Direct mask painting, LaMa and integrated re-editing
 are still in progress. Notices/licences are under picture-ai in app resources.
+A direct source-pixel erase-mask canvas is now available, with brush width,
+unselect, Undo and Clear. For a rotated EXIF JPEG, choose an upright PNG copy
+or an external matching upright mask. The mask is separate from project drawing.

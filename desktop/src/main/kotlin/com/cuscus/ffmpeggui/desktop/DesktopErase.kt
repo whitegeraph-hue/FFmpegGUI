@@ -23,7 +23,7 @@ object DesktopErase {
         val stream=ImageIO.createImageInputStream(File(path)) ?: error("Cannot read picture")
         return stream.use {input->
             val readers=ImageIO.getImageReaders(input);require(readers.hasNext()) {"Choose a supported PNG/JPG picture"};val reader=readers.next()
-            try {reader.input=input;val w=reader.getWidth(0);val h=reader.getHeight(0);require(w>0 && h>0 && w.toLong()*h<=2_000_000) {"Magic eraser is limited to 2 megapixels for memory safety. Resize a copy first."};reader.read(0)} finally {reader.dispose()}
+            try {reader.input=input;val w=reader.getWidth(0);val h=reader.getHeight(0);require(w>0 && h>0 && w.toLong()*h<=2_000_000) {"Magic eraser is limited to 2 megapixels for memory safety. Resize a copy first."};reader.read(0).let {decoded->if(decoded.type==BufferedImage.TYPE_INT_ARGB)decoded else try {val rgba=BufferedImage(w,h,BufferedImage.TYPE_INT_ARGB);val g=rgba.createGraphics();try {g.composite=java.awt.AlphaComposite.Src;g.drawImage(decoded,0,0,null)}finally {g.dispose()};rgba}finally {decoded.flush()}}} finally {reader.dispose()}
         }
     }
     suspend fun erase(path:String,maskPath:String,model:File,markers:File,work:File,progress:(String)->Unit):File {

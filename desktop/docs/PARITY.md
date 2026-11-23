@@ -421,3 +421,14 @@ rejected until its adapter exists. Latest full package8b6predatesHDR/canvas.
   LaMa, clean-twin repeat editing and edit-pipeline mark resealing still open.
 - Direct model test parent peak540MB at640x360,not a2MP resource benchmark.
   Output PNG holds mark at save; later transforms/recompression unguaranteed.
+
+### 2026-11-23 04:27 EET: direct erase mask painting
+- Scoped Swing source-pixel mask canvas with width/unselect/5stroke Undo/Clear,
+  separate from project drawing. Direct actual drag, Use mask, Erase/save and
+  completion inspected. Rotated JPEG requires upright copy or external mask,
+  rather than placing a raw-coordinate mask over a normalized source.
+- Near2MP1920x1040 direct+worker real inference completes10.5s, sampled direct
+  parent peak540764KiB. This is one synthetic resource check, not all inputs or
+  combined parent/worker peak. Conservative1.2GiB preflight retained.
+- Decode converts indexed/RGB to mutable ARGB so generated colours are not
+  quantized back to a source palette. Original alpha remains supported.

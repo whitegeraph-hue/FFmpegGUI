@@ -903,7 +903,7 @@ private fun EditPanel(c: EditorController,p: DesktopProject) {
     var mask by remember {mutableStateOf<File?>(null)}
     PanelCard {
         Text("Magic eraser: new PNG",style=MaterialTheme.typography.titleLarge)
-        Text("Works on the original still picture, not the edited timeline. Select a matching upright PNG mask: opaque pixels are filled, transparent pixels are kept. Up to2megapixels. The original is unchanged. MI-GAN can invent details: inspect the saved PNG. LaMa and direct mask painting are still being ported.")
+        Text("Works on the original still picture, not the edited timeline. Select a matching upright PNG mask: opaque pixels are filled, transparent pixels are kept. Up to2megapixels. The original is unchanged. MI-GAN can invent details: inspect the saved PNG. LaMa and integrated edit replacement are still being ported.")
         Text("The PNG must pass invisible TrustMark readback and carry AI picture disclosure. This does not guarantee the invisible mark survives later edits or recompression. Export a new PNG only; it is not silently added to your project.",style=MaterialTheme.typography.bodySmall)
         OutlinedButton(onClick={Desktop.getDesktop().browse(java.net.URI(com.cuscus.ffmpeggui.marking.MarkerModel.FILES_URL))},enabled=!c.busy){Text("Open original AI mark downloads")}
         Button(onClick={
@@ -914,7 +914,8 @@ private fun EditPanel(c: EditorController,p: DesktopProject) {
         Button(onClick={val d=FileDialog(window,"Choose migan_pipeline_v2.onnx",FileDialog.LOAD);d.isVisible=true;d.file?.let {name->val f=File(d.directory,name);c.work("Checking pinned MI-GAN model…"){DesktopModels.importErase(f);c.status="MI-GAN imported and hash checked."}}},enabled=!c.busy){Text("Import MI-GAN model")}
         Text("MI-GAN by Picsart AI Research, MIT. TrustMark by Adobe, MIT. Models are separate imports, not bundled. Original notices: AI mark release above and MI-GAN model page.",style=MaterialTheme.typography.bodySmall)
         Button(onClick={val d=FileDialog(window,"Select alpha erase mask PNG",FileDialog.LOAD);d.isVisible=true;d.file?.let {mask=File(d.directory,it)}},enabled=!c.busy){Text("Choose alpha mask")}
-        Text(mask?.name ?: "No mask selected. Use an external image editor to paint an alpha mask.")
+        Button(onClick={runCatching {DesktopEraseMask.paint(File(p.sources.first().path),window)}.onSuccess {if(it!=null)mask=it}.onFailure {c.error=it.message}},enabled=!c.busy && p.sources.size==1 && p.sources.first().info.isStill){Text("Paint erase mask")}
+        Text(mask?.name ?: "No mask selected. Paint a mask here or choose an external alpha mask.")
         Button(onClick={val chosen=mask ?: return@Button;save("erased.png")?.let {target->c.work("Preparing magic eraser…"){c.models.erase(p.sources.first().path,chosen,target){c.status=it};c.status="New AI-marked PNG saved: ${target.path}. Original and project are unchanged."}}},enabled=!c.busy && mask!=null && p.sources.size==1 && p.sources.first().info.isStill){Text("Erase to new PNG")}
     }
 }
