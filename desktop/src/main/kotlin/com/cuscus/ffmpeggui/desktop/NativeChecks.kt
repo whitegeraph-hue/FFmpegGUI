@@ -11,7 +11,8 @@ import java.io.File
 import java.util.UUID
 
 /** Integration checks call real ffmpeg/ffprobe and the unmodified core, never canned detector output. */
-fun main(args:Array<String>)=runBlocking {
+fun main(args:Array<String>)=runNativeChecks(args)
+internal fun runNativeChecks(args:Array<String>)=runBlocking {
     val folder=File(args[0]); val media=DesktopMedia(); val exporter=DesktopExport(media)
     var passed=0
     suspend fun verify(name:String,block:suspend ()->Unit) { block(); passed++;println("PASS $name") }
@@ -528,7 +529,7 @@ fun main(args:Array<String>)=runBlocking {
         val ass=AssSubtitles.write(emptyList(),SubtitleStyle(),16f/9f,safe)
         check(ass.lines().count {it=="[Events]"}==1)
         val custom=File(folder,"custom font's.ttf")
-        File("/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf").copyTo(custom,overwrite=true)
+        listOf("/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf","/usr/share/fonts/TTF/DejaVuSerif.ttf").map(::File).first {it.isFile}.copyTo(custom,overwrite=true)
         DesktopFonts.validate(custom)
         val invalid=File(folder,"not-a-font.ttf").apply {writeText("not a font")}
         check(runCatching {DesktopFonts.validate(invalid)}.isFailure)
@@ -739,7 +740,7 @@ fun main(args:Array<String>)=runBlocking {
         val clean=exporter.export(project.copy(captions=emptyList()),File(folder,"output-clock-no-caption.mp4"))
         val plain=media.frame(clean.path,3000)!!
         var captionPixels=0
-        for(y in 250 until 350)for(x in 100 until 540)if(during.getRGB(x,y)!=plain.getRGB(x,y))captionPixels++
+        for(y in during.height*250/360 until during.height*350/360)for(x in during.width*100/640 until during.width*540/640)if(during.getRGB(x,y)!=plain.getRGB(x,y))captionPixels++
         check(captionPixels>500)
         javax.imageio.ImageIO.write(during,"png",File(folder,"output-clock-during.png"))
         val pcm=media.samples(result.path)

@@ -8,7 +8,7 @@ revision=subprocess.check_output(['git','-C',str(root),'rev-parse','HEAD'],text=
 files=subprocess.check_output(['git','-C',str(root),'ls-files','-z']).decode().split('\0')
 with tarfile.open(target,'w:gz') as archive:
  for name in files:
-  if not name or not (name.startswith(('core/','desktop/','.github/workflows/linux-desktop.yml','app/src/main/')) or name in ('LICENSE','README.md','docs/MODELS.md')):continue
+  if not name or not (name.startswith(('core/','desktop/','.github/workflows/linux-desktop.yml','.github/workflows/arch-linux.yml','app/src/main/')) or name in ('LICENSE','README.md','docs/MODELS.md')):continue
   if name.startswith('desktop/libs/') and not name.endswith(('README.md','SHA256SUMS')):continue
   p=root/name
   if p.is_file():

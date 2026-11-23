@@ -1,0 +1,78 @@
+name: Arch Linux desktop
+on:
+  push:
+    branches: [linux-desktop]
+    paths: ['desktop/**', 'core/**', '.github/workflows/arch-linux.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  app-image:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.14.3'
+      - run: gradle -p desktop createDistributable --console=plain
+      - run: python3 desktop/scripts/package-arch.py --image desktop/build/compose/binaries/main/app/ffmpeggui-linux --output desktop/build/arch-stage
+      - uses: actions/upload-artifact@v4
+        with:
+          name: arch-package-input
+          path: desktop/build/arch-stage/*
+  arch-install-test:
+    needs: app-image
+    runs-on: ubuntu-24.04
+    container: archlinux:base-devel
+    timeout-minutes: 30
+    steps:
+      - name: Update rolling Arch and install runtime and test tools
+        run: pacman -Syu --noconfirm ffmpeg ttf-dejavu espeak-ng libx11 libxext libxi libxrender libxtst libglvnd fontconfig freetype2 alsa-lib gtk3 hicolor-icon-theme xorg-server-xvfb python desktop-file-utils namcap git
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: arch-package-input
+          path: /tmp/arch-stage
+      - name: Build native pacman package as unprivileged user
+        run: |
+          useradd -m builder
+          chown -R builder:builder /tmp/arch-stage
+          cd /tmp/arch-stage
+          runuser -u builder -- makepkg --noconfirm
+          pacman -U --noconfirm ./*.pkg.tar.zst
+          pacman -Qkk ffmpeggui-linux
+          desktop-file-validate /usr/share/applications/ffmpeggui-linux.desktop
+          namcap ./*.pkg.tar.zst > /tmp/arch-namcap.txt
+          pacman -Q > /tmp/arch-package-versions.txt
+      - name: Actual bundled launcher and real media graphs on Arch
+        run: |
+          python desktop/scripts/make-fixtures.py /tmp/ffmpeggui-fixtures
+          FFMPEGGUI_NATIVE_CHECKS=/tmp/ffmpeggui-fixtures /usr/bin/ffmpeggui-linux > /tmp/arch-native.log 2>&1
+          cat /tmp/arch-native.log
+          FFMPEGGUI_OPEN=/tmp/ffmpeggui-fixtures/video.mp4 FFMPEGGUI_SCREENSHOT=/tmp/arch-installed.png xvfb-run -a -s '-screen 0 1600x1000x24' python desktop/scripts/launch-desktop-entry.py /usr/share/applications/ffmpeggui-linux.desktop
+      - name: Actual bundled model and isolated worker checks on Arch
+        run: |
+          python desktop/scripts/prepare-model-fixtures.py --repo . --output /tmp/ffmpeggui-models
+          FFMPEGGUI_MODEL_CHECKS=/tmp/ffmpeggui-models /usr/bin/ffmpeggui-linux
+          FFMPEGGUI_ISOLATED_CHECKS=/tmp/ffmpeggui-models /usr/bin/ffmpeggui-linux
+      - name: Package removal leaves no executable or desktop entry
+        run: |
+          pacman -R --noconfirm ffmpeggui-linux
+          test ! -e /opt/ffmpeggui-linux/bin/ffmpeggui-linux
+          test ! -e /usr/bin/ffmpeggui-linux
+          test ! -e /usr/share/applications/ffmpeggui-linux.desktop
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: arch-linux-proof
+          path: |
+            /tmp/arch-stage/*.pkg.tar.zst
+            /tmp/arch-stage/PKGBUILD
+            /tmp/arch-namcap.txt
+            /tmp/arch-package-versions.txt
+            /tmp/arch-native.log
+            /tmp/arch-installed.png

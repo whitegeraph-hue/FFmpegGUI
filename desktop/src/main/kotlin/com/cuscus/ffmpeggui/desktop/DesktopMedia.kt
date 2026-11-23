@@ -163,7 +163,7 @@ class DesktopExport(private val media: DesktopMedia = DesktopMedia()) {
       override fun customFontPath(file:String):String? = File(file).takeIf {it.isFile && it.canRead()}?.path
       override fun fontPath(bold:Boolean):String {
         val name = if (bold) "DejaVuSans-Bold.ttf" else "DejaVuSans.ttf"
-        val candidates = listOf(File(System.getProperty("compose.application.resources.dir", "resources"), "fonts/$name"), File("/usr/share/fonts/truetype/dejavu/$name"))
+        val candidates = listOf(File(System.getProperty("compose.application.resources.dir", "resources"), "fonts/$name"), File("/usr/share/fonts/truetype/dejavu/$name"), File("/usr/share/fonts/TTF/$name"))
         return (candidates.firstOrNull { it.isFile } ?: error("Required font is missing: $name")).path
       }
     }

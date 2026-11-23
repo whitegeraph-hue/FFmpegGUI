@@ -57,6 +57,8 @@ building, project model JSON and smart-detector logic come from the shared core.
   arrow handle to an insertion marker, then release to commit one move. Escape
   or releasing outside the timeline cancels. No edge auto-scroll yet; use Fit
   or scroll first, or use the Left/Right buttons. Handles require clips over45dp.
+  A transition moves with its clip, changing its neighbor/fade pair, as with
+  the arrow buttons. Drag is mouse-tested, not physical touchpad/HiDPI qualified.
   Reordering keeps a selected occurrence and its source offset. Undo restores
   the edit, selected clip and seek position (50 in-memory history entries).
   Redo restores the undone edit and selection; a new edit clears Redo. Saving
@@ -180,3 +182,5 @@ are still in progress. Notices/licences are under picture-ai in app resources.
 A direct source-pixel erase-mask canvas is now available, with brush width,
 unselect, Undo and Clear. For a rotated EXIF JPEG, choose an upright PNG copy
 or an external matching upright mask. The mask is separate from project drawing.
+
+Arch Linux x86_64 packaging and validation: [Arch preview](docs/ARCH-LINUX.md).
