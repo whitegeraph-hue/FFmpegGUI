@@ -35,7 +35,7 @@ class EditorController(val scope: CoroutineScope) {
             DesktopProjects.save(snapshot,file)
             if(project===snapshot)projectFile=file.absoluteFile
             markProjectSaved(snapshot)
-            status="Project saved: ${file.path}"
+            status="Project saved: ${file.path}. Previous manual save, when present: ${DesktopProjects.previousFile(file).name}"
         }
     }
     var sourceFrame by mutableStateOf<ImageBitmap?>(null)

@@ -329,6 +329,54 @@ internal fun runNativeChecks(args:Array<String>)=runBlocking {
             c.open(video.path);c.job?.join();check(c.error==null && c.projectFile==null && !c.hasUnsavedChanges)
         } finally {c.close();scope.cancel()}
     }
+    verify("manual project saves retain previous version and refuse unsafe backup destinations") {
+        val dir=File(folder,"save-protection").apply {deleteRecursively();mkdirs()}
+        val target=File(dir,"edit.ffgui.json");val previous=DesktopProjects.previousFile(target)
+        val base=DesktopProject.create(video);val edited=base.copy(effects=Effects(speed=1.5f));val third=base.copy(effects=Effects(speed=2f))
+        DesktopProjects.save(base,target);check(!previous.exists());val first=target.readBytes()
+        DesktopProjects.save(edited,target);check(previous.readBytes().contentEquals(first))
+        val restored=DesktopProjects.load(previous,media);check(restored.timeline==base.timeline && restored.effects==base.effects && restored.sources==base.sources);check(DesktopProjects.load(target,media).effects==edited.effects)
+        val second=target.readBytes();DesktopProjects.save(third,target)
+        check(previous.readBytes().contentEquals(second) && DesktopProjects.load(previous,media).effects==edited.effects)
+        val sharedMode=java.nio.file.attribute.PosixFilePermissions.fromString("rw-rw-r--")
+        java.nio.file.Files.setPosixFilePermissions(target.toPath(),sharedMode)
+        DesktopProjects.save(third,target)
+        check(java.nio.file.Files.getPosixFilePermissions(target.toPath())==sharedMode && java.nio.file.Files.getPosixFilePermissions(previous.toPath())==sharedMode)
+        val before=target.readBytes();val oldBackup=previous.readBytes()
+        var moves=0
+        check(runCatching {DesktopProjects.writeWithPrevious(target,"new staged content",emptyList()) {from,to->
+            moves++;if(moves==2)throw java.io.IOException("Injected final rename failure")
+            java.nio.file.Files.move(from,to,java.nio.file.StandardCopyOption.ATOMIC_MOVE,java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+        }}.isFailure)
+        check(moves==2 && target.readBytes().contentEquals(before) && previous.readBytes().contentEquals(before))
+        check(dir.listFiles()!!.none {it.name.endsWith(".tmp")})
+        previous.delete();previous.writeText("unrelated notes")
+        check(runCatching {DesktopProjects.save(base,target)}.isFailure)
+        check(target.readBytes().contentEquals(before) && previous.readText()=="unrelated notes")
+        previous.delete();previous.mkdirs()
+        check(runCatching {DesktopProjects.save(base,target)}.isFailure && target.readBytes().contentEquals(before))
+        previous.delete();java.nio.file.Files.createSymbolicLink(previous.toPath(),File(video.path).toPath())
+        check(runCatching {DesktopProjects.save(base,target)}.isFailure && target.readBytes().contentEquals(before))
+        java.nio.file.Files.delete(previous.toPath())
+        java.nio.file.Files.createLink(previous.toPath(),File(video.path).toPath())
+        check(runCatching {DesktopProjects.save(base,target)}.isFailure && target.readBytes().contentEquals(before))
+        previous.delete();previous.writeBytes(oldBackup)
+        val alias=File(dir,"alias.ffgui.json");java.nio.file.Files.createSymbolicLink(alias.toPath(),target.toPath())
+        check(runCatching {DesktopProjects.save(base,alias)}.isFailure && target.readBytes().contentEquals(before))
+        val arbitrary=File(dir,"notes.txt").apply {writeText("keep me")}
+        check(runCatching {DesktopProjects.save(base,arbitrary)}.isFailure && arbitrary.readText()=="keep me")
+        check(dir.listFiles()!!.none {it.name.endsWith(".tmp")})
+        val scope=CoroutineScope(Dispatchers.Default+SupervisorJob());val c=EditorController(scope)
+        try {
+            c.openProject(target);c.job?.join();c.mutate(base)
+            previous.writeText("occupied")
+            c.saveProject(target);c.job?.join()
+            check(c.error!=null && c.hasUnsavedChanges && c.projectFile==target.absoluteFile && target.readBytes().contentEquals(before))
+            previous.delete();c.saveProject(target);c.job?.join()
+            check(c.error==null && !c.hasUnsavedChanges && previous.readBytes().contentEquals(before))
+            c.openProject(previous);c.job?.join();check(c.error==null && c.project!!.effects==third.effects)
+        } finally {c.close();scope.cancel()}
+    }
     verify("timeline lane seeking owns overlapping reversed sped and ramp clips") {
         val a=Clip("lane-a",video.path,0,4000,Effects(speed=2f,reversed=true,transition=Transition(TransitionKind.FADE,500)))
         val b=Clip("lane-b",video.path,4000,8000)

@@ -57,8 +57,8 @@ building, project model JSON and smart-detector logic come from the shared core.
   playback still fails clearly. Decoder failures remain errors.
 - Split, duplicate, precise source trim, remove and reorder clips. Drag the small
   arrow handle to an insertion marker, then release to commit one move. Escape
-  or releasing outside the timeline cancels. No edge auto-scroll yet; use Fit
-  or scroll first, or use the Left/Right buttons. Handles require clips over45dp.
+  or releasing outside the timeline cancels. Edge auto-scroll runs while held near the viewport edge; release outside
+  cancels. Fit, scrolling and Left/Right buttons remain available. Handles require clips over45dp.
   Timeline-focused Alt+Left/Right reorder in visible output direction, including
   global reverse. Home/End seek to output start/end. These keys stay out of text
   fields. Buttons and keys share drag's occurrence/footage preservation.
@@ -68,6 +68,17 @@ building, project model JSON and smart-detector logic come from the shared core.
   the edit, selected clip and seek position (50 in-memory history entries).
   Redo restores the undone edit and selection; a new edit clears Redo. Saving
   does not clear history. Successful project entry clears both directions.
+  Manual-save protection is in local development: a repeated save keeps one
+  previous version beside the project as `<filename>.previous.ffgui.json`.
+  Open that file through Open project to recover it, then use Save as to keep
+  working without replacing the recovery copy. It is not autosave and does not
+  recover changes made since the last successful manual save. Saves refuse
+  symbolic-link destinations, source/mask/font collisions and occupied non-project
+  files, including corrupt or other-version project files. Use a new filename to
+  retain those files for inspection/recovery. Existing POSIX mode bits are kept;
+  new projects use owner-only access. Ownership, ACLs and extended attributes are
+  not preserved by replacement. Filesystems without atomic rename fail rather
+  than use a weaker fallback. Unusual/network mounts are unqualified.
   Text-field Ctrl+Z/Y/Shift+Z stays with text editing, not project history.
 - Unsaved project changes are shown in the header. Opening another source or
   project, or closing the window, asks before discarding edits. Keep editing or

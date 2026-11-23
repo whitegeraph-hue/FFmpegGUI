@@ -1,9 +1,17 @@
 # Current Linux preview status
 
-Audited 2026-11-23 through delivered 6f1107. PARITY.md remains execution history. The original full
+Audited 2026-11-23 through delivered 0978ed9. PARITY.md remains execution history. The original full
 Linux request remains open.
 
 ## Current checkpoint
+
+- Delivered 0978ed9 after fixture-order repair: all four exact-SHA CI green,
+  933 shared tests, Arch clean unfiltered90 native checks. Independent exact
+  Debian90 native groups passed in disjoint44+46 processes. Exact Debian and
+  non-root installed Arch compact launchers checked edge-scroll and alignment
+  follow-through in their respective batches. Text/picture alignment saves and
+  Undo, text Escape/outside cancellation, and actual saved-position text/picture
+  renders checked. This is an alignment guide, not a composite preview.
 
 - Delivered 6f1107: all four CI green. Exact Debian and Arch packages checked;
   Debian has 933 shared tests and both packages pass 87 native checks. Arch
@@ -15,7 +23,8 @@ Linux request remains open.
   No claim of physical Arch audio, Wayland, touchpad or HiDPI qualification.
 - Bundled launcher checks cover responsive controls, Undo/Redo, focused field
   history isolation, source peaks and Save/Save as destination. Save overwrites
-  without backup. Save as switches the destination. History is 50 in-memory
+  without backup in the delivered build. A previous-manual-save backup is in
+  local development, not yet qualified or delivered. Save as switches the destination. History is 50 in-memory
   entries, not autosave or crash recovery.
 - Delivered keyboard/reorder batch: buttons use the same occurrence-preserving
   move as drag; Left/Right refer to visible direction under global reverse.
@@ -66,7 +75,7 @@ Linux request remains open.
 | Area | Current behavior | Qualification limits / remaining work |
 |---|---|---|
 | Import and source geometry | Video/audio/stills, JPEG orientation1..8, supported Ultra HDR primary normalization, multi-video/still append | Audio-only timeline append and still-first mixed timeline blocked; broader formats/camera profiles need tests |
-| Timeline | Split/trim/duplicate/remove/handle and button reorder/Undo/Redo; selected occurrence; output ruler/zoom/playhead; speed/reverse/curves; overlap lanes | Source thumbnails are original footage, not live edits. Source mono peaks are qualified original sources, not an edited mix. No multitrack lanes; local edge auto-scroll is not yet package-qualified; richer layer editing remains |
+| Timeline | Split/trim/duplicate/remove/handle and button reorder/Undo/Redo; selected occurrence; output ruler/zoom/playhead; speed/reverse/curves; overlap lanes | Source thumbnails are original footage, not live edits. Source mono peaks are qualified original sources, not an edited mix. No multitrack lanes; edge auto-scroll is package-qualified through the delivered batch; richer layer editing remains |
 | Clip effects | Framing/colour/speed/pitch/volume/fades, animation keys/easing, ordinary transition families; mixed video/still transition export | Companion-asset punch/punch-back/technical-difficulties gated; representative transitions tested, not every kind/input |
 | Preview | Labelled source seek; render-first edited picture/audio playback; pause/resume and output-clock frame steps | Not live edited preview; rendering delay; physical device playback untested |
 | Selected smart edits | Pause/scene/beat and transcript cut/keep bind selected occurrence; source-clock mapping; stale result invalidation | Suggestions transient; all-tools selected-clip parity not established; combined scene/subtitle workflow qualified in source/native/UI, not a blanket package test |
@@ -86,7 +95,7 @@ Linux request remains open.
    saved-project, source-protection, cancel and occurrence-scope behavior.
 2. Timeline/layer interaction and keyboard access. Redo and short-window tool
    access are qualified. Drag handle and keyboard/button follow-through are
-  exact-package qualified through 6f1107. Drag-edge scrolling remains local only.
+  exact-package qualified through 6f1107. Drag-edge scrolling and normalized layer alignment are now package-qualified.
   Live edited preview, edited-mix waveforms
    and direct spatial layer dragging remain separate unfinished work.
 3. Remaining tool adapters and selected-clip semantics. Multi-source follow needs
@@ -104,7 +113,7 @@ unchanged. More tests do not close the full request without the remaining workfl
 
 The monitor keeps its place while the 204dp timeline shows source thumbnails, file names, output-time clip spans and a fixed ruler. Fit/zoom and scrolling are separate from editing. Single click selects and seeks inside that occurrence, including its transition lane; double click opens its controls. A clip menu exposes very short clips without pixel hunting. The menu shows exact source durations in milliseconds.
 
-Clip controls are grouped as Trim, Motion, Colour, Sound and Transition. Exact source in/out drafts apply only on Apply; invalid ranges cannot change the edit. Timeline-local plain S, D, arrows, Space and Delete/Backspace split, duplicate, step, play or remove. Text fields keep their own keys. Reorder uses left/right buttons or the small arrow handle. Drag commits on release; Escape or outside release cancels. Local drag-edge scrolling uses a bounded speed near the viewport edge, keeps the dragged occurrence alive offscreen and preserves Escape/outside cancellation. Source-only qualification, not yet packaged. Delivered Alt+arrows use visible direction, including global reverse; buttons now share drag's selected-footage preservation. Thumbnails are original-source stills, not live effects previews. The cache is at most64 160x90 images, decoding one at a time with a10second process timeout.
+Clip controls are grouped as Trim, Motion, Colour, Sound and Transition. Exact source in/out drafts apply only on Apply; invalid ranges cannot change the edit. Timeline-local plain S, D, arrows, Space and Delete/Backspace split, duplicate, step, play or remove. Text fields keep their own keys. Reorder uses left/right buttons or the small arrow handle. Drag commits on release; Escape or outside release cancels. Local drag-edge scrolling uses a bounded speed near the viewport edge, keeps the dragged occurrence alive offscreen and preserves Escape/outside cancellation. Package-qualified in delivered0978ed9, following the earlier44ad7ba edge batch. Delivered Alt+arrows use visible direction, including global reverse; buttons now share drag's selected-footage preservation. Thumbnails are original-source stills, not live effects previews. The cache is at most64 160x90 images, decoding one at a time with a10second process timeout.
 
 Qualification: real1366x768 click/keyboard workflow selected, sought, split, duplicated, trimmed, undid, saved with native chooser, reopened and rendered; dense9clips and60ms selection, grouped controls and rail scroll were inspected. S and Split agree at sped/overlap position. Native checks cover lane-owned seek under per-clip/global speed/reverse, ramps and transitions. Render succeeds in the test environment; physical Zorin audio and hardware are not qualified. Full app parity is still not complete.
 
@@ -127,16 +136,16 @@ horizontally scrolled ruler coordinates and rendered-preview cueing.
 Ruler seeking stops playback and stays paused on release. Press Play (or Space
 with the timeline focused) to resume. Render/analysis jobs disable seeking.
 
-### Local drag-edge scrolling
+### Delivered drag-edge scrolling
 
 At2.25x zoom, an8occurrence project was dragged beyond the original viewport
 right and left. Actual compact pixels show scrolling while held and release
 commits once. Saved occurrence IDs confirm normal/reverse insertion, Undo restores
 original order, Escape and outside release leave order/history unchanged.88 native
 checks passed in two non-overlapping44group local runs (a single full run exceeds
-the local command time limit). CI remains unfiltered. Not yet reviewed or packaged.
+the local command time limit). CI remained unfiltered. Reviewed and package-qualified in the delivered batch.
 
-### Local layer alignment pad
+### Delivered layer alignment pad
 
 Text and picture panels offer a compact dialog to set base X/Y together with
 one drag and one Undo. Both picture and independently visible text were rendered
@@ -145,4 +154,5 @@ preview or direct spatial bounding-box editor: the shared model uses fractions
 of the free space around the layer. Render remains required. Position keys,
 hidden/locked layers and cover fills disable the pad; other key properties stay
 intact. Escape/outside release cancels. Local text/picture drag/save/Undo and
-rendered saved-project positions checked; package qualification pending.
+rendered saved-project positions checked; exact Debian/Arch qualification completed
+in delivered0978ed9.

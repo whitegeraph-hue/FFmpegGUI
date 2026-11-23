@@ -74,14 +74,51 @@ object DesktopProjects {
             put("wordsByClip",buildJsonObject {project.wordsByClip.forEach {(id,words)->put(id,buildJsonArray {words.forEach {w->add(buildJsonObject {put("startMs",w.startMs);put("endMs",w.endMs);put("text",w.text)})}})}})
             put("words",buildJsonArray { project.words.forEach { w -> add(buildJsonObject { put("startMs",w.startMs);put("endMs",w.endMs);put("text",w.text) }) } })
         }
-        require((project.sources+project.sounds.map {it.source}+project.pictures.map {it.source}).none { File(it.path).canonicalFile==target.canonicalFile }) { "Cannot replace a source with a project." }
-        require(listOfNotNull(project.image.hdr?.mask,project.image.hdr?.brush).none {File(it).canonicalFile==target.canonicalFile}) {"Cannot replace an HDR mask with a project."}
-        require(project.image.key?.mask?.let {File(it).canonicalFile!=target.canonicalFile} ?: true) {"Cannot replace a subject mask with a project."}
-        val temporary=File(target.parentFile,".${target.name}-${UUID.randomUUID()}.tmp")
+        val protectedFiles=(project.sources+project.sounds.map {it.source}+project.pictures.map {it.source}).map {File(it.path)}+
+            listOfNotNull(project.image.key?.mask,project.image.hdr?.mask,project.image.hdr?.brush,project.subtitleStyle?.fontFile).map(::File)
+        writeWithPrevious(target,Json { prettyPrint=true }.encodeToString(JsonObject.serializer(),data),protectedFiles)
+    }
+
+    /** One previous manual save, not autosave. Refuse unsafe sidecars rather than losing either copy. */
+    internal fun previousFile(target:File)=File(target.absoluteFile.parentFile,target.name+".previous.ffgui.json")
+    private fun isProject(file:File)=runCatching {
+        val root=Json.parseToJsonElement(file.readText()).jsonObject
+        root["type"]?.jsonPrimitive?.content=="ffmpeggui-linux-project" && root["version"]?.jsonPrimitive?.int==1
+    }.getOrDefault(false)
+    internal fun writeWithPrevious(destination:File,text:String,protectedFiles:List<File>,
+        move:(java.nio.file.Path,java.nio.file.Path)->Unit={from,to->Files.move(from,to,StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING);Unit}) {
+        val target=destination.absoluteFile
+        val backup=previousFile(target)
+        fun checkDestination(file:File) {
+            require(!Files.isSymbolicLink(file.toPath())) {"Project save cannot replace a symbolic link: ${file.name}"}
+            require(protectedFiles.none {source->source.canonicalFile==file.canonicalFile ||
+                (source.exists() && file.exists() && Files.isSameFile(source.toPath(),file.toPath()))}) {"Cannot replace a source, mask or font with a project or previous-save backup."}
+            require(!file.exists() || file.isFile) {"Project destination is not a regular file: ${file.name}"}
+        }
+        checkDestination(target)
+        val replacing=target.exists()
+        // Keep existing shared-file mode bits. New projects retain the private temp-file mode.
+        val permissions=if(replacing && Files.getFileStore(target.toPath()).supportsFileAttributeView("posix"))Files.getPosixFilePermissions(target.toPath()) else null
+        if(replacing) {
+            require(isProject(target)) {"Existing file is not a Linux project. Choose another project filename."}
+            checkDestination(backup)
+            require(!backup.exists() || isProject(backup)) {"Previous-save filename is occupied. Move that file or choose another project filename: ${backup.name}"}
+        }
+        val temporary=Files.createTempFile(target.parentFile.toPath(),".${target.name}-",".tmp")
+        var backupTemporary:java.nio.file.Path?=null
         try {
-            temporary.writeText(Json { prettyPrint=true }.encodeToString(JsonObject.serializer(),data))
-            Files.move(temporary.toPath(),target.toPath(),StandardCopyOption.REPLACE_EXISTING)
-        } finally { temporary.delete() }
+            java.io.FileOutputStream(temporary.toFile()).use {out->out.write(text.toByteArray(Charsets.UTF_8));out.fd.sync()}
+            permissions?.let {Files.setPosixFilePermissions(temporary,it)}
+            if(replacing) {
+                backupTemporary=Files.createTempFile(target.parentFile.toPath(),".${target.name}-previous-",".tmp")
+                Files.copy(target.toPath(),backupTemporary,StandardCopyOption.REPLACE_EXISTING)
+                permissions?.let {Files.setPosixFilePermissions(backupTemporary,it)}
+                java.nio.channels.FileChannel.open(backupTemporary,java.nio.file.StandardOpenOption.WRITE).use {it.force(true)}
+                // Both files are staged in the destination directory. No non-atomic fallback.
+                move(backupTemporary,backup.toPath())
+            }
+            move(temporary,target.toPath())
+        } finally {Files.deleteIfExists(temporary);backupTemporary?.let {Files.deleteIfExists(it)}}
     }
     suspend fun load(file:File,media:DesktopMedia):DesktopProject {
         val data=Json.parseToJsonElement(file.readText()).jsonObject
