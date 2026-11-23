@@ -92,10 +92,10 @@ class DesktopModelWorker {
         var created=false
         try {Files.newOutputStream(destination.toPath(),java.nio.file.StandardOpenOption.CREATE_NEW).use {created=true;it.write(bytes)}}catch(t:Throwable){if(created)destination.delete();throw t}
     }
-    suspend fun erase(path:String,mask:File,destination:File,progress:(String)->Unit) {
+    suspend fun erase(path:String,mask:File,destination:File,precise:Boolean=false,progress:(String)->Unit) {
         require(!destination.exists()) {"Choose a new output PNG; existing files are not replaced"}
         require(destination.extension.equals("png",true)) {"Magic eraser output must be PNG"}
-        val response=run("erase",path,DesktopModels.eraseFile,payload=buildJsonObject {put("mask",mask.absolutePath);put("markers",DesktopModels.pictureMarkers.absolutePath)},progress=progress)
+        val response=run("erase",path,if(precise)DesktopModels.lamaFile else DesktopModels.eraseFile,payload=buildJsonObject {put("precise",precise);put("mask",mask.absolutePath);put("markers",DesktopModels.pictureMarkers.absolutePath)},progress=progress)
         val bytes=java.util.Base64.getDecoder().decode(response["png"]!!.jsonPrimitive.content)
         require(bytes.size<=16_000_000) {"Invalid erased picture response"}
         var created=false
@@ -160,7 +160,7 @@ fun runModelWorker(folder:String)=runBlocking {
             buildJsonObject {put("wav",java.util.Base64.getEncoder().encodeToString(output.readBytes()))}
         }
         "erase" -> {
-            val output=DesktopErase.erase(path,request["mask"]!!.jsonPrimitive.content,model,File(request["markers"]!!.jsonPrimitive.content),directory,::progress)
+            val output=DesktopErase.erase(path,request["mask"]!!.jsonPrimitive.content,model,File(request["markers"]!!.jsonPrimitive.content),directory,request["precise"]?.jsonPrimitive?.boolean ?: false,::progress)
             require(output.length()<=16_000_000)
             buildJsonObject {put("png",java.util.Base64.getEncoder().encodeToString(output.readBytes()))}
         }

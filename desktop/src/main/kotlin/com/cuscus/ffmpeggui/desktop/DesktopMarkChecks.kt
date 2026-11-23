@@ -45,3 +45,17 @@ fun runEraseChecks(path:String)=runBlocking {
     val job=launch {worker.erase(File(dir,"source.png").path,File(dir,"mask.png"),cancelled){}};delay(150);job.cancelAndJoin();check(!cancelled.exists())
     println("PASS actual MI-GAN fill, changed selected pixels, pinned TrustMark and PNG reload, XMP, empty mask rejection, isolated transfer, existing output preservation and cancellation")
 }
+
+fun runLamaChecks(path:String)=runBlocking {
+    val dir=File(path);val markers=File(dir,"../ffmpeggui-markers")
+    DesktopModels.importPictureMarkers(listOf(File(markers,"trustmark-encoder-q.onnx"),File(markers,"trustmark-decoder-q.onnx")))
+    DesktopModels.importLama(File(dir,"lama_fp32.onnx"))
+    val worker=DesktopModelWorker();val target=File(dir,"worker-lama.png").apply {delete()}
+    worker.erase(File(dir,"source.png").path,File(dir,"mask.png"),target,true){println(it)}
+    check(target.isFile && DesktopProvenance.aiPicture(target))
+    val actual=ImageIO.read(target);val source=ImageIO.read(File(dir,"source.png"))
+    try {var changed=0;for(y in 150 until 280)for(x in 240 until 380)if(actual.getRGB(x,y)!=source.getRGB(x,y))changed++;check(changed>1000);check(actual.width==source.width && actual.height==source.height)}finally {actual.flush();source.flush()}
+    val bytes=target.readBytes();check(runCatching {worker.erase(File(dir,"source.png").path,File(dir,"mask.png"),target,true){}}.isFailure);check(bytes.contentEquals(target.readBytes()))
+    val cancelled=File(dir,"cancelled-lama.png").apply {delete()};val job=launch {worker.erase(File(dir,"source.png").path,File(dir,"mask.png"),cancelled,true){}};delay(250);job.cancelAndJoin();check(!cancelled.exists())
+    println("PASS actual known-hash LaMa fill, saved TrustMark and PNG disclosure, selected pixels changed, new-only destination and cancellation")
+}

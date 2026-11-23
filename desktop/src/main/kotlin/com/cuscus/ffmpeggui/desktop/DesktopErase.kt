@@ -10,9 +10,10 @@ import java.awt.image.BufferedImage
 import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.nio.FloatBuffer
 import javax.imageio.ImageIO
 
-/** Original MI-GAN crop/grow/blend; alpha mask above half selects erased pixels. */
+/** Original MI-GAN/LaMa crop/grow/blend; alpha mask above half selects erased pixels. */
 object DesktopErase {
     fun scaled(picture:BufferedImage,w:Int,h:Int):BufferedImage {
         val out=BufferedImage(w,h,BufferedImage.TYPE_INT_ARGB);val g=out.createGraphics()
@@ -26,11 +27,11 @@ object DesktopErase {
             try {reader.input=input;val w=reader.getWidth(0);val h=reader.getHeight(0);require(w>0 && h>0 && w.toLong()*h<=2_000_000) {"Magic eraser is limited to 2 megapixels for memory safety. Resize a copy first."};reader.read(0).let {decoded->if(decoded.type==BufferedImage.TYPE_INT_ARGB)decoded else try {val rgba=BufferedImage(w,h,BufferedImage.TYPE_INT_ARGB);val g=rgba.createGraphics();try {g.composite=java.awt.AlphaComposite.Src;g.drawImage(decoded,0,0,null)}finally {g.dispose()};rgba}finally {decoded.flush()}}} finally {reader.dispose()}
         }
     }
-    suspend fun erase(path:String,maskPath:String,model:File,markers:File,work:File,progress:(String)->Unit):File {
+    suspend fun erase(path:String,maskPath:String,model:File,markers:File,work:File,precise:Boolean=false,progress:(String)->Unit):File {
         // Validate marks before even opening the generative model. Pin checks run again at marking.
         for(pin in listOf(com.cuscus.ffmpeggui.marking.MarkerModel.ENCODER,com.cuscus.ffmpeggui.marking.MarkerModel.DECODER))DesktopModelFiles.verify(File(markers,pin.name),pin.sha256,pin.bytes)
-        DesktopModelFiles.verify(model,EraseModel.MIGAN_FILE.sha256,28_079_181)
-        DesktopSmartModels.checkAvailableMemory(1_200L*1024*1024)
+        if(precise)DesktopModelFiles.verify(model,DesktopModels.LAMA_SHA256,DesktopModels.LAMA_BYTES) else DesktopModelFiles.verify(model,EraseModel.MIGAN_FILE.sha256,28_079_181)
+        DesktopSmartModels.checkAvailableMemory((if(precise)2_000L else 1_200L)*1024*1024)
         val upright=DesktopStillInputs.resolve(path,work)
         val picture=decode(upright)
         try {
@@ -46,8 +47,8 @@ object DesktopErase {
             val square=scaled(picture.getSubimage(crop.left,crop.top,cw,ch),n,n)
             val pixels=try {square.getRGB(0,0,n,n,null,0,n)}finally {square.flush()}
             val hole=BooleanArray(n*n){i->erased[(i/n)*ch/n*cw+(i%n)*cw/n]}
-            progress("Filling selected area with MI-GAN")
-            val filled=run(model,pixels,hole)
+            progress("Filling selected area with ${if(precise)"LaMa" else "MI-GAN"}")
+            val filled=run(model,pixels,hole,precise)
             val made=BufferedImage(n,n,BufferedImage.TYPE_INT_ARGB).also {it.setRGB(0,0,n,n,filled,0,n)}
             val back=try {scaled(made,cw,ch)}finally {made.flush()}
             try {
@@ -68,21 +69,30 @@ object DesktopErase {
             return target
         }finally {picture.flush()}
     }
-    private suspend fun run(file:File,argb:IntArray,hole:BooleanArray):IntArray {
+    private suspend fun run(file:File,argb:IntArray,hole:BooleanArray,precise:Boolean):IntArray {
         currentCoroutineContext().ensureActive()
         OrtSession.SessionOptions().use {opts->
             opts.setIntraOpNumThreads(2);opts.setInterOpNumThreads(1);opts.setCPUArenaAllocator(false);opts.setMemoryPatternOptimization(false)
             val env=OrtEnvironment.getEnvironment();val n=InpaintArea.SIDE;val plane=n*n
             env.createSession(file.path,opts).use {session->
                 val names=session.inputNames.toList();require(names.size==2);val maskName=names.firstOrNull {it.contains("mask",true)} ?: names.last();val imageName=names.first {it!=maskName}
-                val bytes=ByteBuffer.allocateDirect(3*plane).order(ByteOrder.nativeOrder());for(c in 0..2)for(i in 0 until plane)bytes.put(((argb[i] shr (16-8*c)) and 255).toByte());bytes.rewind()
-                val known=ByteBuffer.allocateDirect(plane).order(ByteOrder.nativeOrder());for(i in 0 until plane)known.put((if(hole[i])0 else 255).toByte());known.rewind()
-                OnnxTensor.createTensor(env,bytes,longArrayOf(1,3,n.toLong(),n.toLong()),OnnxJavaType.UINT8).use {image->
-                    OnnxTensor.createTensor(env,known,longArrayOf(1,1,n.toLong(),n.toLong()),OnnxJavaType.UINT8).use {mask->
+                val image:OnnxTensor
+                val mask:OnnxTensor
+                if(precise) {
+                    val pixels=FloatArray(3*plane){index->((argb[index%plane] shr (16-8*(index/plane))) and 255)/255f}
+                    image=OnnxTensor.createTensor(env,FloatBuffer.wrap(pixels),longArrayOf(1,3,n.toLong(),n.toLong()))
+                    try {mask=OnnxTensor.createTensor(env,FloatBuffer.wrap(FloatArray(plane){if(hole[it])1f else 0f}),longArrayOf(1,1,n.toLong(),n.toLong()))}catch(t:Throwable){image.close();throw t}
+                } else {
+                    val bytes=ByteBuffer.allocateDirect(3*plane).order(ByteOrder.nativeOrder());for(c in 0..2)for(i in 0 until plane)bytes.put(((argb[i] shr (16-8*c)) and 255).toByte());bytes.rewind()
+                    val known=ByteBuffer.allocateDirect(plane).order(ByteOrder.nativeOrder());for(i in 0 until plane)known.put((if(hole[i])0 else 255).toByte());known.rewind()
+                    image=OnnxTensor.createTensor(env,bytes,longArrayOf(1,3,n.toLong(),n.toLong()),OnnxJavaType.UINT8)
+                    try {mask=OnnxTensor.createTensor(env,known,longArrayOf(1,1,n.toLong(),n.toLong()),OnnxJavaType.UINT8)}catch(t:Throwable){image.close();throw t}
+                }
+                image.use {mask.use {
                         session.run(mapOf(imageName to image,maskName to mask)).use {result->
                             val tensor=result[0] as OnnxTensor
                             val channels=if(tensor.info.type==OnnxJavaType.UINT8){val b=tensor.byteBuffer;FloatArray(b.remaining()){(b.get(it).toInt() and 255).toFloat()}} else {val b=tensor.floatBuffer;FloatArray(b.remaining()).also {b.get(it);if((it.maxOrNull() ?: 0f)<=1.5f)for(i in it.indices)it[i]*=255}}
-                            require(channels.size==3*plane) {"Unexpected inpainting output shape"}
+                            require(channels.size==3*plane && channels.all {it.isFinite()}) {"Unexpected inpainting output shape"}
                             return IntArray(plane){i->(255 shl 24) or (channels[i].toInt().coerceIn(0,255) shl 16) or (channels[plane+i].toInt().coerceIn(0,255) shl 8) or channels[2*plane+i].toInt().coerceIn(0,255)}
                         }
                     }

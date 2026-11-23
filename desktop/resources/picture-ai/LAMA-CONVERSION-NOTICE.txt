@@ -1,0 +1,16 @@
+LaMa optional desktop model
+
+This adapter uses the fixed 512x512 float32 conversion by Carve.Photos:
+https://huggingface.co/Carve/LaMa-ONNX
+https://github.com/Carve-Photos/lama
+Revision: c3c0c9e468934d62e79c329e35d82dd09ff8c444
+File: lama_fp32.onnx, 208044816 bytes
+SHA-256: 1faef5301d78db7dda502fe59966957ec4b79dd64e16f03ed96913c7a4eb68d6
+
+The original LaMa research is by Roman Suvorov, Elizaveta Logacheva,
+Anton Mashikhin, Anastasia Remizova, Arsenii Ashukha, Aleksei Silvestrov,
+Naejin Kong, Harshith Goka, Kiwoong Park and Victor Lempitsky.
+The conversion repository uses Apache License 2.0. See LICENSE-lama.txt.
+Model weights are not bundled. They are imported from the user's file and
+checked against this exact conversion pin. No app auto-download occurs.
+The Android LaMa placeholder pin is unchanged. No endorsement is implied.

@@ -9,6 +9,16 @@ import java.io.File
 object DesktopModels {
     val root:File = File(System.getenv("XDG_DATA_HOME") ?: File(System.getProperty("user.home"),".local/share").path,"ffmpeggui-linux/models")
     val pictureMarkers:File get()=File(root,"markers")
+    // Desktop-specific fixed conversion, not a replacement for the original empty Android pin.
+    // Carve/LaMa-ONNX revision c3c0c9e468934d62e79c329e35d82dd09ff8c444.
+    const val LAMA_SHA256="1faef5301d78db7dda502fe59966957ec4b79dd64e16f03ed96913c7a4eb68d6"
+    const val LAMA_BYTES=208_044_816L
+    val lamaFile:File get()=File(root,"erase/lama_fp32.onnx")
+    suspend fun importLama(file:File) {
+        for(pin in listOf(com.cuscus.ffmpeggui.marking.MarkerModel.ENCODER,com.cuscus.ffmpeggui.marking.MarkerModel.DECODER))DesktopModelFiles.verify(File(pictureMarkers,pin.name),pin.sha256,pin.bytes)
+        require(file.name=="lama_fp32.onnx") {"Choose the known Carve lama_fp32.onnx conversion"}
+        DesktopModelFiles.importFile(file,lamaFile,LAMA_SHA256,LAMA_BYTES)
+    }
     val eraseFile:File get()=File(root,"erase/migan_pipeline_v2.onnx")
     suspend fun importErase(file:File) {
         for(pin in listOf(com.cuscus.ffmpeggui.marking.MarkerModel.ENCODER,com.cuscus.ffmpeggui.marking.MarkerModel.DECODER))DesktopModelFiles.verify(File(pictureMarkers,pin.name),pin.sha256,pin.bytes)

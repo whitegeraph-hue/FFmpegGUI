@@ -30,6 +30,8 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
     runDubChecks(System.getenv("FFMPEGGUI_DUB_CHECKS"))
 } else if (System.getenv("FFMPEGGUI_AUDIO_MARK_CHECKS") != null) {
     runAudioMarkChecks(System.getenv("FFMPEGGUI_AUDIO_MARK_CHECKS"))
+} else if (System.getenv("FFMPEGGUI_LAMA_CHECKS") != null) {
+    runLamaChecks(System.getenv("FFMPEGGUI_LAMA_CHECKS"))
 } else if (System.getenv("FFMPEGGUI_ERASE_CHECKS") != null) {
     runEraseChecks(System.getenv("FFMPEGGUI_ERASE_CHECKS"))
 } else if (System.getenv("FFMPEGGUI_MARK_CHECKS") != null) {

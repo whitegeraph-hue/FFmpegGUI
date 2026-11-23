@@ -57,6 +57,10 @@ jobs:
           FFMPEGGUI_MODEL_CHECKS=/tmp/ffmpeggui-models /tmp/deb-check/opt/ffmpeggui-linux/bin/ffmpeggui-linux
           FFMPEGGUI_ISOLATED_CHECKS=/tmp/ffmpeggui-models /tmp/deb-check/opt/ffmpeggui-linux/bin/ffmpeggui-linux
           date -u
+      - name: Test actual packaged LaMa and saved picture marking
+        run: |
+          python3 desktop/scripts/prepare-lama-fixtures.py --output /tmp/ffmpeggui-lama
+          FFMPEGGUI_LAMA_CHECKS=/tmp/ffmpeggui-lama /tmp/deb-check/opt/ffmpeggui-linux/bin/ffmpeggui-linux
       - name: Test actual packaged marked dubbing
         run: |
           python3 desktop/scripts/prepare-dub-fixtures.py --output /tmp/ffmpeggui-dub
@@ -95,3 +99,4 @@ jobs:
             /tmp/linux-editor.png
             /tmp/installed-editor.png
             /tmp/ffmpeggui-dub/isolated.wav
+            /tmp/ffmpeggui-lama/*.png
