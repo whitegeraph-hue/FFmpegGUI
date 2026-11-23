@@ -637,12 +637,42 @@ fun main(args:Array<String>)=runBlocking {
         val tensor=field(13,field(1,"location".toByteArray())+field(2,"outside.bin".toByteArray()))
         file.writeBytes(field(7,field(5,tensor)))
         check(runCatching {DesktopOnnx.singleFile(file)}.exceptionOrNull()!!.message!!.contains("External-data"))
+        for(n in listOf(5,10)) {file.writeBytes(field(7,field(1,field(5,field(n,tensor)))));check(runCatching {DesktopOnnx.singleFile(file)}.isFailure)}
+        for(n in listOf(6,11)) {file.writeBytes(field(7,field(1,field(5,field(n,field(5,tensor))))));check(runCatching {DesktopOnnx.singleFile(file)}.isFailure)}
+        file.writeBytes(field(7,field(15,byteArrayOf())));check(runCatching {DesktopOnnx.singleFile(file)}.isFailure)
+        for(n in listOf(22,23)) {file.writeBytes(field(7,field(1,field(5,field(n,byteArrayOf())))));check(runCatching {DesktopOnnx.singleFile(file)}.isFailure)}
         val nested=field(7,field(1,field(5,field(6,field(5,tensor)))))
         file.writeBytes(nested);check(runCatching {DesktopOnnx.singleFile(file)}.isFailure)
         file.writeBytes(field(7,field(5,byteArrayOf(112,1))));check(runCatching {DesktopOnnx.singleFile(file)}.isFailure)
         for(n in listOf(20,25)){file.writeBytes(field(n,byteArrayOf()));check(runCatching {DesktopOnnx.singleFile(file)}.isFailure)}
         file.writeBytes(field(7,field(5,field(9,byteArrayOf(1,2,3)))));DesktopOnnx.singleFile(file)
         file.writeBytes(byteArrayOf(58,127));check(runCatching {DesktopOnnx.singleFile(file)}.isFailure)
+    }
+    verify("AI picture disclosures survive stripped exports layers studio and recovery") {
+        val marked=File(folder,"marked-source.png");File(folder,"photo.png").copyTo(marked,true)
+        check(com.cuscus.ffmpeggui.core.provenance.AiSeal.mark(marked,com.cuscus.ffmpeggui.core.provenance.AiDisclosure(pictures=true))==com.cuscus.ffmpeggui.core.provenance.AiSeal.Marked.WRITTEN)
+        val source=media.probe(marked.path);check(source.aiPicture)
+        val markedProject=DesktopProject.create(source).copy(tags=MetadataTags(stripAll=true))
+        for(format in listOf(OutputFormat.PNG,OutputFormat.JPG,OutputFormat.WEBP)) {
+            val output=File(folder,"disclosed.${format.name.lowercase()}")
+            exporter.export(markedProject.copy(format=format),output);check(DesktopProvenance.aiPicture(output))
+            media.process.checked(listOf("ffmpeg","-v","error","-i",output.path,"-f","null","-"))
+        }
+        val layered=p.copy(pictures=listOf(DesktopPicture(source)),tags=MetadataTags(stripAll=true),timeline=Timeline(listOf(Clip("marked",video.path,endMs=1000))))
+        for(format in listOf(OutputFormat.MP4,OutputFormat.MKV)) {
+            val output=File(folder,"disclosed.${format.name.lowercase()}");exporter.export(layered.copy(format=format),output)
+            check(DesktopProvenance.aiPicture(output));media.process.checked(listOf("ffmpeg","-v","error","-i",output.path,"-f","null","-"))
+        }
+        val saved=File(folder,"disclosed.ffgui.json");DesktopProjects.save(layered,saved);check(DesktopProjects.load(saved,media).pictures.single().source.aiPicture)
+        check(!DesktopProvenance.needed(layered.copy(pictures=layered.pictures.map {it.copy(hidden=true)})))
+        val forbidden=File(folder,"disclosed.bmp").apply {writeText("keep")}
+        check(runCatching {exporter.export(markedProject.copy(format=OutputFormat.BMP),forbidden)}.isFailure);check(forbidden.readText()=="keep")
+        val hdrOutput=File(folder,"disclosed-hdr.jpg")
+        exporter.export(markedProject.copy(format=OutputFormat.JPG,image=ImageEdit(hdr=ImageHdr(intensity=.7f))),hdrOutput)
+        check(DesktopProvenance.aiPicture(hdrOutput))
+        check(com.cuscus.ffmpeggui.core.hdr.UltraHdr.read(hdrOutput.readBytes())!=null)
+        val studio=DesktopStudio(media);val output=File(folder,"disclosed-studio.png")
+        studio.export(markedProject,"ffmpeg -i input.png -frames:v 1 output.png",output);check(DesktopProvenance.aiPicture(output))
     }
     verify("cancel real process") {
         val start=System.currentTimeMillis()

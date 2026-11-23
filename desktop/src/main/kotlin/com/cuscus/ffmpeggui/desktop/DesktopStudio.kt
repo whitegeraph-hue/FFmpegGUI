@@ -67,8 +67,9 @@ class DesktopStudio(private val media:DesktopMedia) {
             media.process.checked(listOf("ffmpeg","-nostdin","-y","-protocol_whitelist","file,pipe")+args)
             val result=media.probe(temporary.path)
             require(result.info.isStill || result.info.durationMs>0){"Command did not produce usable media."}
+            DesktopProvenance.seal(p,temporary)
             Files.move(temporary.toPath(),target.toPath(),StandardCopyOption.REPLACE_EXISTING)
-            return result.copy(path=target.canonicalPath)
+            return result.copy(path=target.canonicalPath,aiPicture=DesktopProvenance.needed(p))
         } finally {temporary.delete();upright.deleteRecursively()}
     }
     companion object {

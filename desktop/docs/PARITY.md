@@ -386,3 +386,19 @@ rejected until its adapter exists. Latest full package8b6predatesHDR/canvas.
   Disposable workers have ordinary account file access, not OS sandboxing.
 -55 native checks pass; synthetic external-data/nested/malformed forms reject.
   Real single-file en-fr import/inference/cancel/retry regression passes again.
+
+### 2026-11-23 04:06 EET: existing picture disclosure preservation
+- Original AiMarksReader/XMP and AiSeal used for marked visual inputs/layers.
+  PNG/JPEG XMP parsed; other formats use bounded2MB head/tail scanning.
+  This is not detection of unmarked AI or invisible-watermark preservation.
+- Output seal after rendering, including manual studio, cannot be removed by
+  metadata strip. Container-only tags get an explicit remux and verified scan.
+  Formats without a supported disclosure location fail before destination move.
+  Original byte-array picture writers are limited to32MB files; large visual
+  outputs fail with guidance rather than exhausting the Java heap.
+-56native checks pass: PNG/JPG/WebP pixels/decode and disclosure, MP4/MKV with
+  marked picture layer despite stripAll, hidden layer excluded, recovery,
+  manual studio, unsupported BMP preserving existing file and generated HDR
+  gain map still readable after disclosure seal. Pixel montage inspected.
+- ONNX attribute tensors5/list10/graphs11 and sparse15/22/23 now explicitly
+  exercised in addition to initializer/nested g6 cases. No native-sandbox claim.

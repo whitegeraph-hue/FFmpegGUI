@@ -132,3 +132,12 @@ files; use a fresh XDG_DATA_HOME. Actual test download revision was
 28726206f80896b90035bd99cccd5cc1e151f916. Short English/French inference,
 clock retention, file-corruption rejection, cancel/retry and oversize cue
 checks pass, not broad language/corpus quality proof.
+
+Existing AI picture disclosure is retained when detected in a visual source or
+active picture layer, even with metadata stripping enabled. This reads standard
+PNG/JPEG XMP and bounded head/tail metadata in other containers. It does not find
+unmarked AI or guarantee invisible-watermark retention. Unsupported disclosure
+formats refuse output. Picture metadata writers are capped at32MB, so reduce
+output size or quality if that check rejects. Generated Ultra HDR gain maps are
+preserved when the standard disclosure is added. Generative erase/dub remain
+unavailable until their own complete adapter and disclosure checks land.
