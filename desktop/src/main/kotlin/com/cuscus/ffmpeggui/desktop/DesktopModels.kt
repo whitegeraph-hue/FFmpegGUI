@@ -8,6 +8,18 @@ import java.io.File
 
 object DesktopModels {
     val root:File = File(System.getenv("XDG_DATA_HOME") ?: File(System.getProperty("user.home"),".local/share").path,"ffmpeggui-linux/models")
+    val pictureMarkers:File get()=File(root,"markers")
+    val eraseFile:File get()=File(root,"erase/migan_pipeline_v2.onnx")
+    suspend fun importErase(file:File) {
+        for(pin in listOf(com.cuscus.ffmpeggui.marking.MarkerModel.ENCODER,com.cuscus.ffmpeggui.marking.MarkerModel.DECODER))DesktopModelFiles.verify(File(pictureMarkers,pin.name),pin.sha256,pin.bytes)
+        val pin=com.cuscus.ffmpeggui.erase.EraseModel.MIGAN_FILE
+        require(file.name==pin.name);DesktopModelFiles.importFile(file,eraseFile,pin.sha256,28_079_181)
+    }
+    suspend fun importPictureMarkers(files:List<File>) {
+        val pins=listOf(com.cuscus.ffmpeggui.marking.MarkerModel.ENCODER,com.cuscus.ffmpeggui.marking.MarkerModel.DECODER)
+        require(files.size==2 && files.map {it.name}.toSet()==pins.map {it.name}.toSet()) {"Choose exactly the TrustMark encoder and decoder"}
+        for(pin in pins)DesktopModelFiles.importFile(files.first {it.name==pin.name},File(pictureMarkers,pin.name),pin.sha256,pin.bytes)
+    }
     val speechDirectory:File get()=File(root,"parakeet")
     val cutoutFile:File get()=File(root,"cutout/u2netp.onnx")
     val stemsFile:File get()=File(root,"stems/${DesktopStems.NAME}")

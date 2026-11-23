@@ -60,10 +60,13 @@ object DesktopModelFiles {
                 source.inputStream().buffered().use { input ->
                     stage.outputStream().buffered().use { output ->
                         val buffer = ByteArray(1024 * 1024)
+                        var copied=0L
+                        val maximum=bytes ?: 500_000_000L
                         while (true) {
                             currentCoroutineContext().ensureActive()
                             val n = input.read(buffer)
                             if (n < 0) break
+                            copied+=n;require(copied<=maximum) {"Model file exceeds its size limit"}
                             output.write(buffer, 0, n)
                         }
                     }

@@ -81,6 +81,8 @@ tasks.register<JavaExec>("largeStillChecks") {
 val prepareModelDefinitions by tasks.registering(Copy::class) {
     from("../app/src/main/java/com/cuscus/ffmpeggui/speech/SpeechModel.kt")
     from("../app/src/main/java/com/cuscus/ffmpeggui/cutout/CutoutModel.kt")
+    from("../app/src/main/java/com/cuscus/ffmpeggui/marking/MarkerModel.kt")
+    from("../app/src/main/java/com/cuscus/ffmpeggui/erase/EraseModel.kt")
     into(layout.buildDirectory.dir("generated/modelDefinitions"))
 }
 sourceSets.main { kotlin.srcDir(layout.buildDirectory.dir("generated/modelDefinitions")); resources.srcDir("resources") }

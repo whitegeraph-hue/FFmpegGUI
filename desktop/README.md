@@ -141,3 +141,12 @@ formats refuse output. Picture metadata writers are capped at32MB, so reduce
 output size or quality if that check rejects. Generated Ultra HDR gain maps are
 preserved when the standard disclosure is added. Generative erase/dub remain
 unavailable until their own complete adapter and disclosure checks land.
+
+Magic eraser currently saves a separate new PNG from the original still picture
+and an external matching upright alpha mask. Opaque mask pixels are filled,
+transparent pixels kept. MI-GAN and TrustMark files must match the original
+pins; TrustMark models must be imported first. Up to2MP and1.2GiB available RAM.
+The saved PNG must pass invisible TrustMark readback and carry XMP disclosure.
+It is not silently made the project source. Later edits or recompression can
+lose the invisible mark. Direct mask painting, LaMa and integrated re-editing
+are still in progress. Notices/licences are under picture-ai in app resources.

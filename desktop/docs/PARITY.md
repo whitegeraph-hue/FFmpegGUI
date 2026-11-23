@@ -402,3 +402,22 @@ rejected until its adapter exists. Latest full package8b6predatesHDR/canvas.
   gain map still readable after disclosure seal. Pixel montage inspected.
 - ONNX attribute tensors5/list10/graphs11 and sparse15/22/23 now explicitly
   exercised in addition to initializer/nested g6 cases. No native-sandbox claim.
+
+### 2026-11-23 04:22 EET: MI-GAN new-PNG workflow and TrustMark
+- Original pinned MI-GAN, original crop/grow/blend and PictureMarking/Marks
+  constants. Plain CPU original pinned TrustMark encoder/decoder, strength
+  bounds and invisible readback both in-memory and after saved PNG reload.
+  Original source unchanged, output must be a new PNG, no automatic project
+  replacement. Original still only,2MP cap,1.2GiB available-memory preflight.
+- Separate model imports, no weights bundled. Generative import requires
+  marking pins first, operation checks again. Not merely XMP as substitute
+  for invisible mark. Disposable worker/cancel/size bounded transfer/new-only
+  destination checks pass. Original notices/licences included as resources.
+- Actual MI-GAN synthetic black rectangle removal and narrow photo patch
+  inference inspected.56native checks pass separately. Actual Choose alpha
+  mask, Erase to new PNG, save chooser and completion clicked and inspected.
+  Real-photo inference is not broad quality validation. Models' chooser UI
+  imports not yet clicked. External upright alpha mask only; direct painting,
+  LaMa, clean-twin repeat editing and edit-pipeline mark resealing still open.
+- Direct model test parent peak540MB at640x360,not a2MP resource benchmark.
+  Output PNG holds mark at save; later transforms/recompression unguaranteed.

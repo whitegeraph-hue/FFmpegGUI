@@ -26,6 +26,10 @@ import java.awt.Desktop
 
 fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
     runModelWorker(System.getenv("FFMPEGGUI_MODEL_WORKER"))
+} else if (System.getenv("FFMPEGGUI_ERASE_CHECKS") != null) {
+    runEraseChecks(System.getenv("FFMPEGGUI_ERASE_CHECKS"))
+} else if (System.getenv("FFMPEGGUI_MARK_CHECKS") != null) {
+    runMarkChecks(System.getenv("FFMPEGGUI_MARK_CHECKS"))
 } else if (System.getenv("FFMPEGGUI_TRANSLATION_CHECKS") != null) {
     runTranslationChecks(System.getenv("FFMPEGGUI_TRANSLATION_CHECKS"))
 } else if (System.getenv("FFMPEGGUI_STEMS_CHECKS") != null) {
@@ -41,6 +45,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
         LaunchedEffect(Unit) {
             System.getenv("FFMPEGGUI_OPEN")?.let { controller.open(it) }
             System.getenv("FFMPEGGUI_PROJECT")?.let {path->controller.work("Opening project…"){controller.project=DesktopProjects.load(File(path),controller.media);controller.selectedSource=0;controller.seek(0);controller.status="Project opened."}}
+            System.getenv("FFMPEGGUI_TAB")?.let { controller.tab=it }
             System.getenv("FFMPEGGUI_SCREENSHOT")?.let { path ->
                 delay(System.getenv("FFMPEGGUI_CAPTURE_DELAY")?.toLongOrNull() ?: 5000)
                 System.getenv("FFMPEGGUI_TAB")?.let { controller.tab=it }; delay(500)
@@ -131,7 +136,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                                 }
                             }
                             Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(10.dp)) {
-                                val tabs=listOf("Edit","Clip editor","Transcript","Pause cuts","Scenes","Beats","Follow crop","Models","Subtitles","Audio","Text layers","Sound tracks","Tags","Image layers","Drawing","Subject cutout","Scene stems","Compression","Translation","Command studio")
+                                val tabs=listOf("Edit","Clip editor","Transcript","Pause cuts","Scenes","Beats","Follow crop","Models","Subtitles","Audio","Text layers","Sound tracks","Tags","Image layers","Drawing","Subject cutout","Scene stems","Compression","Translation","Magic eraser","Command studio")
                                 if(project.sources.size>1)FlowRowCompat {
                                     project.sources.forEachIndexed {i,source->FilterChip(controller.selectedSource==i,{controller.selectSource(i)},label={Text("${i+1}: ${File(source.path).name.take(20)}")},enabled=!controller.busy)}
                                 }
@@ -143,6 +148,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                                         "Edit" -> EditPanel(controller,project)
                                         "Subject cutout" -> SubjectPanel(controller,project)
                                         "Drawing" -> DrawingPanel(controller,project)
+                                        "Magic eraser" -> ErasePanel(controller,project,window){name->pick(true,name)}
                                         "Command studio" -> StudioPanel(controller,project){name->pick(true,name)}
                                         "Clip editor" -> {StabilizationPanel(controller,project);ClipEditorPanel(controller,project)}
                                         "Subtitles" -> SubtitlesPanel(controller,project){pick()}
@@ -890,5 +896,25 @@ private fun EditPanel(c: EditorController,p: DesktopProject) {
                 c.mutate(p.copy(externalSubtitles=next));c.status="Translated ${texts.size} cues. Review all wording before export. Undo restores the original subtitles."
             }
         },enabled=!c.busy && selected!=null && subtitles!=null) {Text("Translate imported subtitles (Undo available)")}
+    }
+}
+
+@Composable private fun ErasePanel(c:EditorController,p:DesktopProject,window:java.awt.Frame,save:(String)->File?) {
+    var mask by remember {mutableStateOf<File?>(null)}
+    PanelCard {
+        Text("Magic eraser: new PNG",style=MaterialTheme.typography.titleLarge)
+        Text("Works on the original still picture, not the edited timeline. Select a matching upright PNG mask: opaque pixels are filled, transparent pixels are kept. Up to2megapixels. The original is unchanged. MI-GAN can invent details: inspect the saved PNG. LaMa and direct mask painting are still being ported.")
+        Text("The PNG must pass invisible TrustMark readback and carry AI picture disclosure. This does not guarantee the invisible mark survives later edits or recompression. Export a new PNG only; it is not silently added to your project.",style=MaterialTheme.typography.bodySmall)
+        OutlinedButton(onClick={Desktop.getDesktop().browse(java.net.URI(com.cuscus.ffmpeggui.marking.MarkerModel.FILES_URL))},enabled=!c.busy){Text("Open original AI mark downloads")}
+        Button(onClick={
+            val d=FileDialog(window,"Select TrustMark encoder and decoder",FileDialog.LOAD);d.isMultipleMode=true;d.isVisible=true
+            if(d.files.isNotEmpty())c.work("Checking pinned picture marking models…"){DesktopModels.importPictureMarkers(d.files.toList());c.status="Picture marking models imported and hash checked."}
+        },enabled=!c.busy){Text("Import two TrustMark files")}
+        OutlinedButton(onClick={Desktop.getDesktop().browse(java.net.URI("https://huggingface.co/andraniksargsyan/migan"))},enabled=!c.busy){Text("Open MI-GAN model page")}
+        Button(onClick={val d=FileDialog(window,"Choose migan_pipeline_v2.onnx",FileDialog.LOAD);d.isVisible=true;d.file?.let {name->val f=File(d.directory,name);c.work("Checking pinned MI-GAN model…"){DesktopModels.importErase(f);c.status="MI-GAN imported and hash checked."}}},enabled=!c.busy){Text("Import MI-GAN model")}
+        Text("MI-GAN by Picsart AI Research, MIT. TrustMark by Adobe, MIT. Models are separate imports, not bundled. Original notices: AI mark release above and MI-GAN model page.",style=MaterialTheme.typography.bodySmall)
+        Button(onClick={val d=FileDialog(window,"Select alpha erase mask PNG",FileDialog.LOAD);d.isVisible=true;d.file?.let {mask=File(d.directory,it)}},enabled=!c.busy){Text("Choose alpha mask")}
+        Text(mask?.name ?: "No mask selected. Use an external image editor to paint an alpha mask.")
+        Button(onClick={val chosen=mask ?: return@Button;save("erased.png")?.let {target->c.work("Preparing magic eraser…"){c.models.erase(p.sources.first().path,chosen,target){c.status=it};c.status="New AI-marked PNG saved: ${target.path}. Original and project are unchanged."}}},enabled=!c.busy && mask!=null && p.sources.size==1 && p.sources.first().info.isStill){Text("Erase to new PNG")}
     }
 }

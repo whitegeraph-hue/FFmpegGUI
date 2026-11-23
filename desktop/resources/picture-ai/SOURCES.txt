@@ -1,0 +1,11 @@
+MI-GAN: Picsart AI Research, MIT code and weights.
+https://github.com/Picsart-AI-Research/MI-GAN
+https://huggingface.co/andraniksargsyan/migan
+migan_pipeline_v2.onnx SHA-256:
+6f1f3530a1a2324b19752018ce756088b07973cda8d7d890034ace5c8a48c40b
+TrustMark: Adobe, MIT. Unchanged model files, original app pins.
+https://github.com/marcomorosi06/FFmpegGUI/releases/tag/ai-markers-1
+https://github.com/adobe/trustmark
+https://github.com/adobe/trustmark/issues/48
+See adjacent licences and upstream marker notice/provenance.
+No model weights are bundled in the Linux app.

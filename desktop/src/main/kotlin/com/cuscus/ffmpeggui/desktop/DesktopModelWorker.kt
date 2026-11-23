@@ -75,6 +75,18 @@ class DesktopModelWorker {
             }
         }
     }
+    suspend fun erase(path:String,mask:File,destination:File,progress:(String)->Unit) {
+        require(!destination.exists()) {"Choose a new output PNG; existing files are not replaced"}
+        require(destination.extension.equals("png",true)) {"Magic eraser output must be PNG"}
+        val response=run("erase",path,DesktopModels.eraseFile,payload=buildJsonObject {put("mask",mask.absolutePath);put("markers",DesktopModels.pictureMarkers.absolutePath)},progress=progress)
+        val bytes=java.util.Base64.getDecoder().decode(response["png"]!!.jsonPrimitive.content)
+        require(bytes.size<=16_000_000) {"Invalid erased picture response"}
+        var created=false
+        try {
+            java.nio.file.Files.newOutputStream(destination.toPath(),java.nio.file.StandardOpenOption.CREATE_NEW).use {created=true;it.write(bytes)}
+            require(DesktopProvenance.aiPicture(destination)) {"Missing AI picture disclosure"}
+        }catch(t:Throwable){if(created)destination.delete();throw t}
+    }
     suspend fun checkTranslation(directory:File) {run("translation-check","",directory,progress={})}
     suspend fun translate(directory:File,texts:List<String>,progress:(String)->Unit):List<String> {
         val payload=buildJsonObject {put("texts",buildJsonArray {texts.forEach {add(JsonPrimitive(it))}})}
@@ -123,6 +135,11 @@ fun runModelWorker(folder:String)=runBlocking {
     val model=File(request["model"]!!.jsonPrimitive.content)
     try {
     val result=when(request["kind"]!!.jsonPrimitive.content) {
+        "erase" -> {
+            val output=DesktopErase.erase(path,request["mask"]!!.jsonPrimitive.content,model,File(request["markers"]!!.jsonPrimitive.content),directory,::progress)
+            require(output.length()<=16_000_000)
+            buildJsonObject {put("png",java.util.Base64.getEncoder().encodeToString(output.readBytes()))}
+        }
         "translation-check","translation" -> {
             val texts=request["texts"]?.jsonArray?.map {it.jsonPrimitive.content} ?: emptyList()
             val translated=DesktopTranslation.execute(model,texts,request["kind"]!!.jsonPrimitive.content=="translation-check",::progress)
