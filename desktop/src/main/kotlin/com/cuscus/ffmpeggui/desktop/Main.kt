@@ -287,16 +287,21 @@ private fun EditPanel(c: EditorController,p: DesktopProject) {
 @Composable private fun SubtitlesPanel(c:EditorController,p:DesktopProject,pick:()->File?) {
     val style=p.subtitleStyle ?: SubtitleStyle()
     PanelCard {
-        Text("Spoken subtitles",style=MaterialTheme.typography.titleLarge)
-        Text("Listen in Transcript first. Subtitles follow cuts and speed through the original core. Render edited preview to see the actual result.")
-        Text("${p.sources.indices.sumOf {p.sourceWords(it).size}} source words. Export SRT or TXT from Edit without burning text into video.",style=MaterialTheme.typography.bodySmall)
-        Row(verticalAlignment=Alignment.CenterVertically) {
-            Switch(p.subtitleStyle!=null,{ c.mutate(p.copy(subtitleStyle=if(it) style else null)) },enabled=!c.busy && p.sources.indices.any {p.sourceWords(it).isNotEmpty()})
-            Text("Burn subtitles into video")
+        Text("Subtitles",style=MaterialTheme.typography.titleLarge)
+        Text("Source-clock SRT/ASS/SSA files follow their source through cuts, speed and reverse. Import binds to the selected source. File contents are embedded in projects, not their fonts. ASS keeps its own styling; embedded fonts/graphics are removed at export.",style=MaterialTheme.typography.bodySmall)
+        Button(onClick={pick()?.let {file->c.work("Reading subtitle file…"){val imported=DesktopSubtitles.import(file,c.selectedSource);c.mutate(p.copy(externalSubtitles=imported));c.status="Subtitle file imported. Render preview to inspect timing."}}},enabled=!c.busy){Text("Import SRT / ASS / SSA")}
+        p.externalSubtitles?.let {v->
+            Text("${v.name}, source ${v.sourceIndex+1}")
+            Row(verticalAlignment=Alignment.CenterVertically) {Switch(v.enabled,{c.mutate(p.copy(externalSubtitles=v.copy(enabled=it)))},enabled=!c.busy);Text("Use imported subtitles");TextButton(onClick={c.mutate(p.copy(externalSubtitles=null))},enabled=!c.busy){Text("Remove")}}
         }
-        if(p.sources.indices.none {p.sourceWords(it).isNotEmpty()}) Button(onClick={c.tab="Transcript"}) {Text("Open Transcript")}
+        val canStyle=p.externalSubtitles?.enabled==true || p.sources.indices.any {p.sourceWords(it).isNotEmpty()}
+        Row(verticalAlignment=Alignment.CenterVertically) {
+            Switch(p.subtitleStyle!=null,{c.mutate(p.copy(subtitleStyle=if(it)style else null))},enabled=!c.busy && canStyle)
+            Text(if(p.externalSubtitles?.enabled==true)"Style SRT (ASS keeps its own look)" else "Burn spoken subtitles")
+        }
+        Text("${p.sources.indices.sumOf {p.sourceWords(it).size}} source words. Imported subtitles take priority while enabled. SRT/TXT transcript export still uses spoken words.",style=MaterialTheme.typography.bodySmall)
         Text("Style presets")
-        FlowRowCompat { SubtitleStyle.PRESETS.forEach { preset -> FilterChip(SubtitlePreset.of(style)==preset,{c.mutate(p.copy(subtitleStyle=preset.apply(style)))},label={Text(preset.name.lowercase())},enabled=!c.busy && p.sources.indices.any {p.sourceWords(it).isNotEmpty()}) } }
+        FlowRowCompat { SubtitleStyle.PRESETS.forEach { preset -> FilterChip(SubtitlePreset.of(style)==preset,{c.mutate(p.copy(subtitleStyle=preset.apply(style)))},label={Text(preset.name.lowercase())},enabled=!c.busy && canStyle) } }
         if(p.subtitleStyle!=null) {
             ValueSlider("Text size",style.size,SubtitleStyle.MIN_SIZE..SubtitleStyle.MAX_SIZE,!c.busy) {c.mutate(p.copy(subtitleStyle=style.copy(size=it)))}
             ValueSlider("Horizontal position",style.x,0f..1f,!c.busy) {c.mutate(p.copy(subtitleStyle=style.copy(x=it)))}

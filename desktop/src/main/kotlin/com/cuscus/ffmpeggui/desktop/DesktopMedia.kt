@@ -107,16 +107,17 @@ class DesktopMedia(val process: DesktopProcess = DesktopProcess()) {
 class DesktopProject(val sources: List<DesktopSource>, val timeline: Timeline,
     val format: OutputFormat = OutputFormat.MP4, val effects: Effects = Effects(),
     val encoding: EncodingSettings = EncodingSettings(), val words: List<SpokenWord> = emptyList(),
-    val followCrop: FollowCropTrack? = null, val subtitleStyle: SubtitleStyle? = null, val audioEffects:AudioEffects=AudioEffects.NONE,val image:ImageEdit=ImageEdit(),val captions:List<TextOverlay> = emptyList(),val sounds:List<DesktopSound> = emptyList(),val tags:MetadataTags=MetadataTags(),val canvas:CanvasRatio=CanvasRatio.FIT,val canvasFit:CanvasFit=CanvasFit.FIT,val normalize:Boolean=false,val pictures:List<DesktopPicture> = emptyList(),val wordsBySource:Map<String,List<SpokenWord>> = emptyMap(),val photoPlacement:ImagePlacement?=null) {
+    val followCrop: FollowCropTrack? = null, val subtitleStyle: SubtitleStyle? = null, val audioEffects:AudioEffects=AudioEffects.NONE,val image:ImageEdit=ImageEdit(),val captions:List<TextOverlay> = emptyList(),val sounds:List<DesktopSound> = emptyList(),val tags:MetadataTags=MetadataTags(),val canvas:CanvasRatio=CanvasRatio.FIT,val canvasFit:CanvasFit=CanvasFit.FIT,val normalize:Boolean=false,val pictures:List<DesktopPicture> = emptyList(),val wordsBySource:Map<String,List<SpokenWord>> = emptyMap(),val photoPlacement:ImagePlacement?=null,val externalSubtitles:DesktopSubtitles?=null) {
     fun copy(sources:List<DesktopSource> = this.sources,timeline: Timeline = this.timeline, format: OutputFormat = this.format,
         effects: Effects = this.effects, encoding: EncodingSettings = this.encoding,
         words: List<SpokenWord> = this.words, followCrop: FollowCropTrack? = this.followCrop,
-        subtitleStyle: SubtitleStyle? = this.subtitleStyle,audioEffects:AudioEffects=this.audioEffects,image:ImageEdit=this.image,captions:List<TextOverlay> = this.captions,sounds:List<DesktopSound> = this.sounds,tags:MetadataTags=this.tags,canvas:CanvasRatio=this.canvas,canvasFit:CanvasFit=this.canvasFit,normalize:Boolean=this.normalize,pictures:List<DesktopPicture> = this.pictures,wordsBySource:Map<String,List<SpokenWord>> = this.wordsBySource,photoPlacement:ImagePlacement?=this.photoPlacement) = DesktopProject(sources, timeline, format, effects, encoding, words, followCrop, subtitleStyle,audioEffects,image,captions,sounds,tags,canvas,canvasFit,normalize,pictures,wordsBySource,photoPlacement)
+        subtitleStyle: SubtitleStyle? = this.subtitleStyle,audioEffects:AudioEffects=this.audioEffects,image:ImageEdit=this.image,captions:List<TextOverlay> = this.captions,sounds:List<DesktopSound> = this.sounds,tags:MetadataTags=this.tags,canvas:CanvasRatio=this.canvas,canvasFit:CanvasFit=this.canvasFit,normalize:Boolean=this.normalize,pictures:List<DesktopPicture> = this.pictures,wordsBySource:Map<String,List<SpokenWord>> = this.wordsBySource,photoPlacement:ImagePlacement?=this.photoPlacement,externalSubtitles:DesktopSubtitles?=this.externalSubtitles) = DesktopProject(sources, timeline, format, effects, encoding, words, followCrop, subtitleStyle,audioEffects,image,captions,sounds,tags,canvas,canvasFit,normalize,pictures,wordsBySource,photoPlacement,externalSubtitles)
     fun request(): ConversionRequest = ConversionRequest(format, File(sources.first().path).name,
         sources = sources.map { s -> s.info.let { SourceInfo(it.durationMs, it.width, it.height, it.hasAudio, it.isStill, it.hdr, it.frameRate, it.hasAlpha) } },
         segments = timeline.clips.map { c -> Segment(sources.indexOfFirst { it.path == c.sourceId }, c.startMs, c.endMs, c.effects, c.id) },
         photoPlacement=photoPlacement,effects = effects, encoding = encoding, audioEffects=audioEffects,image=image,metadata=tags,canvas=canvas,canvasFit=canvasFit,normalizeAudio=normalize,imageOverlays=pictures.filter {it.activeOn(timeline)}.map {it.placement},sounds=sounds.filter {!it.muted}.map {it.placed},textOverlays=captions.filter { !it.hidden && (it.clipId==null || timeline.clips.any {c->c.id==it.clipId}) }, followCrop = followCrop, subtitleStyle = subtitleStyle,
-        spokenWords = sources.mapIndexedNotNull {i,_->sourceWords(i).takeIf {it.isNotEmpty()}?.let {SourceWords(i,it)} })
+        subtitleSource=externalSubtitles?.takeIf {it.enabled}?.sourceIndex,
+        spokenWords = if(externalSubtitles?.enabled==true)emptyList() else sources.mapIndexedNotNull {i,_->sourceWords(i).takeIf {it.isNotEmpty()}?.let {SourceWords(i,it)} })
     fun clock()=PreviewTimeline(timeline.clips.map {PreviewTimeline.SegmentTiming(it.lengthMs,it.effects.speed,it.effects.reversed,it.effects.curve,it.effects.keepPitch,it.effects.transition)},effects.speed,effects.reversed,effects.keepPitch)
     val outputDurationMs:Long get()=request().expectedOutputDurationMs() ?: timeline.durationMs
     fun outputAt(mediaMs:Long)=clock().outputMs(mediaMs).coerceIn(0,outputDurationMs)
@@ -167,7 +168,7 @@ class DesktopExport(private val media: DesktopMedia = DesktopMedia()) {
         return CommandBuilder(fonts).build(request,MediaPaths.aliasesFor(request).copy(inputs=project.sources.map { it.path },output=output,imageOverlays=project.pictures.filter {it.activeOn(project.timeline)}.map {it.source.path},sounds=project.sounds.filter {!it.muted}.map {it.source.path}))
     }
     fun transcript(project:DesktopProject,format:OutputFormat):String {
-        val request=project.request()
+        val request=project.copy(externalSubtitles=null).request()
         val words=request.timedWords()
         require(words.isNotEmpty()) { "Listen to the file first. No words remain on this edited timeline." }
         return if(format==OutputFormat.SRT) SrtSubtitles.write(SubtitleLayout.ofWords(words,project.subtitleStyle ?: SubtitleStyle(),request.subtitleFrameRatio),project.effects.effectiveSpeed)
@@ -217,7 +218,9 @@ class DesktopExport(private val media: DesktopMedia = DesktopMedia()) {
             val words=request.timedWords()
             val style=project.subtitleStyle
             var subtitleFontDirectory:File?=null
-            val subtitles=if(request.hasSpokenSubtitles && words.isNotEmpty() && style!=null) {
+            val external=project.externalSubtitles?.takeIf {it.enabled}
+            val styledCues=external?.takeIf {style!=null && !com.cuscus.ffmpeggui.core.preview.SubtitleRetimer.isAss(it.content)}?.let {DesktopSubtitles.cuesOnTimeline(it,request)}
+            val subtitles=if(style!=null && ((request.hasSpokenSubtitles && words.isNotEmpty()) || styledCues!=null)) {
                 val selected=style.fontFile?.let {file->File(file).takeIf {it.isFile && it.canRead()}}
                 val original=selected ?: File(fonts.fontPath(style.bold))
                 if(selected!=null)DesktopFonts.validate(selected)
@@ -225,8 +228,10 @@ class DesktopExport(private val media: DesktopMedia = DesktopMedia()) {
                 val fontFile=File(subtitleFontDirectory,"subtitle."+original.extension.lowercase()).also {original.copyTo(it)}
                 val facts=FontFacts.read(fontFile)
                 File(auxiliaries,"subtitles.ass").apply {
-                    writeText(AssSubtitles.write(SubtitleLayout.ofWords(words,style,request.subtitleFrameRatio,facts),style,request.subtitleFrameRatio,DesktopFonts.assFamily(facts?.family ?: "DejaVu Sans")))
+                    writeText(AssSubtitles.write(if(styledCues!=null)SubtitleLayout.ofCues(styledCues,style,request.subtitleFrameRatio,facts) else SubtitleLayout.ofWords(words,style,request.subtitleFrameRatio,facts),style,request.subtitleFrameRatio,DesktopFonts.assFamily(facts?.family ?: "DejaVu Sans")))
                 }
+            } else if(external!=null) {
+                com.cuscus.ffmpeggui.core.preview.SubtitleRetimer().retime(external.content,request.segments,external.sourceIndex,request.effects.reversed)?.let {retimed->File(auxiliaries,"external."+retimed.extension).apply {writeText(retimed.content)}}
             } else null
             require(project.image.hdr==null || project.format==OutputFormat.JPG) {"HDR is enabled but this output is not JPG. Choose JPG or turn HDR off."}
             val hdr=project.image.hdr

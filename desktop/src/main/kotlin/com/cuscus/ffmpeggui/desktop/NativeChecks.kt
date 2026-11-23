@@ -50,6 +50,28 @@ fun main(args:Array<String>)=runBlocking {
         exporter.export(edited.copy(format=OutputFormat.TXT),File(folder,"transcript.txt"))
         check(File(folder,"subtitles.srt").readText()==text)
     }
+    verify("external SRT ASS source clocks styling embedded project and stripped attachments") {
+        val file=File(folder,"source subtitles.srt").apply {writeText("1\n00:00:00,500 --> 00:00:01,500\nExternal caption\n\n2\n00:00:02,500 --> 00:00:03,500\nSecond caption\n")}
+        val imported=DesktopSubtitles.import(file,0)
+        check(exporter.transcript(captioned.copy(externalSubtitles=imported),OutputFormat.TXT).contains("Hello Linux"))
+        val edited=p.copy(timeline=Timeline(listOf(Clip("external",video.path,startMs=2000,endMs=4000,effects=Effects(speed=2f)))),externalSubtitles=imported,subtitleStyle=SubtitleStyle(size=.12f,highlight=WordHighlight.NONE))
+        val cues=DesktopSubtitles.cuesOnTimeline(imported,edited.request());check(cues.size==1 && cues[0].startMs==250L && cues[0].endMs==750L)
+        val output=exporter.export(edited,File(folder,"external-styled.mp4"))
+        val no=exporter.export(edited.copy(externalSubtitles=null,subtitleStyle=null),File(folder,"external-plain.mp4"))
+        val lit=media.frame(output.path,500)!!;val plain=media.frame(no.path,500)!!
+        var changed=0;for(y in 230 until lit.height)for(x in 50 until 590)if(lit.getRGB(x,y)!=plain.getRGB(x,y))changed++
+        check(changed>500)
+        val saved=File(folder,"external-subtitles.ffgui.json");DesktopProjects.save(edited,saved);file.delete();val loaded=DesktopProjects.load(saved,media);check(loaded.externalSubtitles==imported)
+        val plainSrt=exporter.export(edited.copy(subtitleStyle=null),File(folder,"external-default.mp4"));check(plainSrt.info.durationMs==output.info.durationMs)
+        val reversed=edited.copy(effects=Effects(reversed=true));val reversedCues=DesktopSubtitles.cuesOnTimeline(imported,reversed.request());check(reversedCues.size==1)
+        val ass=AssSubtitles.write(SubtitleLayout.ofWords(listOf(SpokenWord(2500,3500,"ASS caption")),SubtitleStyle(),16f/9f),SubtitleStyle(),16f/9f,"DejaVu Sans")+"\n[Fonts]\nfontname: must-not-reach-libass.ttf\nAAAA\n"
+        val retimed=com.cuscus.ffmpeggui.core.preview.SubtitleRetimer().retime(ass,edited.request().segments,0)!!
+        check("[Fonts]" !in retimed.content && "must-not-reach" !in retimed.content)
+        val assFile=File(folder,"external.ass").apply {writeText(ass)}
+        val assProject=edited.copy(externalSubtitles=DesktopSubtitles.import(assFile,0));val assResult=exporter.export(assProject,File(folder,"external-ass.mp4"));check(assResult.info.durationMs==output.info.durationMs)
+        check(runCatching {DesktopSubtitles.import(File(folder,"not-a-font.ttf"),0)}.isFailure)
+        javax.imageio.ImageIO.write(lit,"png",File(folder,"external-subtitle-proof.png"))
+    }
     verify("custom subtitle font colour shadow limits and missing-font fallback") {
         val hostile="Font,Name\r\n[Events]\u0000"
         val safe=DesktopFonts.assFamily(hostile)

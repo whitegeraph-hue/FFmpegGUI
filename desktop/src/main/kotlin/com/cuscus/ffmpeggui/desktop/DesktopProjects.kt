@@ -21,6 +21,7 @@ object DesktopProjects {
             put("type","ffmpeggui-linux-project"); put("version",1)
             put("sources",buildJsonArray { project.sources.forEach { add(buildJsonObject { put("path",it.path); put("size",File(it.path).length()); put("durationMs",it.info.durationMs) }) } })
             put("format",project.format.name)
+            project.externalSubtitles?.let {v->put("externalSubtitles",buildJsonObject {put("name",v.name);put("content",v.content);put("source",v.sourceIndex);put("enabled",v.enabled)})}
             project.photoPlacement?.let {v->put("photoPlacement",buildJsonObject {put("x",v.x);put("y",v.y);put("width",v.widthFraction);put("opacity",v.opacity);put("rotation",v.rotationDegrees);put("layer",v.layer);put("stretch",v.stretch);put("blend",v.blend.name);put("aspect",v.aspect)})}
             put("tags",core(ModelJson.write(project.tags)));put("canvas",project.canvas.name);put("canvasFit",project.canvasFit.name);put("normalize",project.normalize)
             put("effects",core(ModelJson.write(project.effects)))
@@ -139,7 +140,7 @@ object DesktopProjects {
             }
             image=image.copy(key=image.key!!.copy(mask=target.absolutePath))
         }
-        return DesktopProject(sources,timeline,OutputFormat.valueOf(data["format"]!!.jsonPrimitive.content),photoPlacement=data["photoPlacement"]?.jsonObject?.let {v->ImagePlacement(x=v["x"]!!.jsonPrimitive.float,y=v["y"]!!.jsonPrimitive.float,widthFraction=v["width"]!!.jsonPrimitive.float,opacity=v["opacity"]!!.jsonPrimitive.float,rotationDegrees=v["rotation"]!!.jsonPrimitive.float,layer=v["layer"]!!.jsonPrimitive.int,stretch=v["stretch"]!!.jsonPrimitive.float,blend=LayerBlend.valueOf(v["blend"]!!.jsonPrimitive.content),aspect=v["aspect"]?.jsonPrimitive?.float ?: 0f)},effects=effects,words=words,
+        return DesktopProject(sources,timeline,OutputFormat.valueOf(data["format"]!!.jsonPrimitive.content),photoPlacement=data["photoPlacement"]?.jsonObject?.let {v->ImagePlacement(x=v["x"]!!.jsonPrimitive.float,y=v["y"]!!.jsonPrimitive.float,widthFraction=v["width"]!!.jsonPrimitive.float,opacity=v["opacity"]!!.jsonPrimitive.float,rotationDegrees=v["rotation"]!!.jsonPrimitive.float,layer=v["layer"]!!.jsonPrimitive.int,stretch=v["stretch"]!!.jsonPrimitive.float,blend=LayerBlend.valueOf(v["blend"]!!.jsonPrimitive.content),aspect=v["aspect"]?.jsonPrimitive?.float ?: 0f)},effects=effects,words=words,externalSubtitles=data["externalSubtitles"]?.jsonObject?.let {v->DesktopSubtitles(v["name"]!!.jsonPrimitive.content,v["content"]!!.jsonPrimitive.content,v["source"]!!.jsonPrimitive.int,v["enabled"]!!.jsonPrimitive.boolean).also {it.validate();require(it.sourceIndex in sources.indices){"Subtitle source missing"}}},
             encoding=EncodingSettings(resolution=data["resolution"]?.jsonPrimitive?.content?.let { Resolution.valueOf(it) } ?: Resolution.ORIGINAL, quality=data["quality"]?.jsonPrimitive?.float ?: .7f,
                 framerate=data["framerate"]?.jsonPrimitive?.content?.let { Framerate.valueOf(it) } ?: Framerate.ORIGINAL,
                 cpuSpeed=data["cpuSpeed"]?.jsonPrimitive?.content?.let { CpuEncoderSpeed.valueOf(it) } ?: CpuEncoderSpeed.BALANCED,
