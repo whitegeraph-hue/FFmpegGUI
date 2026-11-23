@@ -53,7 +53,11 @@ building, project model JSON and smart-detector logic come from the shared core.
   edited timeline. The source-frame view is labelled, it does not pretend to
   show effects. Render edited preview generates the actual edited output and
   plays it inside the editor with an audio-sample clock, including cuts and effects. Physical target audio remains unverified.
-- Split, duplicate, precise source trim, remove and reorder clips. Undo restores
+- Split, duplicate, precise source trim, remove and reorder clips. Drag the small
+  arrow handle to an insertion marker, then release to commit one move. Escape
+  or releasing outside the timeline cancels. No edge auto-scroll yet; use Fit
+  or scroll first, or use the Left/Right buttons. Handles require clips over45dp.
+  Reordering keeps a selected occurrence and its source offset. Undo restores
   the edit, selected clip and seek position (50 in-memory history entries).
   Redo restores the undone edit and selection; a new edit clears Redo. Saving
   does not clear history. Successful project entry clears both directions.

@@ -24,3 +24,18 @@ internal fun DesktopProject.mediaForClipOutput(index:Int,outputMs:Long):Long {
     val offset=local.mediaMsForOutput((played*clock().speed).toLong()).coerceIn(0,(clip.lengthMs-1).coerceAtLeast(0))
     return timeline.startOf(index)+offset
 }
+
+/** Insertion in visible output order, converted back to stored clip order on global reverse. */
+internal fun DesktopProject.reorderTarget(draggedId:String,outputMs:Long):Int? {
+    if(timeline.clips.none {it.id==draggedId})return null
+    val remaining=outputClipSpans().filter {timeline.clips[it.index].id!=draggedId}.sortedBy {it.startMs+(it.endMs-it.startMs)/2}
+    val visual=remaining.count {outputMs>it.startMs+(it.endMs-it.startMs)/2}
+    return if(effects.reversed)remaining.size-visual else visual
+}
+
+/** Insertion marker uses the remaining occurrences, not the dragged clip's old slot. */
+internal fun DesktopProject.reorderMarker(draggedId:String,target:Int):Long {
+    val remaining=outputClipSpans().filter {timeline.clips[it.index].id!=draggedId}.sortedBy {it.startMs}
+    val visual=(if(effects.reversed)remaining.size-target else target).coerceIn(0,remaining.size)
+    return remaining.getOrNull(visual)?.startMs ?: remaining.lastOrNull()?.endMs ?: 0L
+}

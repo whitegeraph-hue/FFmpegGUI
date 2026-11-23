@@ -1,19 +1,18 @@
 # Current Linux preview status
 
-Audited 2026-11-23 through qualified internal137286d. PARITY.md remains an
-execution history. Implemented does not mean every input or UI path has been
-qualified. The original full Linux request remains open.
+Audited 2026-11-23 through delivered004face and local drag qualification. PARITY.md
+remains execution history. The original full Linux request remains open.
 
 ## Current checkpoint
 
-- Delivered70b43f0 safety/UI preview: all three CI green;933shared tests,
-  77native checks against exact package jars; bundled launcher checked for
-  unsaved guards, save/cancel/replacement and running-task close. This is not
-  autosave or crash recovery. Dirty compares identity with the saved snapshot.
-- Internal137286d: all three CI green,933shared/77native; exact package checked
-  for responsive rows, session save destination, Save as, focused Open/Save
-  shortcuts and native existing-file Replace/Cancel. Save overwrites the active
-  project without another chooser or backup. Save as switches to its destination.
+- Delivered004face: all three CI green,933shared tests and80native checks against
+  exact package jars. Bundled launcher checks cover responsive controls, Undo/Redo,
+  focused field history isolation, source peaks and Save/Save as destination.
+  Save overwrites without backup. Save as switches the destination. History is
+  50 in-memory entries, not autosave or crash recovery.
+- Next drag checkpoint: local compile and81native pass. Actual virtual display
+  checks include1024x640,1280x720, global reverse, zoomed/scrolled content,
+  one Undo, no-op, Escape and outside release. Exact package is pending.
 - Clip-bound speech, official Rounded Symbols, source thumbnails, viewport
   culling, Undo selection/seek and a full-lane output guide are qualified in
   their earlier source/package checkpoints. The synthetic100clip4K-source test
@@ -28,12 +27,12 @@ qualified. The original full Linux request remains open.
 | Area | Current behavior | Qualification limits / remaining work |
 |---|---|---|
 | Import and source geometry | Video/audio/stills, JPEG orientation1..8, supported Ultra HDR primary normalization, multi-video/still append | Audio-only timeline append and still-first mixed timeline blocked; broader formats/camera profiles need tests |
-| Timeline | Split/trim/duplicate/remove/button reorder/Undo; selected occurrence; output ruler/zoom/playhead; speed/reverse/curves; overlap lanes | Source thumbnails are original footage, not live edits. Source mono peaks are in local qualification, not an edited mix. No multitrack lanes or drag reorder; richer layer editing remains |
+| Timeline | Split/trim/duplicate/remove/handle and button reorder/Undo/Redo; selected occurrence; output ruler/zoom/playhead; speed/reverse/curves; overlap lanes | Source thumbnails are original footage, not live edits. Source mono peaks are qualified original sources, not an edited mix. No multitrack lanes or drag edge auto-scroll; richer layer editing remains |
 | Clip effects | Framing/colour/speed/pitch/volume/fades, animation keys/easing, ordinary transition families; mixed video/still transition export | Companion-asset punch/punch-back/technical-difficulties gated; representative transitions tested, not every kind/input |
 | Preview | Labelled source seek; render-first edited picture/audio playback; pause/resume and output-clock frame steps | Not live edited preview; rendering delay; physical device playback untested |
 | Selected smart edits | Pause/scene/beat and transcript cut/keep bind selected occurrence; source-clock mapping; stale result invalidation | Suggestions transient; all-tools selected-clip parity not established; combined scene/subtitle workflow qualified in source/native/UI, not a blanket package test |
 | Speech and subject follow | Pinned speech/subject import; isolated inference; transcript edits; selected raw-clip speech with occurrence captions and split/duplicate lineage; single-source follow track | Natural speech can omit material; warnings do not catch every omission. Multi-source follow blocked; tracking quality needs broader footage |
-| Audio | Perclip DSP, global mastering, modulation, placed tracks/keys, normalize, encoding; selected played-clip stems | No live DSP/waveforms/instrument splitting. Stems require2GiB free RAM and <=10min; separation bleed possible. Some Vorbis rate/bitrate combinations reject |
+| Audio | Perclip DSP, global mastering, modulation, placed tracks/keys, normalize, encoding; selected played-clip stems | No live DSP/edited-mix waveforms/instrument splitting. Stems require2GiB free RAM and <=10min; separation bleed possible. Some Vorbis rate/bitrate combinations reject |
 | Subtitles and lyrics | Embedded SRT/ASS/SSA; source binding/retiming; burn/style/colours/custom font; spoken SRT/TXT; lyrics metadata/stamping | Imported cues are not the spoken SRT/TXT export. Font files external, fallback if missing. Later edits do not retime stamped lyrics. Combined reopened-project render and virtual-clock playback checked |
 | Picture/layers | Tone/detail/geometry/filter/effects/drawing/shapes; still/video/text layers, keys/binding where exposed; SVG/text art/GIF/WebP | No direct spatial layer dragging or live art/palette preview; video layers whole-output only, audio separate; advanced original art controls not all exposed |
 | Cutout/erase/HDR | Subject masks and correction; embedded mask recovery; MI-GAN/LaMa separate PNG with disclosure checks; generated/original supported gain maps | Erase does not replace edited source automatically; HDR canvas/direct HDR brush blocked; camera breadth and HDR hardware untested |
@@ -47,7 +46,7 @@ qualified. The original full Linux request remains open.
 1. Continue the requested desktop editing experience, preserving the qualified
    saved-project, source-protection, cancel and occurrence-scope behavior.
 2. Timeline/layer interaction and keyboard access. Redo and short-window tool
-   access are being qualified next. Live edited preview, edited-mix waveforms, drag reorder
+   access are qualified. Drag handle exact-package qualification is next. Live edited preview, edited-mix waveforms
    and direct spatial layer dragging remain separate unfinished work.
 3. Remaining tool adapters and selected-clip semantics. Multi-source follow needs
    a per-clip filter pipeline, not removal of its current safety gate. Source

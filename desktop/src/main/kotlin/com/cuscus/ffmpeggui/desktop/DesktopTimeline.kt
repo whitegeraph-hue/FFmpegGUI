@@ -2,6 +2,7 @@ package com.cuscus.ffmpeggui.desktop
 
 import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -28,6 +29,10 @@ import java.io.File
     val focus=remember {FocusRequester()}
     var zoom by remember {mutableStateOf(1f)}
     val scroll=rememberScrollState()
+    var dragging by remember(p) {mutableStateOf<String?>(null)}
+    var dragX by remember(p) {mutableStateOf(0f)}
+    var dragY by remember(p) {mutableStateOf(0f)}
+    var dropIndex by remember(p) {mutableStateOf<Int?>(null)}
     val spans=p.outputClipSpans()
     val duration=p.outputDurationMs.coerceAtLeast(1)
     val index=p.timeline.clips.indexOfFirst {it.id==c.smartClipId}
@@ -36,6 +41,7 @@ import java.io.File
     val compact=maxWidth<1200.dp
     Surface(Modifier.fillMaxWidth().height(if(compact)244.dp else 204.dp).focusRequester(focus).onKeyEvent {event->
         if(event.type!=KeyEventType.KeyDown || c.busy || event.isCtrlPressed || event.isAltPressed || event.isMetaPressed)false else when(event.key) {
+            Key.Escape->{if(dragging!=null){dragging=null;dropIndex=null;true}else false}
             Key.Spacebar->{c.togglePlayback();true}
             Key.DirectionLeft->{c.stepOutput(-1);true}
             Key.DirectionRight->{c.stepOutput(1);true}
@@ -70,6 +76,7 @@ import java.io.File
 
             BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
                 val width=maxWidth.value*zoom
+                val viewportWidth=maxWidth.value*density
                 LaunchedEffect(c.smartClipId,p.timeline.clips,zoom) {
                     if(index>=0) {
                         val x=(width*spans[index].startMs/duration*density).toInt()
@@ -153,6 +160,7 @@ import java.io.File
                                         if(clipWidth>95f)Text("${time(span.endMs-span.startMs)}${if(clip.effects.speed!=1f)" · ${clip.effects.speed}×" else ""}",Modifier.padding(horizontal=7.dp),maxLines=1,style=MaterialTheme.typography.labelSmall)
                                     }
                                 }
+                                Box(Modifier.fillMaxSize()) {
                                 if(overlapping)Row(verticalAlignment=Alignment.CenterVertically) {
                                     if(showThumb)Thumbnail(Modifier.width(64.dp).fillMaxHeight())
                                     Column(Modifier.weight(1f)) {
@@ -164,8 +172,21 @@ import java.io.File
                                     ClipLabels()
                                     if(showPeaks)Peaks(Modifier.fillMaxWidth().height(14.dp))
                                 }
+                                if(clipWidth>45f && p.timeline.clips.size>1)Box(Modifier.align(Alignment.TopEnd).size(25.dp).background(MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha=.9f),RoundedCornerShape(6.dp)).pointerInput(p,clip.id,width,c.busy) {
+                                    if(!c.busy)detectDragGestures(
+                                        onDragStart={at->focus.requestFocus();dragging=clip.id;dragX=(clipLeft+clipWidth-27)*density+at.x;dragY=lane*49*density+at.y;dropIndex=span.index},
+                                        onDragCancel={dragging=null;dropIndex=null},
+                                        onDragEnd={val target=dropIndex;if(dragging==clip.id && target!=null && dragY in -20*density..115*density && dragX in scroll.value.toFloat()..(scroll.value+viewportWidth))c.reorderClip(p,clip.id,target);dragging=null;dropIndex=null},
+                                        onDrag={change,_->change.consume();dragX=(clipLeft+clipWidth-27)*density+change.position.x;dragY=lane*49*density+change.position.y;dropIndex=if(dragging!=clip.id)null else if(dragY in -20*density..115*density && dragX in scroll.value.toFloat()..(scroll.value+viewportWidth))p.reorderTarget(clip.id,(dragX/(width*density)*duration).toLong()) else null}
+                                    )
+                                },contentAlignment=Alignment.Center) {Row {Symbol("arrow_back",size=10);Symbol("arrow_forward",size=10)}}
+                                }
                             }
                             }
+                        }
+                        if(dragging!=null && dropIndex!=null) {
+                            val x=p.reorderMarker(dragging!!,dropIndex!!)
+                            Box(Modifier.offset(x=(width*x/duration).dp).width(3.dp).height(95.dp).background(MaterialTheme.colorScheme.tertiary))
                         }
                         Canvas(Modifier.fillMaxSize()) {
                             val at=if(c.player.engaged)c.player.positionMs else p.outputAt(c.position)
@@ -181,7 +202,7 @@ import java.io.File
                 }
             }
             HorizontalScrollbar(rememberScrollbarAdapter(scroll),Modifier.fillMaxWidth().height(7.dp))
-            Text(if(index>=0)"Clip ${index+1} selected · click within a clip to seek · double-click for controls · S split · D duplicate · arrows step · thumbnails & peaks are original sources" else "Click within a clip to select & seek · double-click for controls · output time · thumbnails & peaks are original sources",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(if(dragging!=null)dropIndex?.let {"Release to move to clip ${it+1}. Drag outside the timeline to cancel."} ?: "Outside drop area. Release to cancel." else if(index>=0)"Clip ${index+1} selected · click within a clip to seek · double-click for controls · drag ↔ to reorder · S split · D duplicate · arrows step · thumbnails & peaks are original sources" else "Click within a clip to select & seek · double-click for controls · output time · thumbnails & peaks are original sources",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

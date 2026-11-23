@@ -206,6 +206,19 @@ class EditorController(val scope: CoroutineScope) {
     val canRedo:Boolean get()=future.isNotEmpty()
     fun removeClip(index: Int) { val p=project ?: return; mutate(p.copy(timeline=p.timeline.remove(p.timeline.clips[index].id),followCrop=null)) }
     fun moveClip(index: Int, offset: Int) { val p=project ?: return; mutate(p.copy(timeline=p.timeline.move(p.timeline.clips[index].id,offset),followCrop=null)) }
+    fun reorderClip(expected:DesktopProject,clipId:String,to:Int) {
+        val p=project ?: return
+        if(busy || p!==expected)return
+        val from=p.timeline.clips.indexOfFirst {it.id==clipId}
+        if(from<0 || to !in p.timeline.clips.indices || from==to)return
+        val selected=smartClipId?.let {id->p.timeline.clips.firstOrNull {it.id==id}}
+        val selectedIndex=p.timeline.clips.indexOfFirst {it.id==selected?.id}
+        val local=if(selectedIndex>=0)(position-p.timeline.startOf(selectedIndex)).coerceIn(0,(selected!!.lengthMs-1).coerceAtLeast(0)) else null
+        val next=p.copy(timeline=p.timeline.move(clipId,to-from),followCrop=null)
+        mutate(next)
+        if(local!=null)seek(next.timeline.startOf(next.timeline.clips.indexOfFirst {it.id==selected!!.id})+local)
+        status="Moved clip ${from+1} to ${to+1}. Undo restores the order."
+    }
     fun transcriptCut(block: WordBlock, keepOnly: Boolean) {
         val p=project ?: return
         val selected=p.timeline.clips.firstOrNull {it.id==smartClipId}

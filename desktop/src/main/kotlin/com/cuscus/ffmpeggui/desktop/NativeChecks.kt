@@ -16,6 +16,26 @@ fun main(args:Array<String>)=runBlocking {
     var passed=0
     suspend fun verify(name:String,block:suspend ()->Unit) { block(); passed++;println("PASS $name") }
     val video=media.probe(File(folder,"video.mp4").path)
+    verify("reorder by stable occurrence is one undo preserves selected footage and rejects stale no-op") {
+        val scope=CoroutineScope(Dispatchers.Default+SupervisorJob());val c=EditorController(scope)
+        try {
+            val base=DesktopProject.create(video);val clip=base.timeline.clips.single()
+            val p=base.copy(timeline=Timeline(listOf(clip.copy(id="drag-a",endMs=1000),clip.copy(id="drag-b",startMs=1000,endMs=3000),clip.copy(id="drag-c",startMs=3000,endMs=4000))))
+            c.project=p;c.selectSmartClip("drag-b");c.seek(1500)
+            check(p.reorderTarget("drag-c",0)==0 && p.reorderTarget("drag-a",999999)==2)
+            val reversed=p.copy(effects=Effects(reversed=true));check(reversed.reorderTarget("drag-a",0)==2 && reversed.reorderTarget("drag-c",999999)==0)
+            check(p.reorderMarker("drag-b",0)==0L && p.reorderMarker("drag-b",1)==3000L && p.reorderMarker("drag-b",2)==4000L)
+            check(reversed.reorderMarker("drag-b",2)==0L && reversed.reorderMarker("drag-b",0)==4000L)
+            check(p.reorderTarget("missing",0)==null)
+            c.busy=true;c.reorderClip(p,"drag-b",0);check(c.project===p && !c.canUndo);c.busy=false
+            c.reorderClip(p,"missing",0);c.reorderClip(p,"drag-b",-1);c.reorderClip(p,"drag-b",3);check(c.project===p && !c.canUndo)
+            c.reorderClip(p,"drag-b",1);check(c.project===p && !c.canUndo)
+            c.reorderClip(p,"drag-b",0);val moved=c.project!!
+            check(moved.timeline.clips.map {it.id}==listOf("drag-b","drag-a","drag-c") && c.smartClipId=="drag-b" && c.position==500L)
+            c.reorderClip(p,"drag-a",2);check(c.project===moved)
+            c.undo();check(c.project===p && c.position==1500L && !c.canUndo);c.redo();check(c.project===moved && c.position==500L)
+        }finally {c.close();scope.cancel()}
+    }
     verify("source waveform bounded real decode silence levels cache and trim clock") {
         val source=media.probe(File(folder,"waveform-check.wav").path)
         val reader=DesktopWaveforms(media);val data=reader.source(source)
