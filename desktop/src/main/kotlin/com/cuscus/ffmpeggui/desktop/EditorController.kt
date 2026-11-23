@@ -24,6 +24,8 @@ class EditorController(val scope: CoroutineScope) {
     }
     var selectedSource by mutableStateOf(0)
     var project by mutableStateOf<DesktopProject?>(null)
+    var projectFile by mutableStateOf<File?>(null)
+        private set
     private var savedProject by mutableStateOf<DesktopProject?>(null)
     val hasUnsavedChanges:Boolean get()=project!=null && project!=savedProject
     fun markProjectSaved(saved:DesktopProject) { savedProject=saved }
@@ -31,6 +33,7 @@ class EditorController(val scope: CoroutineScope) {
         val snapshot=project ?: return
         work("Saving project…") {
             DesktopProjects.save(snapshot,file)
+            if(project===snapshot)projectFile=file.absoluteFile
             markProjectSaved(snapshot)
             status="Project saved: ${file.path}"
         }
@@ -77,6 +80,7 @@ class EditorController(val scope: CoroutineScope) {
     fun open(path: String) = work("Reading media locally…") {
         val source=media.probe(path)
         replaceProject(DesktopProject.create(source))
+        projectFile=null
         status="${File(path).name} · ${source.info.durationFormatted} · ${source.info.width} × ${source.info.height}"
     }
     private suspend fun replaceProject(loaded:DesktopProject) {
@@ -88,7 +92,7 @@ class EditorController(val scope: CoroutineScope) {
     fun openProject(file:File)=work("Opening project…") {
         // Validate first so a rejected project cannot disturb the current edit.
         val loaded=DesktopProjects.load(file,media)
-        replaceProject(loaded);status="Project opened."
+        replaceProject(loaded);projectFile=file.absoluteFile;status="Project opened: ${file.name}"
     }
     fun selectSource(index:Int) {
         val p=project ?: return

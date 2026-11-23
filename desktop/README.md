@@ -60,6 +60,14 @@ building, project model JSON and smart-detector logic come from the shared core.
   Escape cancels that action. A successful Save project clears the warning;
   failed saves and rejected project loads do not. This is not autosave or crash
   recovery. Save projects explicitly before leaving the app.
+- Save remembers the opened or last successfully saved project destination for
+  this session. Save as chooses another destination. Ctrl+S saves, Ctrl+Shift+S
+  opens Save as, Ctrl+O opens media and Ctrl+Shift+O opens a project. The Open
+  shortcuts use the same unsaved-edit guard as the buttons. Failed saves/loads
+  and canceled choosers do not change the remembered destination.
+- Narrower windows use separate labelled project and timeline action rows.
+  Transport controls scroll horizontally rather than forcing the output clock
+  into a narrow column. This has virtual-display checks, not physical HiDPI proof.
 - Zoomable output-time timeline with separate lanes during transitions and
   original-source thumbnails. Thumbnail tasks are limited to the visible area
   plus a small margin, use one decoder at a time and a 64-image cache. They are

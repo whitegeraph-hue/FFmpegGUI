@@ -37,21 +37,27 @@ fun main(args:Array<String>)=runBlocking {
     verify("unsaved edit state survives failed saves loads and Undo and resets on success") {
         val scope=CoroutineScope(Dispatchers.Default+SupervisorJob());val c=EditorController(scope)
         try {
-            c.open(video.path);c.job?.join();check(c.error==null && !c.hasUnsavedChanges)
+            c.open(video.path);c.job?.join();check(c.error==null && !c.hasUnsavedChanges && c.projectFile==null)
             val base=c.project!!;val clip=base.timeline.clips.single()
             c.selectSmartClip(clip.id);c.trimSelected(200,2200);check(c.hasUnsavedChanges)
             c.undo();check(!c.hasUnsavedChanges)
             c.trimSelected(300,2300);val edited=c.project!!;check(c.hasUnsavedChanges)
-            c.saveProject(video.let {File(it.path)});c.job?.join();check(c.error!=null && c.project===edited && c.hasUnsavedChanges)
+            c.saveProject(video.let {File(it.path)});c.job?.join();check(c.error!=null && c.project===edited && c.hasUnsavedChanges && c.projectFile==null)
             val invalid=File(folder,"dirty-invalid.ffgui.json").apply {writeText("{}")}
             c.openProject(invalid);c.job?.join();check(c.error!=null && c.project===edited && c.hasUnsavedChanges && c.canUndo)
             val saved=File(folder,"dirty-saved.ffgui.json")
-            c.saveProject(saved);c.job?.join();check(c.error==null && !c.hasUnsavedChanges)
+            c.saveProject(saved);c.job?.join();check(c.error==null && !c.hasUnsavedChanges && c.projectFile==saved.absoluteFile)
             c.duplicateSelected();check(c.hasUnsavedChanges);c.undo();check(!c.hasUnsavedChanges)
             c.undo();check(c.hasUnsavedChanges)
             c.openProject(saved);c.job?.join();check(c.error==null && !c.hasUnsavedChanges && !c.canUndo && c.smartClipId==null)
             c.mutate(c.project!!.copy(effects=Effects(speed=1.5f)));check(c.hasUnsavedChanges);c.undo();check(!c.hasUnsavedChanges)
             c.markProjectSaved(base);check(c.hasUnsavedChanges)
+            val destination=c.projectFile
+            c.saveProject(File(video.path));c.job?.join();check(c.error!=null && c.projectFile==destination && c.hasUnsavedChanges)
+            c.openProject(invalid);c.job?.join();check(c.error!=null && c.projectFile==destination)
+            val copy=File(folder,"dirty-save-as.ffgui.json")
+            c.saveProject(copy);c.job?.join();check(c.error==null && c.projectFile==copy.absoluteFile && !c.hasUnsavedChanges)
+            c.open(video.path);c.job?.join();check(c.error==null && c.projectFile==null && !c.hasUnsavedChanges)
         } finally {c.close();scope.cancel()}
     }
     verify("timeline lane seeking owns overlapping reversed sped and ramp clips") {
