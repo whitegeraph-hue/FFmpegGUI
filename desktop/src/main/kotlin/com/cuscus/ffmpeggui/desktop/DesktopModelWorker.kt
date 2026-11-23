@@ -42,7 +42,10 @@ class DesktopModelWorker {
                     File(directory,"progress").takeIf { it.isFile }?.let { runCatching { it.readText() }.getOrNull()?.takeIf {it!=lastProgress}?.let {lastProgress=it;progress(it)} }
                 }
                 currentCoroutineContext().ensureActive()
-                check(process.exitValue()==0) { "Offline model process stopped (${process.exitValue()}). " + File(directory,"worker.log").readText().take(2000) }
+                check(process.exitValue()==0) {
+                    File(directory,"error.txt").takeIf {it.isFile && it.length() in 1..4000}?.readText()
+                        ?: "Offline model process stopped (${process.exitValue()}). Try closing other apps and retrying."
+                }
                 val resultFile=File(directory,"result.json")
                 check(resultFile.length() in 1..32_000_000) { "Invalid offline model response size" }
                 val response=Json.parseToJsonElement(resultFile.readText()).jsonObject
@@ -111,6 +114,7 @@ fun runModelWorker(folder:String)=runBlocking {
     fun progress(text:String) { File(directory,"progress").writeText(text) }
     val path=request["path"]!!.jsonPrimitive.content
     val model=File(request["model"]!!.jsonPrimitive.content)
+    try {
     val result=when(request["kind"]!!.jsonPrimitive.content) {
         "speech" -> {
             val warnings=mutableListOf<String>()
@@ -136,4 +140,8 @@ fun runModelWorker(folder:String)=runBlocking {
         else -> error("Unknown model operation")
     }
     File(directory,"result.json").writeText(result.toString())
+    } catch(e:Exception) {
+        File(directory,"error.txt").writeText((e.message ?: "Offline model could not finish").take(3000))
+        throw e
+    }
 }

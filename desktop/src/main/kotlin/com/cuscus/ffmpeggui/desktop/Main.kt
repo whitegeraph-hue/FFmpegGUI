@@ -145,7 +145,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                                         "Clip editor" -> {StabilizationPanel(controller,project);ClipEditorPanel(controller,project)}
                                         "Subtitles" -> SubtitlesPanel(controller,project){pick()}
                                         "Image layers" -> PictureLayersPanel(controller,project){pick()?.path}
-                                        "Tags" -> TagsPanel(controller,project)
+                                        "Tags" -> TagsPanel(controller,project){pick()}
                                         "Sound tracks" -> SoundTracksPanel(controller,project) {pick()?.path}
                                         "Audio" -> AudioMasterPanel(controller,project)
                                         "Text layers" -> TextLayersPanel(controller,project)
@@ -157,7 +157,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                                         "Scene stems" -> PanelCard {
                                             Text("Dialogue, music and effects",style=MaterialTheme.typography.titleLarge)
                                             Text("Separate the selected original file offline with the original pinned Bandit int8 model. This exports three stereo 48 kHz WAV files, not the edited timeline. Source edits and existing tracks are not changed.")
-                                            Text("Files over 10 minutes are rejected. Only short clips are tested so far. At least 1.5 GiB free RAM is required. Results can contain bleed or missing sound. Review them before using them. Instrument splitting is not yet ported.")
+                                            Text("Files over 10 minutes are rejected. A 10-minute synthetic resource test passed, not a general audio-quality test. At least 2 GiB free RAM is required. Results can contain bleed or missing sound. Review them before using them. Instrument splitting is not yet ported.")
                                             Text("Import the 40 MB model in Models first. Licence and attribution travel with the exported folder.")
                                             Button(onClick={
                                                 val dialog=FileDialog(window,"Choose a new folder name for scene stems",FileDialog.SAVE)
@@ -606,11 +606,14 @@ private fun EditPanel(c: EditorController,p: DesktopProject) {
     }
 }
 
-@Composable private fun TagsPanel(c:EditorController,p:DesktopProject) {
+@Composable private fun TagsPanel(c:EditorController,p:DesktopProject,pick:()->File?) {
     val t=p.tags
     fun update(v:MetadataTags)=c.mutate(p.copy(tags=v))
     PanelCard {
         Text("Output tags",style=MaterialTheme.typography.titleMedium)
+        Text("Album art: ${if(p.coverPng!=null) "embedded 600 x 600 cover" else "none selected"}. Select a local picture; it is centre-cropped square, embedded in the project, and written to MP3/M4A/FLAC/OGG/OPUS exports. WAV/video cannot hold this cover. Existing source art is not automatically imported.",style=MaterialTheme.typography.bodySmall)
+        Button(onClick={pick()?.let {file->c.work("Preparing album art…") {c.mutate(p.copy(coverPng=DesktopCover.prepare(file,c.media)));c.status="Album art prepared. Export to write it."}}},enabled=!c.busy) {Text("Choose album art")}
+        if(p.coverPng!=null) TextButton(onClick={c.mutate(p.copy(coverPng=null))},enabled=!c.busy) {Text("Remove album art")}
         Text("Container support varies. Render or export to write these tags. AI provenance marks are never removed by these controls.",style=MaterialTheme.typography.bodySmall)
         Row {Checkbox(t.stripAll,{update(t.copy(stripAll=it))},enabled=!c.busy);Text("Strip source tags")}
         Row {Checkbox(t.stripSensitive,{update(t.copy(stripSensitive=it))},enabled=!c.busy);Text("Strip location and device tags")}

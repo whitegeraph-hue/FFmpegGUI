@@ -552,6 +552,28 @@ fun main(args:Array<String>)=runBlocking {
             val saved=File(folder,"transition-${kind.name}.ffgui.json");DesktopProjects.save(project,saved);check(DesktopProjects.load(saved,media).timeline==project.timeline)
         }
     }
+    verify("portable album art attached picture and Ogg metadata exports") {
+        val art=File(folder,"album-art-source.png")
+        val bitmap=java.awt.image.BufferedImage(900,600,java.awt.image.BufferedImage.TYPE_INT_RGB)
+        val graphics=bitmap.createGraphics();graphics.color=java.awt.Color.RED;graphics.fillRect(0,0,900,600);graphics.color=java.awt.Color.BLUE;graphics.fillRect(250,150,400,300);graphics.dispose()
+        javax.imageio.ImageIO.write(bitmap,"png",art);bitmap.flush()
+        val encoded=DesktopCover.prepare(art,media)
+        check(com.cuscus.ffmpeggui.core.command.CoverTags.pictureSize(DesktopCover.decode(encoded))==(600 to 600))
+        val audio=media.probe(File(folder,"beat.wav").path)
+        val project=DesktopProject.create(audio).copy(coverPng=encoded)
+        val saved=File(folder,"album.ffgui.json");DesktopProjects.save(project,saved);art.delete()
+        val restored=DesktopProjects.load(saved,media);check(restored.coverPng==encoded)
+        for(format in listOf(OutputFormat.MP3,OutputFormat.M4A,OutputFormat.FLAC,OutputFormat.OGG,OutputFormat.OPUS)) {
+            val output=exporter.export(restored.copy(format=format,encoding=restored.encoding.copy(audio=restored.encoding.audio.copy(bitrateKbps=96,sampleRate=48000))),File(folder,"album.${format.name.lowercase()}"))
+            val probe=media.process.checked(listOf("ffprobe","-v","error","-show_streams","-of","json",output.path))
+            check(probe.contains("attached_pic") && probe.contains("600")) {"No album art in $format"}
+            val decoded=File(folder,"album-${format.name}.png")
+            media.process.checked(listOf("ffmpeg","-nostdin","-v","error","-y","-i",output.path,"-map","0:v:0","-frames:v","1",decoded.path))
+            val image=javax.imageio.ImageIO.read(decoded);check(image.width==600 && image.height==600);check((image.getRGB(300,300) and 255)>180);image.flush()
+        }
+        check(runCatching {exporter.export(restored.copy(format=OutputFormat.WAV),File(folder,"album-invalid.wav"))}.isFailure)
+        check(runCatching {DesktopCover.decode("bad")}.isFailure)
+    }
     verify("cancel real process") {
         val start=System.currentTimeMillis()
         val job=launch { media.process.run(listOf("ffmpeg","-re","-f","lavfi","-i","testsrc2=size=640x360:rate=25","-t","30","-f","null","-")) }

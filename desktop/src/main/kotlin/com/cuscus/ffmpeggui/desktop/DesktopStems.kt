@@ -16,7 +16,7 @@ object DesktopStems {
     val names=listOf("dialogue.wav","music.wav","effects.wav")
     suspend fun separate(path:String,model:File,directory:File,progress:(String)->Unit):List<File> = withContext(Dispatchers.IO) {
         DesktopModelFiles.verify(model,HASH,BYTES)
-        DesktopSmartModels.checkAvailableMemory(1536L*1024*1024)
+        DesktopSmartModels.checkAvailableMemory(2048L*1024*1024)
         val media=DesktopMedia()
         val source=media.probe(path)
         require(source.info.hasAudio && source.info.durationMs in 1..600_000) {"Scene separation needs audio up to ten minutes"}

@@ -339,7 +339,7 @@ class DesktopSmartModels(
                     File("/sys/fs/cgroup/memory.current").readText().trim().toLong()
             }.getOrNull()
             val available = listOfNotNull(host, cgroup).minOrNull()
-            if (available != null && available < minimum) throw IOException("Not enough free memory for model: $available bytes available")
+            if (available != null && available < minimum) throw IOException("Not enough free memory for this model. It needs at least ${minimum / (1024*1024)} MiB free, but only ${available / (1024*1024)} MiB is available. Close other apps and try again. The editor and original files are unchanged.")
         }
     }
 }

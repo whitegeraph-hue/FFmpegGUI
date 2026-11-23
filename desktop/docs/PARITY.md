@@ -316,3 +316,24 @@ rejected until its adapter exists. Latest full package8b6predatesHDR/canvas.
 ### 2026-11-23 02:50 EET: lyrics timing
 - Original LyricsText/LrcLines power plain/synced generation from reviewed edited transcript, manual output-clock stamp/clear, active line, remove timing and metadata export. First250lines get timing controls, all content retained. UI explicitly warns subsequent timeline edits do not retime metadata, regenerate after edits. No burned-lyrics claim.
 -50native checks pass: transcript at whole2x starts LRC0.25s, manual1.23s stamp, actual MP3 lyric metadata, saved lyrics recovery. Actual Stamp clicked, updated text/active line inspected. Player-specific display support not verified.
+
+### 2026-11-23 03:26 EET: scene stems and cover art
+- Original Bandit int8 shared separator in isolated workers, three durable WAVs
+  from selected original source. Not timeline/instrument separation. Parent
+  copies only known validated outputs before worker cleanup, new directory
+  only, existing rejected and partial cancelled outputs removed. Original model
+  licence/notice/provenance bundled and copied with exports; weights separate.
+- Short speech fixture parent-export checks pass; actual mouse button/save
+  correctly rejects low memory in2GiB GUI host. Concise resource error inspected.
+- Ten-minute synthetic tone/pink-noise real inference in CI333seconds, peak
+  workerRSS1,453,416KiB, each WAV600s/stereo48k.2GiB freeRAM gate now required,
+  conservative headroom, not all-machine memory or real-scene quality proof.
+  Source https://github.com/whitegeraph-hue/FFmpegGUI/actions/runs/45093189855 .
+-600px square album art from local still picture is embedded in project;
+  original source unchanged, original CoverTags/coverWriting used for MP3,
+  M4A,FLAC,OGG,OPUS. Other formats reject rather than silently omit cover.
+-51native checks pass: actual five-format art export/decode and centre pixels,
+  saved recovery after picture deletion, malformed payload/unsupported output
+  rejection. Defaults at16kHz mono192kbps fail Vorbis in this FFmpeg; cover
+  proof explicitly uses48kHz96kbps. This encoding combination issue remains.
+  Embedded source art automatic import and final package/Zorin checks remain.

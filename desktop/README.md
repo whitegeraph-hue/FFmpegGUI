@@ -85,7 +85,7 @@ The model release is linked from Models; the pinned SHA-256 is checked
 both on import and on use. No model weights are included in this package.
 
 This path uses the original shared separator in a disposable process, with
-three stereo 48 kHz WAV outputs. It requires at least 1.5 GiB free RAM and
+three stereo 48 kHz WAV outputs. It requires at least 2 GiB free RAM and
 limits each source to ten minutes. A short speech-only fixture peaked near
 1.13 GiB RSS with CPU memory arena/pattern reuse disabled. This is not a
 general memory or audio-quality guarantee. Existing output directories
@@ -97,3 +97,9 @@ Opt-in actual-model check: set `FFMPEGGUI_STEMS_CHECKS` to a folder containing
 `input.wav` and the pinned model. It verifies independent durable outputs,
 durations, notices, existing-folder rejection and cancellation cleanup.
 It writes `proof-output` and refuses to replace it.
+
+A ten-minute synthetic tone/pink-noise resource check on Ubuntu22.04 completed
+in333seconds, three600s outputs, sampled peak1,453,416KiB worker RSS. The
+free-memory gate was raised to2GiB to leave headroom above this higher peak.
+This does not prove all content/platform memory or sound separation quality.
+Source run: https://github.com/whitegeraph-hue/FFmpegGUI/actions/runs/45093189855
