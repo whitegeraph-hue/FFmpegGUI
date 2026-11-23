@@ -131,8 +131,8 @@ class EditorController(val scope: CoroutineScope) {
         val p=project ?: return
         val sourceCuts=if (keepOnly) TranscriptEdits.keepOnly(p.sourceWords(selectedSource),block.firstIndex,block.lastIndex,p.sources[selectedSource].info.durationMs)
             else listOfNotNull(p.sourceWords(selectedSource).cutRangeFor(block.firstIndex,block.lastIndex))
-        val cuts=sourceCuts.flatMap { c -> p.footageRanges(c.startMs,c.endMs,selectedSource).map { CutRange(it.first,it.second,c.reason) } }
-        mutate(p.copy(timeline=p.withoutFootageRanges(cuts),followCrop=null))
+        val cuts=ClipToolScope.cuts(p.timeline,smartClipId,p.sources[selectedSource].path,sourceCuts)
+        mutate(p.copy(timeline=ClipToolScope.remove(p.timeline,cuts,id),followCrop=null))
         status=if (keepOnly) "Kept this source line. Other sources are unchanged." else "Cut the selected line from the timeline."
     }
     fun findPauses() {

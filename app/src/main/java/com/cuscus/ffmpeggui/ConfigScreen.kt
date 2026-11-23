@@ -1686,6 +1686,14 @@ fun ConfigScreen(
             modifier = if (tool != selectedTool) Modifier.ignoringTouches() else Modifier,
             rounded = side,
         ) {
+            if(tool in listOf(EditorTool.SMART_CUTS,EditorTool.SMART_SCENES,EditorTool.SMART_BEATS)) {
+                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                    FilterChip(selected=scopeClipId==null,onClick={selectClip(null)},label={Text(stringResource(R.string.scope_whole))})
+                    timeline.clips.forEachIndexed {i,clip->
+                        FilterChip(selected=scopeClipId==clip.id,onClick={selectClip(clip.id)},label={Text(stringResource(R.string.scope_clip,i+1))})
+                    }
+                }
+            }
             when (tool) {
                 EditorTool.TRIM_ALL -> WholeTrimPanel(
                     timeline = timeline,

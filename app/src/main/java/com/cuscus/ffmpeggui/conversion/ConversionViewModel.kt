@@ -4157,10 +4157,10 @@ class ConversionViewModel(
      * of the sequence: a line ticked away in the transcript (see SubtitlePanels).
      */
     fun cutSpokenRange(sourceId: String, startMs: Long, endMs: Long) {
-        if (sourceId != EditorSource.MAIN_ID || endMs <= startMs) return
-        val ranges = listOf(CutRange(startMs, endMs, TranscriptEdits.REASON_TRANSCRIPT)).ontoTimeline()
+        if (endMs <= startMs) return
+        val ranges = ClipToolScope.cuts(_settings.value.timeline,smartClipId,sourceId,listOf(CutRange(startMs,endMs,TranscriptEdits.REASON_TRANSCRIPT)))
         if (ranges.isEmpty()) return
-        editTimeline { timeline -> timeline.withoutRanges(ranges) { newId() } }
+        editTimeline { timeline -> ClipToolScope.remove(timeline,ranges) { newId() } }
     }
 
     /** Finds where the main file's scenes change, as split points to tick. */
@@ -4397,15 +4397,15 @@ class ConversionViewModel(
      * clock): everything before and after them goes (see SubtitlePanels).
      */
     fun keepSpokenRangeOnly(sourceId: String, startMs: Long, endMs: Long) {
-        if (sourceId != EditorSource.MAIN_ID || endMs <= startMs) return
-        val durationMs = _settings.value.source(EditorSource.MAIN_ID)?.info?.durationMs ?: return
+        if (endMs <= startMs) return
+        val durationMs = _settings.value.source(sourceId)?.info?.durationMs ?: return
         val file = listOfNotNull(
             if (startMs > 0L) CutRange(0L, startMs, TranscriptEdits.REASON_TRANSCRIPT) else null,
             if (durationMs > endMs) CutRange(endMs, durationMs, TranscriptEdits.REASON_TRANSCRIPT) else null,
         )
-        val ranges = file.ontoTimeline()
+        val ranges = ClipToolScope.cuts(_settings.value.timeline,smartClipId,sourceId,file)
         if (ranges.isEmpty()) return
-        editTimeline { timeline -> timeline.withoutRanges(ranges) { newId() } }
+        editTimeline { timeline -> ClipToolScope.remove(timeline,ranges) { newId() } }
     }
 
     override fun onCleared() {

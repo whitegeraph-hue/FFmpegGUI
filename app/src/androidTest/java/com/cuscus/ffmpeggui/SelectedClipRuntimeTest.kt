@@ -47,10 +47,16 @@ class SelectedClipRuntimeTest {
             val before = vm.settings.value.timeline
             assertEquals(2, before.clips.size)
             val second = before.clips[1].id
-            instrumentation.runOnMainSync { vm.setSmartClipScope(second); vm.findSceneSplits() }
+            assertTrue(Ui.clickScrolling("Scenes"))
+            assertTrue(Ui.waitFor("Clip 2",15000))
+            assertTrue(Ui.click("Clip 2"))
+            Thread.sleep(1000)
+            ShellShot.take("selected-clip2-scenes-before")
+            instrumentation.runOnMainSync { vm.findSceneSplits() }
             waitFor("selected scene analysis did not finish") { vm.sceneSplits.value is SceneSplitsStatus.Ready || vm.sceneSplits.value is SceneSplitsStatus.Failed }
             val ready = vm.sceneSplits.value as? SceneSplitsStatus.Ready ?: error("scene analysis failed")
             assertEquals(listOf(4000L), ready.points)
+            ShellShot.take("selected-clip2-scenes-detected")
             instrumentation.runOnMainSync { vm.applySceneSplits() }
             val after = vm.settings.value.timeline
             assertEquals(3, after.clips.size)
@@ -65,6 +71,14 @@ class SelectedClipRuntimeTest {
             assertTrue("stale results survived scope switch", vm.sceneSplits.value is SceneSplitsStatus.Idle)
             instrumentation.runOnMainSync { vm.applySceneSplits() }
             assertEquals(before, vm.settings.value.timeline)
+            instrumentation.runOnMainSync { vm.setSmartClipScope(second);vm.cutSpokenRange(before.clips[1].sourceId,4000,4500) }
+            assertEquals(before.clips[0],vm.settings.value.timeline.clips[0])
+            assertEquals(5500L,vm.settings.value.timeline.durationMs)
+            instrumentation.runOnMainSync { vm.undo();vm.keepSpokenRangeOnly(before.clips[1].sourceId,4000,4500) }
+            assertEquals(before.clips[0],vm.settings.value.timeline.clips[0])
+            assertEquals(3500L,vm.settings.value.timeline.durationMs)
+            instrumentation.runOnMainSync { vm.undo() }
+            assertEquals(before,vm.settings.value.timeline)
         }
         context.contentResolver.delete(uri, null, null)
     }

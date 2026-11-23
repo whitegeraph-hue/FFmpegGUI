@@ -37,6 +37,26 @@ fun main(args:Array<String>)=runBlocking {
         val edge=ClipToolScope.remove(project.timeline,ClipToolScope.cuts(project.timeline,"selected",video.path,listOf(CutRange(0,50)))){UUID.randomUUID().toString()}
         check(edge.durationMs==11950L && edge.clips.first()==first && edge.clips.last()==last)
     }
+    verify("selected transcript cut keep and Undo preserve other duplicate") {
+        val words=listOf(SpokenWord(500,1000,"Selected words"))
+        val first=Clip("transcript-first",video.path,endMs=2000,effects=Effects(speed=2f))
+        val second=first.copy(id="transcript-second")
+        val initial=DesktopProject.create(video).copy(timeline=Timeline(listOf(first,second)),wordsBySource=mapOf(video.path to words))
+        val workerScope=CoroutineScope(Dispatchers.Default+SupervisorJob())
+        val controller=EditorController(workerScope)
+        try {
+            controller.project=initial;controller.selectSmartClip(second.id)
+            val block=WordBlock(0,0,words)
+            controller.transcriptCut(block,false)
+            check(controller.project!!.timeline.clips.first()==first)
+            check(controller.project!!.timeline.durationMs==3380L) {controller.project!!.timeline.toString()}
+            controller.undo();check(controller.project!!.timeline==initial.timeline)
+            controller.transcriptCut(block,true)
+            check(controller.project!!.timeline.clips.first()==first)
+            check(controller.project!!.timeline.clips.last().startMs==500L && controller.project!!.timeline.clips.last().endMs==1000L)
+            controller.undo();check(controller.project!!.timeline==initial.timeline)
+        }finally {controller.close();workerScope.cancel()}
+    }
     verify("probe actual streams") { check(video.info.durationMs in 7900..8100 && video.info.width==640 && video.info.hasAudio) }
     verify("seek actual pixels") { val a=media.frame(video.path,500)!!;val b=media.frame(video.path,3500)!!;check(a.width>0 && a.getRGB(100,100)!=b.getRGB(100,100)) }
     verify("real scene detector") { val s=media.probe(File(folder,"scenes.mp4").path); val points=media.scenes(s);println("SCENES $points");check(points.size==2 && kotlin.math.abs(points[0]-2000)<100 && kotlin.math.abs(points[1]-4000)<100) }

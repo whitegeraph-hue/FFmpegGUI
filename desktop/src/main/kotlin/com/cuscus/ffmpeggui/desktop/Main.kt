@@ -150,7 +150,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                                     tabs.forEach { title -> FilterChip(selected=controller.tab==title,onClick={ controller.tab=title },label={ Text(title) }) }
                                 }
                                 Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-                                    if(controller.tab in listOf("Pause cuts","Scenes","Beats"))PanelCard {
+                                    if(controller.tab in listOf("Pause cuts","Scenes","Beats","Transcript"))PanelCard {
                                         Text("Tool scope",style=MaterialTheme.typography.titleMedium)
                                         FlowRowCompat {
                                             FilterChip(controller.smartClipId==null,{controller.selectSmartClip(null)},label={Text("Selected source, all clips")},enabled=!controller.busy)
