@@ -54,7 +54,7 @@ class DesktopFfmpegExecutor(private val process: DesktopProcess = DesktopProcess
     } catch (e: CancellationException) { throw e }
 }
 
-data class DesktopSource(val path: String, val info: MediaInfo,val aiPicture:Boolean=false)
+data class DesktopSource(val path: String, val info: MediaInfo,val aiPicture:Boolean=false,val aiSpeech:Boolean=false)
 data class DesktopPicture(val source:DesktopSource,val placement:ImagePlacement=ImagePlacement(),val hidden:Boolean=false)
 data class DesktopSound(val source:DesktopSource,val placed:PlacedSound=PlacedSound(),val muted:Boolean=false)
 
@@ -76,7 +76,7 @@ class DesktopMedia(val process: DesktopProcess = DesktopProcess()) {
         if (kotlin.math.abs(rotation) % 180 == 90) { val swap = w; w = h; h = swap }
         if(still && DesktopStillInputs.orientation(file)>=5 && kotlin.math.abs(rotation)%180!=90){val swap=w;w=h;h=swap}
         val rate = video?.get("avg_frame_rate")?.jsonPrimitive?.content?.split('/')?.let { if (it.size == 2 && it[1].toFloatOrNull() != 0f) (it[0].toFloatOrNull() ?: 0f) / (it[1].toFloatOrNull() ?: 1f) else 0f } ?: 0f
-        return DesktopSource(file.path, MediaInfo.of(duration, video != null, w, h, file.length(), audio, still, frameRate = rate,hasAlpha=video?.get("pix_fmt")?.jsonPrimitive?.content?.let {it.startsWith("rgba") || it.startsWith("bgra") || it.startsWith("argb") || it.startsWith("abgr") || it.startsWith("yuva") || it.startsWith("gbrap") || it.startsWith("ya")} ?: false),aiPicture=video!=null && DesktopProvenance.aiPicture(file))
+        return DesktopSource(file.path, MediaInfo.of(duration, video != null, w, h, file.length(), audio, still, frameRate = rate,hasAlpha=video?.get("pix_fmt")?.jsonPrimitive?.content?.let {it.startsWith("rgba") || it.startsWith("bgra") || it.startsWith("argb") || it.startsWith("abgr") || it.startsWith("yuva") || it.startsWith("gbrap") || it.startsWith("ya")} ?: false),aiPicture=video!=null && DesktopProvenance.aiPicture(file),aiSpeech=audio && DesktopProvenance.aiSpeech(file))
     }
     suspend fun frame(path: String, atMs: Long, filters: String? = null): BufferedImage? {
         val target = File.createTempFile("ffmpeggui-frame-", ".png")
@@ -115,7 +115,7 @@ class DesktopProject(val sources: List<DesktopSource>, val timeline: Timeline,
     fun request(): ConversionRequest = ConversionRequest(format, File(sources.first().path).name,
         sources = sources.map { s -> s.info.let { SourceInfo(it.durationMs, it.width, it.height, it.hasAudio, it.isStill, it.hdr, it.frameRate, it.hasAlpha) } },
         segments = timeline.clips.map { c -> Segment(sources.indexOfFirst { it.path == c.sourceId }, c.startMs, c.endMs, c.effects, c.id) },
-        photoPlacement=photoPlacement,effects = effects, encoding = encoding, audioEffects=audioEffects,image=image,metadata=tags,canvas=canvas,canvasFit=canvasFit,normalizeAudio=normalize,imageOverlays=pictures.filter {it.activeOn(timeline)}.map {it.placement},sounds=sounds.filter {!it.muted}.map {it.placed},textOverlays=captions.filter { !it.hidden && (it.clipId==null || timeline.clips.any {c->c.id==it.clipId}) }, followCrop = followCrop, subtitleStyle = subtitleStyle,
+        photoPlacement=photoPlacement,effects = effects, encoding = encoding, audioEffects=audioEffects,image=image,metadata=tags,canvas=canvas,canvasFit=canvasFit,normalizeAudio=normalize,imageOverlays=pictures.filter {it.activeOn(timeline)}.map {it.placement},sounds=sounds.filter {!it.muted}.map {it.placed.copy(aiVoice=if(it.source.aiSpeech)"AI-generated voice" else it.placed.aiVoice)},textOverlays=captions.filter { !it.hidden && (it.clipId==null || timeline.clips.any {c->c.id==it.clipId}) }, followCrop = followCrop, subtitleStyle = subtitleStyle,
         aiEditedPictures=DesktopProvenance.needed(this),compression=compression,cover=coverPng!=null,stabilization=stabilization,subtitleSource=externalSubtitles?.takeIf {it.enabled}?.sourceIndex,
         spokenWords = if(externalSubtitles?.enabled==true)emptyList() else sources.mapIndexedNotNull {i,_->sourceWords(i).takeIf {it.isNotEmpty()}?.let {SourceWords(i,it)} })
     fun clock()=PreviewTimeline(timeline.clips.map {PreviewTimeline.SegmentTiming(it.lengthMs,it.effects.speed,it.effects.reversed,it.effects.curve,it.effects.keepPitch,it.effects.transition)},effects.speed,effects.reversed,effects.keepPitch)
@@ -190,7 +190,7 @@ class DesktopExport(private val media: DesktopMedia = DesktopMedia()) {
                 require(result.info.isStill && result.info.width>0)
                 DesktopProvenance.seal(project,temporary)
                 Files.move(temporary.toPath(),output.toPath(),StandardCopyOption.REPLACE_EXISTING)
-                return result.copy(path=output.canonicalPath,aiPicture=DesktopProvenance.needed(project))
+                return result.copy(path=output.canonicalPath,aiPicture=DesktopProvenance.needed(project),aiSpeech=DesktopProvenance.speechNeeded(project))
             }
             if(project.format==OutputFormat.SVG || project.format.isTextArt) {
                 val png=File(auxiliaries,"art-source.png")
@@ -308,7 +308,7 @@ class DesktopExport(private val media: DesktopMedia = DesktopMedia()) {
             DesktopProvenance.seal(project,temporary)
             require(target==null || temporary.length()<=target) {"AI disclosure makes output exceed the target size. Increase the target. No output was replaced."}
                 Files.move(temporary.toPath(), output.toPath(), StandardCopyOption.REPLACE_EXISTING)
-            return result.copy(path = output.canonicalPath,aiPicture=DesktopProvenance.needed(project))
+            return result.copy(path = output.canonicalPath,aiPicture=DesktopProvenance.needed(project),aiSpeech=DesktopProvenance.speechNeeded(project))
         } finally { temporary.delete();auxiliaries.deleteRecursively() }
     }
 }

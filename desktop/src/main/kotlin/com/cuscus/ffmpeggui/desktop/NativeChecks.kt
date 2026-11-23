@@ -674,6 +674,25 @@ fun main(args:Array<String>)=runBlocking {
         val studio=DesktopStudio(media);val output=File(folder,"disclosed-studio.png")
         studio.export(markedProject,"ffmpeg -i input.png -frames:v 1 output.png",output);check(DesktopProvenance.aiPicture(output))
     }
+    verify("AI voice disclosures survive sound import re-encode strip and recovery") {
+        val voice=File(folder,"disclosed-voice.wav")
+        media.process.checked(listOf("ffmpeg","-nostdin","-v","error","-y","-f","lavfi","-i","sine=frequency=330:sample_rate=24000","-t","2",voice.path))
+        check(com.cuscus.ffmpeggui.core.provenance.AiSeal.mark(voice,com.cuscus.ffmpeggui.core.provenance.AiDisclosure(speech=true),com.cuscus.ffmpeggui.core.provenance.AiDisclosure.TRAINED)==com.cuscus.ffmpeggui.core.provenance.AiSeal.Marked.WRITTEN)
+        val source=media.probe(voice.path);check(source.aiSpeech && !source.aiPicture)
+        val sound=DesktopSound(source,PlacedSound(startMs=0,trimEndMs=2000))
+        val layered=p.copy(sounds=listOf(sound),tags=MetadataTags(stripAll=true))
+        check(DesktopProvenance.speechNeeded(layered));check(layered.request().sounds.single().aiVoice!=null)
+        for(format in listOf(OutputFormat.MP4,OutputFormat.MKV,OutputFormat.MP3,OutputFormat.FLAC,OutputFormat.WAV)) {
+            val output=File(folder,"voice-disclosed.${format.name.lowercase()}");exporter.export(layered.copy(format=format),output)
+            check(DesktopProvenance.aiSpeech(output));media.process.checked(listOf("ffmpeg","-v","error","-i",output.path,"-f","null","-"))
+        }
+        val saved=File(folder,"voice-disclosed.ffgui.json");DesktopProjects.save(layered,saved);check(DesktopProjects.load(saved,media).sounds.single().source.aiSpeech)
+        check(!DesktopProvenance.speechNeeded(layered.copy(sounds=listOf(sound.copy(muted=true)))))
+        check(!DesktopProvenance.speechNeeded(layered.copy(sounds=listOf(sound.copy(placed=sound.placed.copy(volume=0f))))))
+        val studioOut=File(folder,"voice-studio.wav");val studio=DesktopStudio(media);val alias=studio.aliases(layered).entries.first {it.value==voice.canonicalPath}.key;studio.export(layered,"ffmpeg -i $alias output.wav",studioOut);check(DesktopProvenance.aiSpeech(studioOut))
+        val main=DesktopProject(listOf(source),Timeline(listOf(Clip("voice",source.path,endMs=source.info.durationMs))));val mainOut=File(folder,"voice-main.mp3");exporter.export(main.copy(format=OutputFormat.MP3,tags=MetadataTags(stripAll=true)),mainOut);check(DesktopProvenance.aiSpeech(mainOut))
+        val image=File(folder,"voice-no-speech.png");exporter.export(layered.copy(format=OutputFormat.PNG),image);check(!DesktopProvenance.aiSpeech(image))
+    }
     verify("cancel real process") {
         val start=System.currentTimeMillis()
         val job=launch { media.process.run(listOf("ffmpeg","-re","-f","lavfi","-i","testsrc2=size=640x360:rate=25","-t","30","-f","null","-")) }

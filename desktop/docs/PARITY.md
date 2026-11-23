@@ -494,3 +494,19 @@ rejected until its adapter exists. Latest full package8b6predatesHDR/canvas.
   already delivered17c binary. Full package refresh/lifecycle and broad licence
   audit still open for this checkpoint. No multilingual/Piper/integrated dub
   or export-pipeline invisible re-seal claim.
+
+### 2026-11-23 05:18 EET: imported AI voice disclosure propagation
+- Existing explicit AI-generated voice comment/XMP/tag detected by bounded2MB
+  head/tail scan on main audio/video sources and sound layers. This does not
+  detect unmarked synthetic audio. Saved projects re-probe the source marks.
+- Normal export and manual studio reapply speech disclosure after render/strip,
+  read it back before move; container-tag formats get explicit verified remux.
+  Sound layers muted or volume0do not add speech disclosure. Source-audio
+  disclosure remains conservative even if a manual command removes that audio.
+-57native tests pass including actual tagged tone fixture through MP4/MKV/MP3/
+  FLAC/WAV, metadata strip, manual studio, source-audio export, project reload,
+  muted/zero-volume exclusion and image-only exclusion. This verifies metadata,
+  not an invisible AudioSeal mark on the fixture or resealing transformed audio.
+- Dubbing UI notes importing standalone output via Sound tracks and preservation
+  limits. Fresh generated WAV still has production saved-sample readback; later
+  edits/recompression remain unguaranteed. Invisible pipeline reseal remains open.
