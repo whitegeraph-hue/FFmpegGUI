@@ -21,6 +21,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.CancellationException
 import java.io.File
 
 @Composable internal fun DesktopTimeline(c:EditorController,p:DesktopProject,onAdd:()->Unit) {
@@ -82,29 +83,50 @@ import java.io.File
                         while(t<=duration) {Text(time(t),Modifier.offset(x=(width*t/duration).dp),style=MaterialTheme.typography.labelSmall);t+=step}
                     }
                     Box(Modifier.width(width.dp).weight(1f)) {
+                        val viewportLeft=scroll.value/density
+                        val viewportRight=viewportLeft+scroll.viewportSize/density
                         val overlapping=spans.sortedBy {it.startMs}.zipWithNext().any {(a,b)->a.endMs>b.startMs}
                         spans.forEach {span->
                             val clip=p.timeline.clips[span.index]
+                            val clipLeft=width*span.startMs/duration
+                            val clipWidth=(width*(span.endMs-span.startMs)/duration).coerceAtLeast(2f)
+                            // Keep one small prefetch margin, not a task per offscreen clip.
+                            if(clipLeft+clipWidth<viewportLeft-160 || clipLeft>viewportRight+160)return@forEach
                             val source=p.sources.first {it.path==clip.sourceId}
                             val selected=clip.id==c.smartClipId
                             val lane=if(overlapping)span.index%2 else 0
-                            val clipWidth=(width*(span.endMs-span.startMs)/duration).coerceAtLeast(2f)
                             val clipHeight=if(overlapping)46.dp else 88.dp
                             val color=if(selected)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondaryContainer
                             val ink=if(selected)MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSecondaryContainer
+                            key(clip.id) {
                             Surface(shape=RoundedCornerShape(9.dp),color=color,contentColor=ink,border=BorderStroke(if(selected)3.dp else 1.dp,if(selected)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline),modifier=Modifier.offset(x=(width*span.startMs/duration).dp,y=(lane*49).dp).width(clipWidth.dp).height(clipHeight).padding(end=2.dp).pointerInput(p,span,c.busy){detectTapGestures(onDoubleTap={if(!c.busy){focus.requestFocus();c.selectSmartClip(clip.id);c.tab="Clip editor"}},onTap={at->if(!c.busy){focus.requestFocus();c.selectSmartClip(clip.id);val out=span.startMs+(at.x/size.width*(span.endMs-span.startMs)).toLong();c.seek(p.mediaForClipOutput(span.index,out))}})}) {
-                                Column {
-                                    if(!overlapping && clipWidth>65f) {
-                                        var thumb by remember(source.path,clip.startMs,clip.endMs) {mutableStateOf<ImageBitmap?>(null)}
-                                        LaunchedEffect(source.path,clip.startMs,clip.endMs) {if(source.info.isVideo)runCatching {c.thumbnails.frame(source,clip.startMs+clip.lengthMs/2)}.getOrNull()?.let {thumb=it}}
-                                        Box(Modifier.fillMaxWidth().height(48.dp).background(MaterialTheme.colorScheme.surfaceContainerHigh),contentAlignment=Alignment.Center) {
-                                            if(thumb!=null)Image(thumb!!,"Source thumbnail",Modifier.fillMaxSize(),contentScale=ContentScale.Crop)
-                                            else Text(if(source.info.isVideo)"Source" else "Audio",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                                        }
-                                    }
-                                    Text("${span.index+1}${if(span.backwards)" ←" else ""} · ${File(clip.sourceId).name}",Modifier.padding(horizontal=7.dp,vertical=2.dp),maxLines=1,overflow=TextOverflow.Ellipsis,style=MaterialTheme.typography.labelSmall)
-                                    if(clipWidth>95f)Text("${time(span.endMs-span.startMs)}${if(clip.effects.speed!=1f)" · ${clip.effects.speed}×" else ""}",Modifier.padding(horizontal=7.dp),maxLines=1,style=MaterialTheme.typography.labelSmall)
+                                var thumb by remember(source.path,clip.startMs,clip.endMs) {mutableStateOf<ImageBitmap?>(null)}
+                                val showThumb=clipWidth>if(overlapping)110f else 65f
+                                LaunchedEffect(source.path,clip.startMs,clip.endMs,showThumb) {
+                                    if(showThumb && source.info.isVideo)try {
+                                        thumb=c.thumbnails.frame(source,clip.startMs+clip.lengthMs/2)
+                                    } catch(e:CancellationException) {throw e} catch(_:Exception) {thumb=null}
                                 }
+                                @Composable fun Thumbnail(modifier:Modifier) {
+                                    Box(modifier.background(MaterialTheme.colorScheme.surfaceContainerHigh),contentAlignment=Alignment.Center) {
+                                        if(thumb!=null)Image(thumb!!,"Source thumbnail",Modifier.fillMaxSize(),contentScale=ContentScale.Crop)
+                                        else Text(if(source.info.isVideo)"Source" else "Audio",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                }
+                                @Composable fun ClipLabels(modifier:Modifier=Modifier) {
+                                    Column(modifier) {
+                                        Text("${span.index+1}${if(span.backwards)" ←" else ""} · ${File(clip.sourceId).name}",Modifier.padding(horizontal=7.dp,vertical=2.dp),maxLines=1,overflow=TextOverflow.Ellipsis,style=MaterialTheme.typography.labelSmall)
+                                        if(clipWidth>95f)Text("${time(span.endMs-span.startMs)}${if(clip.effects.speed!=1f)" · ${clip.effects.speed}×" else ""}",Modifier.padding(horizontal=7.dp),maxLines=1,style=MaterialTheme.typography.labelSmall)
+                                    }
+                                }
+                                if(overlapping)Row(verticalAlignment=Alignment.CenterVertically) {
+                                    if(showThumb)Thumbnail(Modifier.width(64.dp).fillMaxHeight())
+                                    ClipLabels(Modifier.weight(1f))
+                                } else Column {
+                                    if(showThumb)Thumbnail(Modifier.fillMaxWidth().height(48.dp))
+                                    ClipLabels()
+                                }
+                            }
                             }
                         }
                         Canvas(Modifier.fillMaxSize()) {

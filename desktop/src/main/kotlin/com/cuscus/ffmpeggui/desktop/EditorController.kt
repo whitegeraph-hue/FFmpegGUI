@@ -42,7 +42,8 @@ class EditorController(val scope: CoroutineScope) {
     var rendered by mutableStateOf<File?>(null)
     var job: Job? = null
     private var frameJob: Job? = null
-    private val history = ArrayDeque<DesktopProject>()
+    private data class HistoryEntry(val project:DesktopProject,val clipId:String?,val source:Int,val position:Long)
+    private val history = ArrayDeque<HistoryEntry>()
     val media = DesktopMedia()
     val thumbnails=DesktopThumbnails(media)
     val exporter = DesktopExport(media)
@@ -92,10 +93,10 @@ class EditorController(val scope: CoroutineScope) {
         mutate(p.copy(sources=sources,timeline=p.timeline.append(Clip(id(),source.path,endMs=if(source.info.isStill)5000 else source.info.durationMs)),followCrop=null))
         selectedSource=sources.indexOfFirst {it.path==source.path};resetAnalysis();status="Source added: ${File(source.path).name}"
     }
-    private fun pruneMasks(){DesktopMasks.prune((history.toList()+listOfNotNull(project)).flatMap {listOfNotNull(it.image.key?.mask,it.image.hdr?.mask,it.image.hdr?.brush)}.toSet())}
+    private fun pruneMasks(){DesktopMasks.prune((history.map {it.project}+listOfNotNull(project)).flatMap {listOfNotNull(it.image.key?.mask,it.image.hdr?.mask,it.image.hdr?.brush)}.toSet())}
     fun resetAnalysis() { pauseStatus=PauseCutsStatus.Idle; sceneStatus=SceneSplitsStatus.Idle; beatStatus=BeatsStatus.Idle; snap=false; followStatus=FollowCropStatus.Idle }
     fun mutate(next: DesktopProject) {
-        project?.let { history.addLast(it); if (history.size>50) history.removeFirst() }
+        project?.let { history.addLast(HistoryEntry(it,smartClipId,selectedSource,position)); if (history.size>50) history.removeFirst() }
         project=next
         selectedSource=selectedSource.coerceIn(next.sources.indices)
         player.stop();rendered?.delete(); rendered=null;previewFrame=null
@@ -105,7 +106,16 @@ class EditorController(val scope: CoroutineScope) {
         seek(position)
         pruneMasks()
     }
-    fun undo() { if (history.isNotEmpty()) { project=history.removeLast(); selectedSource=selectedSource.coerceIn(project!!.sources.indices);player.stop();rendered?.delete(); rendered=null;previewFrame=null; resetAnalysis(); seek(position);pruneMasks();status="Undid the last edit." } }
+    fun undo() {
+        if(history.isEmpty())return
+        val saved=history.removeLast()
+        project=saved.project
+        selectedSource=saved.source.coerceIn(saved.project.sources.indices)
+        smartClipId=saved.clipId?.takeIf {id->saved.project.timeline.clips.any {it.id==id}}
+        player.stop();rendered?.delete();rendered=null;previewFrame=null;resetAnalysis()
+        seek(saved.position);pruneMasks();status="Undid the last edit."
+    }
+
     fun seek(at: Long) {
         val p=project ?: return
         player.stop()
@@ -222,7 +232,7 @@ class EditorController(val scope: CoroutineScope) {
             // and a failed export leave both the project and its Undo history alone.
             if(project!=p) {
                 val previous=project
-                previous?.let {history.addLast(it);if(history.size>50)history.removeFirst()}
+                previous?.let {history.addLast(HistoryEntry(it,smartClipId,selectedSource,position));if(history.size>50)history.removeFirst()}
                 project=p
                 // The preview keeps its picture when only the delivery container changes.
                 // Encoding changes can change cached dimensions, cadence or audio quality.

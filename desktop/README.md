@@ -53,7 +53,13 @@ building, project model JSON and smart-detector logic come from the shared core.
   edited timeline. The source-frame view is labelled, it does not pretend to
   show effects. Render edited preview generates the actual edited output and
   plays it inside the editor with an audio-sample clock, including cuts and effects. Physical target audio remains unverified.
-- Split, remove and reorder clips. Undo (50 in-memory history entries).
+- Split, duplicate, precise source trim, remove and reorder clips. Undo restores
+  the edit, selected clip and seek position (50 in-memory history entries).
+- Zoomable output-time timeline with separate lanes during transitions and
+  original-source thumbnails. Thumbnail tasks are limited to the visible area
+  plus a small margin, use one decoder at a time and a 64-image cache. They are
+  not live effect previews. A synthetic 100-clip, 3840×2160 source workflow was
+  checked at 1366×768; this is not a general large-project performance claim.
 - Speed, volume, rotation, horizontal flip, brightness, contrast, saturation.
 - MP4/MKV/AVI/GIF and common audio/image output formats supported by the UI.
 - Real scene and beat analysis, selectable boundaries and application to the

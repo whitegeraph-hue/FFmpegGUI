@@ -23,9 +23,15 @@ fun main(args:Array<String>)=runBlocking {
             c.project=p;check(!c.canUndo);c.selectSmartClip(p.timeline.clips[0].id)
             c.trimSelected(500,2500);check(c.project!!.timeline.clips.single().startMs==500L && c.canUndo)
             c.duplicateSelected();check(c.project!!.timeline.clips.size==2 && c.smartClipId==c.project!!.timeline.clips[1].id)
-            c.undo();check(c.project!!.timeline.clips.size==1);c.undo();check(c.project===p && !c.canUndo)
+            c.undo();check(c.project!!.timeline.clips.size==1 && c.smartClipId==p.timeline.clips[0].id);c.undo();check(c.project===p && !c.canUndo && c.smartClipId==p.timeline.clips[0].id)
             c.selectSmartClip(p.timeline.clips[0].id);c.trimSelected(0,video.info.durationMs+1)
             check(c.project===p && !c.canUndo && c.error!=null)
+            c.error=null
+            val pair=p.copy(timeline=Timeline(listOf(p.timeline.clips[0].copy(endMs=1000),p.timeline.clips[0].copy(id="second-undo",startMs=1000,endMs=2000))))
+            c.project=pair;c.selectSmartClip("second-undo");c.seek(1500)
+            c.removeClip(1);check(c.smartClipId==null)
+            c.undo();check(c.project===pair && c.smartClipId=="second-undo" && c.position==1500L)
+            c.moveClip(1,-1);c.undo();check(c.project===pair && c.smartClipId=="second-undo" && c.position==1500L)
         }finally {c.close();scope.cancel()}
     }
     verify("timeline lane seeking owns overlapping reversed sped and ramp clips") {
