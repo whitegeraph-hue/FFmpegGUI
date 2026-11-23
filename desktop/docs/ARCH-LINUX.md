@@ -40,3 +40,6 @@ and its ELF layout under /opt. This package intentionally bundles its JVM and
 does not change the system Java selection. Unused-library/dependency warnings
 need to be read with the bundled runtime and subprocess/dlopen dependencies in
 mind; they are not represented as a clean namcap result.
+
+Physical audio remains untested. PipeWire users may need pipewire-alsa for the
+Java ALSA output path. Pure Wayland sessions need XWayland for this X11 GUI.

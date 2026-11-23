@@ -31,7 +31,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Update rolling Arch and install runtime and test tools
-        run: pacman -Syu --noconfirm ffmpeg ttf-dejavu espeak-ng libx11 libxext libxi libxrender libxtst libglvnd fontconfig freetype2 alsa-lib gtk3 hicolor-icon-theme xorg-server-xvfb python desktop-file-utils namcap git
+        run: pacman -Syu --noconfirm python git
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
@@ -42,27 +42,36 @@ jobs:
           useradd -m builder
           chown -R builder:builder /tmp/arch-stage
           cd /tmp/arch-stage
+          # Only declared runtime dependencies, before GUI/test packages can mask gaps.
+          bash -c 'source PKGBUILD; pacman -S --needed --noconfirm "${depends[@]}"'
           runuser -u builder -- makepkg --noconfirm
           pacman -U --noconfirm ./*.pkg.tar.zst
           pacman -Qkk ffmpeggui-linux
+          python "$GITHUB_WORKSPACE/desktop/scripts/check-arch-libs.py" /opt/ffmpeggui-linux
+          # Upgrade/reinstall the same version and verify the owned tree again.
+          pacman -U --noconfirm ./*.pkg.tar.zst
+          pacman -Qkk ffmpeggui-linux
+          pacman -S --noconfirm xorg-server-xvfb desktop-file-utils namcap
           desktop-file-validate /usr/share/applications/ffmpeggui-linux.desktop
           namcap ./*.pkg.tar.zst > /tmp/arch-namcap.txt
           pacman -Q > /tmp/arch-package-versions.txt
       - name: Actual bundled launcher and real media graphs on Arch
         run: |
           python desktop/scripts/make-fixtures.py /tmp/ffmpeggui-fixtures
-          FFMPEGGUI_NATIVE_CHECKS=/tmp/ffmpeggui-fixtures /usr/bin/ffmpeggui-linux > /tmp/arch-native.log 2>&1
+          chown -R builder:builder /tmp/ffmpeggui-fixtures
+          runuser -u builder -- env FFMPEGGUI_NATIVE_CHECKS=/tmp/ffmpeggui-fixtures /usr/bin/ffmpeggui-linux > /tmp/arch-native.log 2>&1
           cat /tmp/arch-native.log
-          FFMPEGGUI_OPEN=/tmp/ffmpeggui-fixtures/video.mp4 FFMPEGGUI_SCREENSHOT=/tmp/arch-installed.png xvfb-run -a -s '-screen 0 1600x1000x24' python desktop/scripts/launch-desktop-entry.py /usr/share/applications/ffmpeggui-linux.desktop
+          runuser -u builder -- env FFMPEGGUI_OPEN=/tmp/ffmpeggui-fixtures/video.mp4 FFMPEGGUI_SCREENSHOT=/tmp/arch-installed.png xvfb-run -a -s '-screen 0 1600x1000x24' python desktop/scripts/launch-desktop-entry.py /usr/share/applications/ffmpeggui-linux.desktop
       - name: Actual bundled model and isolated worker checks on Arch
         run: |
           python desktop/scripts/prepare-model-fixtures.py --repo . --output /tmp/ffmpeggui-models
-          FFMPEGGUI_MODEL_CHECKS=/tmp/ffmpeggui-models /usr/bin/ffmpeggui-linux
-          FFMPEGGUI_ISOLATED_CHECKS=/tmp/ffmpeggui-models /usr/bin/ffmpeggui-linux
+          chown -R builder:builder /tmp/ffmpeggui-models
+          runuser -u builder -- env FFMPEGGUI_MODEL_CHECKS=/tmp/ffmpeggui-models /usr/bin/ffmpeggui-linux
+          runuser -u builder -- env FFMPEGGUI_ISOLATED_CHECKS=/tmp/ffmpeggui-models /usr/bin/ffmpeggui-linux
       - name: Package removal leaves no executable or desktop entry
         run: |
           pacman -R --noconfirm ffmpeggui-linux
-          test ! -e /opt/ffmpeggui-linux/bin/ffmpeggui-linux
+          test ! -e /opt/ffmpeggui-linux
           test ! -e /usr/bin/ffmpeggui-linux
           test ! -e /usr/share/applications/ffmpeggui-linux.desktop
       - uses: actions/upload-artifact@v4
