@@ -1,13 +1,13 @@
 # Current Linux preview status
 
-Audited 2026-11-23 through delivered 770d1cf and the local keyboard/reorder
+Audited 2026-11-23 through delivered a0ae310 and the local endpoint
 follow-through below. PARITY.md remains execution history. The original full
 Linux request remains open.
 
 ## Current checkpoint
 
-- Delivered 770d1cf: all four CI green. Exact Debian and Arch packages checked;
-  Debian has 933 shared tests and both packages pass 81 native checks. Arch
+- Delivered a0ae310: all four CI green. Exact Debian and Arch packages checked;
+  Debian has 933 shared tests and both packages pass 85 native checks. Arch
   checks cover clean declared dependencies, 27 ELF library checks, non-root
   GUI/model workers, reinstall/file integrity and removal. Actual package drag,
   Undo and outside-release cancellation were checked on both packages.
@@ -18,12 +18,12 @@ Linux request remains open.
   history isolation, source peaks and Save/Save as destination. Save overwrites
   without backup. Save as switches the destination. History is 50 in-memory
   entries, not autosave or crash recovery.
-- Next local keyboard/reorder batch: buttons use the same occurrence-preserving
+- Delivered keyboard/reorder batch: buttons use the same occurrence-preserving
   move as drag; Left/Right refer to visible direction under global reverse.
   Timeline-focused Alt+arrows reorder, Home/End seek output start/end with
   reversed lane ownership. Source thumbnail decode at the source endpoint uses
   the final frame interval without changing the edit clock. Local
-  source native suite passes 85 checks; exact next package qualification pending.
+  source native suite and both exact package suites pass 85 checks.
 - Clip-bound speech, official Rounded Symbols, source thumbnails, viewport
   culling, Undo selection/seek and a full-lane output guide are qualified in
   their earlier source/package checkpoints. The synthetic100clip4K-source test
@@ -33,15 +33,21 @@ Linux request remains open.
   Models are separate. Initial no-control-focused synthetic-launch shortcut
   behavior remains unverified; focused field/timeline shortcuts were checked.
 
-- Local compact workspace follow-through: at 1024x640, single scrollable timeline
+- Delivered compact workspace follow-through: at 1024x640, single scrollable timeline
   action row, shorter help and combined source/output header leave full clip lanes
   and a larger monitor. Actual trim/Apply/Undo/split/save/render checked. Wide
   1600x900 layout inspected. Not physical HiDPI proof.
-- Local playback follow-through: a video may continue silently when audio-device
+- Delivered playback follow-through: a video may continue silently when audio-device
   acquisition/open is unavailable, with an explicit notice. Audio-only playback
   still reports failure. Decode/process failures are not converted to silent
   success. Controlled unavailable-device motion/pause/resume checks pass;
   physical audio-device success remains unqualified.
+
+- Local endpoint follow-through after a0ae310: ruler and frame-step endpoint
+  seeks share the Home/End visible-lane ownership. Regression reproduced a
+  reversed-first-clip left-step at Home jumping to 750 ms. Local fix preserves
+  zero/end; 86 native checks pass and actual compact endpoint pixels checked.
+  Not yet pushed, CI-tested or delivered.
 
 ## Implemented with bounded evidence
 

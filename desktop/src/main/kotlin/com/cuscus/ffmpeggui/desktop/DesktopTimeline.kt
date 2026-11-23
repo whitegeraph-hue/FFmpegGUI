@@ -98,7 +98,7 @@ import java.io.File
                     }
                 }
                 Column(Modifier.fillMaxSize().horizontalScroll(scroll)) {
-                    Box(Modifier.width(width.dp).height(22.dp).pointerInput(p,width){detectTapGestures {at->if(!c.busy)c.seek(p.clock().mediaMsForOutput((at.x/size.width*duration).toLong()))}}) {
+                    Box(Modifier.width(width.dp).height(22.dp).pointerInput(p,width){detectTapGestures {at->if(!c.busy)c.seekOutput((at.x/size.width*duration).toLong())}}) {
                         val step=maxOf(100L,(duration/(maxOf(1,(width/120).toInt()))/100)*100)
                         var t=0L
                         while(t<=duration) {Text(time(t),Modifier.offset(x=(width*t/duration).dp),style=MaterialTheme.typography.labelSmall);t+=step}

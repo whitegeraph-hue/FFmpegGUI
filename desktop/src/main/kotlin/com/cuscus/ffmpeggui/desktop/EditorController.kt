@@ -179,7 +179,7 @@ class EditorController(val scope: CoroutineScope) {
         val current=if(player.engaged)player.positionMs else p.outputAt(position)
         // The integrated preview is 25 fps, independently of source/export frame rate.
         val output=(current+direction*40L).coerceIn(0,p.outputDurationMs)
-        seek(p.clock().mediaMsForOutput(output))
+        seekOutput(output)
     }
     fun seekWord(word: SpokenWord) {
         val p=project ?: return
@@ -221,6 +221,17 @@ class EditorController(val scope: CoroutineScope) {
         val index=p.timeline.clips.indexOfFirst {it.id==smartClipId}
         if(index<0 || direction !in listOf(-1,1))return
         moveClip(index,if(p.effects.reversed)-direction else direction)
+    }
+    /** Ruler and frame-step seeks share endpoint ownership with Home/End. */
+    fun seekOutput(at:Long) {
+        val p=project ?: return
+        if(busy)return
+        val output=at.coerceIn(0,p.outputDurationMs)
+        when(output) {
+            0L->seekOutputEdge(false)
+            p.outputDurationMs->seekOutputEdge(true)
+            else->seek(p.clock().mediaMsForOutput(output))
+        }
     }
     fun seekOutputEdge(end:Boolean) {
         val p=project ?: return

@@ -77,6 +77,25 @@ internal fun runNativeChecks(args:Array<String>)=runBlocking {
             }
         }finally {c.close();scope.cancel()}
     }
+    verify("ruler and frame stepping clamp to visible reversed output endpoints") {
+        val scope=CoroutineScope(Dispatchers.Default+SupervisorJob());val c=EditorController(scope)
+        try {
+            val base=DesktopProject.create(video);val clip=base.timeline.clips.single()
+            for(reverse in listOf(false,true))for(firstReverse in listOf(false,true))for(lastReverse in listOf(false,true)) {
+                val a=clip.copy(id="step-a",endMs=2000,effects=Effects(speed=2f,reversed=firstReverse,transition=Transition(TransitionKind.FADE,250)))
+                val b=clip.copy(id="step-b",startMs=4000,endMs=8000,effects=Effects(reversed=lastReverse))
+                val p=base.copy(timeline=Timeline(listOf(a,b)),effects=Effects(reversed=reverse))
+                c.project=p;c.seekOutput(-10)
+                check(p.outputAt(c.position)<=2)
+                c.seekOutput(p.outputDurationMs+10)
+                check(kotlin.math.abs(p.outputAt(c.position)-p.outputDurationMs)<=2)
+                c.seekOutputEdge(false);c.stepOutput(-1)
+                check(p.outputAt(c.position)<=2) {"step before Home: $reverse $firstReverse $lastReverse: ${p.outputAt(c.position)}"}
+                c.seekOutputEdge(true);c.stepOutput(1)
+                check(kotlin.math.abs(p.outputAt(c.position)-p.outputDurationMs)<=2) {"step after End: $reverse $firstReverse $lastReverse: ${p.outputAt(c.position)}/${p.outputDurationMs}"}
+            }
+        }finally {c.close();scope.cancel()}
+    }
     verify("source frame at reversed output start uses the final decodable frame") {
         val scope=CoroutineScope(Dispatchers.Default+SupervisorJob());val c=EditorController(scope)
         try {
