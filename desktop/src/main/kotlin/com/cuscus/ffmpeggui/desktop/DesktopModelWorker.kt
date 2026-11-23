@@ -48,6 +48,10 @@ class DesktopModelWorker {
                     File(directory,"error.txt").takeIf {it.isFile && it.length() in 1..4000}?.readText()
                         ?: "Offline model process stopped (${process.exitValue()}). Try closing other apps and retrying."
                 }
+                if(kind=="dub") {
+                    val log=File(directory,"worker.log");require(log.length()<=2_000_000) {"Voice inference produced too many diagnostics"}
+                    val text=log.readText();require(!Regex("OOV (word|character) skipped|Skip unknown phonemes").containsMatchIn(text)) {"Voice frontend could not say every word or sound. No WAV was saved."}
+                }
                 val resultFile=File(directory,"result.json")
                 check(resultFile.length() in 1..32_000_000) { "Invalid offline model response size" }
                 val response=Json.parseToJsonElement(resultFile.readText()).jsonObject
@@ -74,6 +78,19 @@ class DesktopModelWorker {
                 directory.deleteRecursively()
             }
         }
+    }
+    suspend fun dub(lines:List<com.cuscus.ffmpeggui.core.dub.DubTiming.Line>,voice:Int,speed:Float,endMs:Long?,destination:File,progress:(String)->Unit) {
+        require(!destination.exists() && destination.extension.equals("wav",true)) {"Choose a new WAV file; existing files are not replaced"}
+        val response=run("dub","",DesktopDub.root,payload=buildJsonObject {
+            put("markers",DesktopDub.markers.absolutePath);put("voice",voice);put("speed",speed);endMs?.let {put("end",it)}
+            put("lines",buildJsonArray {lines.forEach {line->add(buildJsonObject {put("start",line.startMs);put("end",line.endMs);put("text",line.text)})}})
+        },progress=progress)
+        val bytes=java.util.Base64.getDecoder().decode(response["wav"]!!.jsonPrimitive.content)
+        require(bytes.size in 45..3_000_000 && bytes.copyOfRange(0,4).toString(Charsets.US_ASCII)=="RIFF" && bytes.copyOfRange(8,12).toString(Charsets.US_ASCII)=="WAVE") {"Invalid generated WAV response"}
+        require(bytes.toString(Charsets.ISO_8859_1).contains(com.cuscus.ffmpeggui.core.provenance.AiDisclosure.SPEECH_TEXT)) {"Missing AI speech disclosure"}
+        currentCoroutineContext().ensureActive()
+        var created=false
+        try {Files.newOutputStream(destination.toPath(),java.nio.file.StandardOpenOption.CREATE_NEW).use {created=true;it.write(bytes)}}catch(t:Throwable){if(created)destination.delete();throw t}
     }
     suspend fun erase(path:String,mask:File,destination:File,progress:(String)->Unit) {
         require(!destination.exists()) {"Choose a new output PNG; existing files are not replaced"}
@@ -135,6 +152,13 @@ fun runModelWorker(folder:String)=runBlocking {
     val model=File(request["model"]!!.jsonPrimitive.content)
     try {
     val result=when(request["kind"]!!.jsonPrimitive.content) {
+        "dub" -> {
+            val lines=request["lines"]!!.jsonArray.map {v->v.jsonObject.let {com.cuscus.ffmpeggui.core.dub.DubTiming.Line(it["start"]!!.jsonPrimitive.long,it["end"]!!.jsonPrimitive.long,it["text"]!!.jsonPrimitive.content)}}
+            val output=File(directory,"dub.wav")
+            DesktopDub.generate(model,File(request["markers"]!!.jsonPrimitive.content),lines,request["voice"]!!.jsonPrimitive.int,request["speed"]!!.jsonPrimitive.float,request["end"]?.jsonPrimitive?.long,output,::progress)
+            require(output.length() in 45..3_000_000)
+            buildJsonObject {put("wav",java.util.Base64.getEncoder().encodeToString(output.readBytes()))}
+        }
         "erase" -> {
             val output=DesktopErase.erase(path,request["mask"]!!.jsonPrimitive.content,model,File(request["markers"]!!.jsonPrimitive.content),directory,::progress)
             require(output.length()<=16_000_000)

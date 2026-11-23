@@ -26,6 +26,10 @@ import java.awt.Desktop
 
 fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
     runModelWorker(System.getenv("FFMPEGGUI_MODEL_WORKER"))
+} else if (System.getenv("FFMPEGGUI_DUB_CHECKS") != null) {
+    runDubChecks(System.getenv("FFMPEGGUI_DUB_CHECKS"))
+} else if (System.getenv("FFMPEGGUI_AUDIO_MARK_CHECKS") != null) {
+    runAudioMarkChecks(System.getenv("FFMPEGGUI_AUDIO_MARK_CHECKS"))
 } else if (System.getenv("FFMPEGGUI_ERASE_CHECKS") != null) {
     runEraseChecks(System.getenv("FFMPEGGUI_ERASE_CHECKS"))
 } else if (System.getenv("FFMPEGGUI_MARK_CHECKS") != null) {

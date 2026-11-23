@@ -9,3 +9,12 @@ https://github.com/adobe/trustmark
 https://github.com/adobe/trustmark/issues/48
 See adjacent licences and upstream marker notice/provenance.
 No model weights are bundled in the Linux app.
+
+AudioSeal: Meta, MIT, unchanged original app pinned generator/detector.
+https://github.com/facebookresearch/audioseal
+https://github.com/marcomorosi06/FFmpegGUI/releases/tag/ai-markers-1
+Kokoro-82M: hexgrad, Apache-2.0; model weights not bundled.
+https://huggingface.co/hexgrad/Kokoro-82M
+Original hash archive recovery mirror:
+https://github.com/modelship-ai/model-bundles/releases/tag/tts/kokoro
+Original archive includes eSpeak NG GPL-3.0 data, separately imported only.

@@ -432,3 +432,39 @@ rejected until its adapter exists. Latest full package8b6predatesHDR/canvas.
   combined parent/worker peak. Conservative1.2GiB preflight retained.
 - Decode converts indexed/RGB to mutable ARGB so generated colours are not
   quantized back to a source palette. Original alpha remains supported.
+
+### 2026-11-23 04:42 EET: audio marking foundation, not exposed dub
+- Original pinned AudioSeal generator/detector, original5s windows/resampler/
+  joins and constant all-zero payload. No dub/TTS control exposed yet.
+- Actual17word natural test WAV: marked speech share1.0 with correct message,
+  saved PCM WAV reload1.0, unmarked source share0.01408. This is one fixture,
+  not broad robustness or post-compression certification.60second mono bound.
+- Current upstream Kokoro archive does not match original Android archive pin:
+  downloaded349886476bytes SHA60703707bc05ccd48d60e1eb723f38b07d6e474795a0b6a588d7220400e0f7a4,
+  expected349906910bytes SHAc5f7e2d2caf082bc1d20fb70334a61d99d20b484500aad32e7cf84c128ea3298.
+  Model/voices/tokens/USlexicon/phontab inside match their original pins, but
+  that is not whole-archive identity. Original pin not weakened, no Kokoro
+  import or synthesis exposed. Original archive recovery remains open.
+
+### 2026-11-23 04:52 EET: pinned Kokoro foundation, not a user-facing dub tool
+- Recovered original349906910byte archive from an independent mirror and verified
+  original full SHA256c5f7e2d2caf082bc1d20fb70334a61d99d20b484500aad32e7cf84c128ea3298.
+  https://github.com/modelship-ai/model-bundles/releases/tag/tts/kokoro
+  Original pin unchanged. Hash-verified private copy, bounded original TAR/BZip2
+  import, original primary pins plus per-file hashes rechecked before inference.
+- Actual CPU two-cue24kHz speech, original timing/pace/trim/fit/fade, sequential
+  model release then required AudioSeal and XMP. Saved WAV reload share0.99908
+  in one test; no broad listening/quality or compression robustness claim.
+- Compatibility finding: sherpa2 removed built-in eSpeak. Its lexicon skips
+  unlisted words, including ordinary inflections. Fail-closed ASCII vocabulary
+  and symbol/number checks now precede synthesis; OOV/native unknown-phoneme
+  diagnostics refuse worker output. External phonemization/multilingual/Piper
+  voice support remain open. No dub UI exposed until the frontend is usable.
+  https://k2-fsa.github.io/sherpa/onnx/faqs/update-v1.x-to-v2.x-espeak-ng.html
+- Disposable child tests cover synthesis, unchanged existing destination,
+  unknown-word failure without output, cancellation, retry and changed model
+  refusal. One-minute/30cue/US-English bounds and1.2GiB free memory preflight.
+  Direct+child back-to-back in the same parent hit the gate because native
+  memory was retained there; fresh worker-only checks pass. No lowered gate.
+- Archive contains eSpeak NG GPL data; weights remain unbundled. AudioSeal MIT
+  licence is included; current licence audit is scoped, not legal certification.
