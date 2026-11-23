@@ -40,6 +40,8 @@ class EditorController(val scope: CoroutineScope) {
     }
     var sourceFrame by mutableStateOf<ImageBitmap?>(null)
     var previewFrame by mutableStateOf<ImageBitmap?>(null)
+    var inspectedOutputMs by mutableStateOf<Long?>(null)
+        private set
     var drawingFrame by mutableStateOf<ImageBitmap?>(null)
     var position by mutableStateOf(0L)
     var busy by mutableStateOf(false)
@@ -89,7 +91,7 @@ class EditorController(val scope: CoroutineScope) {
     }
     private suspend fun replaceProject(loaded:DesktopProject) {
         frameJob?.cancelAndJoin();frameJob=null
-        player.stop();rendered?.delete();rendered=null;previewFrame=null;sourceFrame=null;drawingFrame=null
+        player.stop();rendered?.delete();rendered=null;previewFrame=null;inspectedOutputMs=null;sourceFrame=null;drawingFrame=null
         project=loaded;savedProject=loaded;selectedSource=0;smartClipId=null;history.clear();future.clear();resetAnalysis()
         position=0;pruneMasks();seek(0)
     }
@@ -118,7 +120,7 @@ class EditorController(val scope: CoroutineScope) {
         rememberEdit()
         project=next
         selectedSource=selectedSource.coerceIn(next.sources.indices)
-        player.stop();rendered?.delete(); rendered=null;previewFrame=null
+        player.stop();rendered?.delete(); rendered=null;previewFrame=null;inspectedOutputMs=null
         position=position.coerceAtMost(next.timeline.durationMs)
         resetAnalysis()
         if(next.timeline.clips.none {it.id==smartClipId})smartClipId=null
@@ -129,7 +131,7 @@ class EditorController(val scope: CoroutineScope) {
         project=saved.project
         selectedSource=saved.source.coerceIn(saved.project.sources.indices)
         smartClipId=saved.clipId?.takeIf {id->saved.project.timeline.clips.any {it.id==id}}
-        player.stop();rendered?.delete();rendered=null;previewFrame=null;resetAnalysis()
+        player.stop();rendered?.delete();rendered=null;previewFrame=null;inspectedOutputMs=null;resetAnalysis()
         seek(saved.position);pruneMasks()
     }
     fun undo() {
@@ -145,6 +147,7 @@ class EditorController(val scope: CoroutineScope) {
 
     fun seek(at: Long) {
         val p=project ?: return
+        if(inspectedOutputMs!=null){previewFrame=null;inspectedOutputMs=null;status="Source frame. Inspect frame or Play edit to see the edit."}
         player.stop()
         position=at.coerceIn(0,p.timeline.durationMs)
         val pos=p.timeline.locate(position) ?: return
@@ -358,10 +361,28 @@ class EditorController(val scope: CoroutineScope) {
                 // The preview keeps its picture when only the delivery container changes.
                 // Encoding changes can change cached dimensions, cadence or audio quality.
                 if(previous?.encoding!=p.encoding) {
-                    player.stop();rendered?.delete();rendered=null;previewFrame=null
+                    player.stop();rendered?.delete();rendered=null;previewFrame=null;inspectedOutputMs=null
                 }
             }
             status="Export complete: ${result.path} · ${result.info.durationFormatted}"
+        }
+    }
+    fun inspectFrame() {
+        val p=project ?: return
+        if(busy)return
+        val at=if(player.engaged)player.positionMs else p.outputAt(position)
+        position=p.clock().mediaMsForOutput(at).coerceIn(0,p.timeline.durationMs)
+        frameJob?.cancel()
+        player.stop()
+        work("Rendering the current edited frame. Reverse and stabilization may take longer…") {
+            val frame=exporter.editedFrame(p,at)
+            try {
+                if(project===p) {
+                    previewFrame=frame.toComposeImageBitmap()
+                    inspectedOutputMs=at.coerceIn(0,(p.outputDurationMs-40).coerceAtLeast(0))
+                    status="Edited frame at ${time(inspectedOutputMs!!)}. Temporary MP4 preview, no audio/motion or delivery compression, cover or stream copy. Play edit renders the movie."
+                }
+            } finally {frame.flush()}
         }
     }
     fun preview(playWhenReady:Boolean=false) {
@@ -376,7 +397,7 @@ class EditorController(val scope: CoroutineScope) {
             current.sources[0].info.isVideo -> OutputFormat.MP4
             else -> OutputFormat.WAV
         })
-        player.stop()
+        player.stop();inspectedOutputMs=null
         val file=File.createTempFile("ffmpeggui-preview-", ".${p.format.extension}").apply { delete() }
         work("Rendering an exact edited preview. This includes cuts and effects…") {
             try {

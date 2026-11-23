@@ -20,6 +20,11 @@ import java.util.concurrent.TimeUnit
 import javax.imageio.ImageIO
 import java.awt.image.BufferedImage
 
+internal fun desktopProcessFailure(code:Int,log:String):String {
+    val killed=if(code==137 || code==-9) " The process was killed. Memory pressure or an external stop may be responsible; this does not prove the cause. Try fewer high-resolution clips at once or make smaller source copies. Lowering only export resolution may not reduce source-decoder memory." else ""
+    return "Process failed (exit $code).$killed\n"+log.takeLast(6000)
+}
+
 /** Direct ProcessBuilder adapter. Never sends file names or commands through a shell. */
 class DesktopProcess {
     suspend fun run(arguments: List<String>, onLog: (String) -> Unit = {}): Pair<Int, String> = withContext(Dispatchers.IO) {
@@ -42,7 +47,7 @@ class DesktopProcess {
     }
     suspend fun checked(arguments: List<String>): String {
         val (code, log) = run(arguments)
-        check(code == 0) { log.takeLast(6000).ifBlank { "Process failed ($code)" } }
+        check(code == 0) { desktopProcessFailure(code,log) }
         return log
     }
 }
@@ -178,7 +183,22 @@ class DesktopExport(private val media: DesktopMedia = DesktopMedia()) {
         return if(format==OutputFormat.SRT) SrtSubtitles.write(SubtitleLayout.ofWords(words,project.subtitleStyle ?: SubtitleStyle(),request.subtitleFrameRatio),project.effects.effectiveSpeed)
         else TranscriptText.write(words,project.effects.effectiveSpeed)
     }
-    suspend fun export(project: DesktopProject, output: File,onPhase:(String)->Unit={}): DesktopSource {
+    /** Uses the full edited graph and output clock, without encoding the rest of the movie.
+     * This is a requested still inspection, not real-time playback or a DSP preview. */
+    internal suspend fun editedFrame(project:DesktopProject,atMs:Long):BufferedImage {
+        require(project.sources.first().info.isVideo && !project.sources.first().info.isStill) { "Use the edited picture preview for a still." }
+        val at=atMs.coerceIn(0,(project.outputDurationMs-40).coerceAtLeast(0))
+        val preview=project.copy(format=OutputFormat.MP4,compression=null,coverPng=null,
+            encoding=project.encoding.copy(streamCopy=false))
+        val file=File.createTempFile("ffmpeggui-edited-frame-",".mp4").apply {delete()}
+        try {
+            exportInternal(preview,file,{},at)
+            return media.frame(file.path,0) ?: error("Edited frame was empty.")
+        } finally {file.delete()}
+    }
+    suspend fun export(project:DesktopProject,output:File,onPhase:(String)->Unit={}):DesktopSource =
+        exportInternal(project,output,onPhase,null)
+    private suspend fun exportInternal(project: DesktopProject, output: File,onPhase:(String)->Unit,frameAtMs:Long?): DesktopSource {
         require((project.sources+project.sounds.map {it.source}+project.pictures.map {it.source}).none { File(it.path).canonicalFile == output.canonicalFile }) { "Choose a new output. Source files are never overwritten." }
         require(listOfNotNull(project.image.hdr?.mask,project.image.hdr?.brush).none {File(it).canonicalFile==output.canonicalFile}) {"Cannot replace an HDR mask with output."}
         require(project.image.key?.mask?.let {File(it).canonicalFile!=output.canonicalFile} ?: true) {"Cannot replace a subject mask with output."}
@@ -287,7 +307,12 @@ class DesktopExport(private val media: DesktopMedia = DesktopMedia()) {
             }
             onPhase(if(builder.needsFirstPass(request))"Compression pass 2 of 2: writing output…" else if(request.stabilization!=null)"Stabilization pass 2 of 2: rendering smoothed output…" else "Rendering edited output…")
             try {
-                encode(builder.build(request,paths).arguments)
+                val arguments=builder.build(request,paths).arguments
+                val limited=if(frameAtMs==null)arguments else {
+                    require(arguments.lastOrNull()==paths.output && paths.output==temporary.path) {"Edited-frame output path invariant failed."}
+                    arguments.dropLast(1)+listOf("-ss",(frameAtMs/1000.0).toString(),"-frames:v","1","-t","0.080",paths.output)
+                }
+                encode(limited)
             } catch(e:IllegalStateException) {
                 if(project.format==OutputFormat.OGG && e.message.orEmpty().contains("encoder setup failed"))
                     throw IllegalArgumentException("Vorbis rejected this sample-rate/channel/bitrate combination. Try 48000 Hz and 96 kbps in Encoding, or choose FLAC. No encoding settings were changed automatically.",e)

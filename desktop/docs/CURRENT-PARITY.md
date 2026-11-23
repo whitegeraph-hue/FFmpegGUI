@@ -3,7 +3,44 @@
 Audited 2026-11-23 through qualified 121b4d7; latest delivered build remains 0978ed9. PARITY.md remains execution history. The original full
 Linux request remains open.
 
+## Known export defect under investigation
+
+- In this approximately2GiB/no-swap test environment, ordinary full export of
+  repeated4K HEVC source clips with a fade/concat graph is killed by signal9.
+  Reproduced using exact delivered0978 and qualified040cc commands:10clips fail,
+  4clips fail,2clips succeed. Measured child peak resident memory about1.91GiB
+  supports resource pressure but does not establish a kernel OOM diagnosis.
+  Decoder/filter thread limits and smaller encoder lookahead did not fix it.
+  Merely selecting720p output still failed. A separately made720p source copy
+  with the same10clip edit succeeded and decoded fully, about476MiB peak.
+  Source copies or fewer simultaneous high-resolution inputs are a tested
+  workaround here, not a transparent project conversion or general guarantee.
+- This affects core full export as well as Inspect frame, and is not a new
+  Inspect-only regression. Root cause and production hardware breadth remain
+  unresolved. No blanket4K/multiclip export qualification. Disclose this affected
+  case with any next delivery while unresolved. The local failure-reporting fix
+  retains the actual exit code and bounded stderr with qualified killed-process
+  guidance rather than silently presenting an encoder log as the explanation.
+
 ## Current checkpoint
+
+- Local Inspect frame prototype, not yet qualified or delivered: explicitly
+  renders the current edited output clock through the existing staged graph.
+  This is a temporary MP4 still, not live preview or a check of the selected
+  delivery container, compression, cover, stream-copy or nonvideo export.
+  It keeps picture encoding/resolution choices used by the MP4 preview. No
+  audible DSP or motion assessment. Output-side seek processes preceding
+  footage; reverse may buffer and stabilization analyzes the whole timeline.
+  Cost can grow with clip length and output position, so this is not promised
+  as instant. Caption/SRT/reverse/speed pixel comparisons and controller
+  history/stale-frame/cancellation checks pass locally. Existing91 source
+  native groups also pass, plus the new frame comparison group. Local bounded
+  timings: one4K HEVC10s source takes579ms at0 and2301ms at8s; one640x360
+  60s source takes246ms at0 and479ms at50s. These are machine-specific, not
+  responsiveness guarantees. The large4K graph failure also affects ordinary
+  full export; see Known export defect under investigation above. Cause remains
+  unresolved. New93 unique source groups pass in disjoint45+23+23+2 runs,
+  not one clean unfiltered final execution. Exact new-package checks are pending.
 
 - Qualified, not yet delivered: 121b4d7 adds one previous-manual-save backup
   and precise text/picture alignment. All four exact-SHA CI green, 933 shared

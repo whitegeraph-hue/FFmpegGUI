@@ -20,6 +20,71 @@ internal fun runNativeChecks(args:Array<String>)=runBlocking {
     suspend fun verify(name:String,block:suspend ()->Unit) { if(filter==null || filter.containsMatchIn(name)){block();passed++;println("PASS $name")} }
 
     val video=media.probe(File(folder,"video.mp4").path)
+    verify("process failures retain exit code bounded log and qualified killed guidance") {
+        val killed=desktopProcessFailure(137,"x".repeat(7000))
+        check(killed.contains("exit 137") && killed.contains("does not prove") && killed.length<6600)
+        check(desktopProcessFailure(-9,"").contains("process was killed"))
+        check(desktopProcessFailure(1,"codec rejected").contains("codec rejected"))
+        check(!desktopProcessFailure(1,"codec rejected").contains("Memory pressure"))
+        try {media.process.checked(listOf("sh","-c","printf controlled-error; exit 7"));error("Expected failure")}
+        catch(e:IllegalStateException){check(e.message!!.contains("exit 7") && e.message!!.contains("controlled-error"))}
+    }
+    verify("edited still inspection uses full output clock captions subtitles and cancellation") {
+        val source=media.probe(File(folder,"scenes.mp4").path)
+        val p=DesktopProject.create(source).copy(
+            timeline=Timeline(listOf(Clip("frame-a",source.path,startMs=500,endMs=3500,effects=Effects(speed=1.5f,reversed=true)),Clip("frame-b",source.path,startMs=2000,endMs=5500))),
+            effects=Effects(reversed=true),captions=listOf(TextOverlay(text="INSPECT",size=.12f,startMs=200,endMs=4000)),
+            externalSubtitles=DesktopSubtitles("frame.srt","1\n00:00:01,000 --> 00:00:03,000\nTimed frame\n",0,true))
+        val full=exporter.export(p,File(folder,"edited-frame-reference.mp4"))
+        for(at in listOf(0L,800L,2400L,4500L)) {
+            val reference=media.frame(full.path,at)!!;val frame=exporter.editedFrame(p,at)
+            try {
+                check(frame.width==reference.width && frame.height==reference.height)
+                var difference=0L;var samples=0
+                for(y in 0 until frame.height)for(x in 0 until frame.width) {
+                    val a=reference.getRGB(x,y);val b=frame.getRGB(x,y)
+                    for(shift in listOf(0,8,16)){difference+=kotlin.math.abs(((a shr shift) and 255)-((b shr shift) and 255));samples++}
+                }
+                check(difference.toDouble()/samples<8) {"Edited frame differs at $at: ${difference.toDouble()/samples}"}
+                javax.imageio.ImageIO.write(frame,"png",File(folder,"edited-frame-$at.png"))
+            } finally {reference.flush();frame.flush()}
+        }
+        val moving=DesktopProject.create(video).copy(captions=listOf(TextOverlay(text="MOTION",size=.12f)))
+        val movie=exporter.export(moving,File(folder,"edited-frame-moving.mp4"))
+        for(at in listOf(800L,2400L,4400L)) {
+            val a=media.frame(movie.path,at)!!;val b=exporter.editedFrame(moving,at)
+            try {
+                var error=0L;var count=0
+                for(y in 0 until a.height step 2)for(x in 0 until a.width step 2)for(shift in listOf(0,8,16)) {
+                    error+=kotlin.math.abs(((a.getRGB(x,y) shr shift) and 255)-((b.getRGB(x,y) shr shift) and 255));count++
+                }
+                check(error.toDouble()/count<8){"Moving frame differs at $at: ${error.toDouble()/count}"}
+            } finally {a.flush();b.flush()}
+        }
+        val scope=CoroutineScope(Dispatchers.Default+SupervisorJob());val c=EditorController(scope)
+        try {
+            c.project=p;c.seekOutput(2400);delay(200)
+            c.inspectFrame();c.job!!.join()
+            check(c.project===p && !c.canUndo && !c.canRedo)
+            check(c.previewFrame!=null && c.inspectedOutputMs==2400L && c.rendered==null && !c.player.engaged)
+            c.seekOutput(800);check(c.previewFrame==null && c.inspectedOutputMs==null)
+            c.inspectFrame();c.job!!.join();check(c.inspectedOutputMs==800L)
+            c.positionCaption(p,p.captions[0].id,.2f,.7f)
+            check(c.previewFrame==null && c.inspectedOutputMs==null && c.canUndo)
+            c.undo();check(c.project===p && !c.canUndo);delay(500)
+            c.rendered=full.let {File(it.path)}
+            c.player.cue(c.rendered!!,2400)
+            c.inspectFrame();c.job!!.join()
+            check(c.inspectedOutputMs==2400L && kotlin.math.abs(p.outputAt(c.position)-2400)<=2)
+            check(!c.player.engaged && c.rendered!=null && c.project===p && !c.canUndo)
+            c.seekOutput(800);delay(500)
+            check(c.inspectedOutputMs==null && c.player.engaged)
+            c.rendered=null
+        } finally {c.close();scope.cancel()}
+        val originals=File(System.getProperty("java.io.tmpdir")).listFiles()!!.filter {it.name.startsWith("ffmpeggui-edited-frame-")}.map {it.name}.toSet()
+        val job=launch {exporter.editedFrame(p,4000).flush()};delay(20);job.cancelAndJoin()
+        check(File(System.getProperty("java.io.tmpdir")).listFiles()!!.filter {it.name.startsWith("ffmpeggui-edited-frame-")}.map {it.name}.toSet()==originals)
+    }
     verify("layer alignment fractions scope guards noops history and key overrides") {
         check(layerAlignmentPercent("12.5","75")==(.125f to .75f))
         check(layerAlignmentPercent(" 0 ","100.0000")== (0f to 1f))
