@@ -45,6 +45,9 @@ internal class AudioFilters {
         }
         val filters = mutableListOf<String>()
         filters += shaping(effects, fileTime, footageSeconds, playedSeconds, label)
+        filters += masterChain(effects.audioEffects, playedSeconds)
+        if(effects.normalizeAudio) {filters += "loudnorm";filters += "aresample=$NORMALIZED_SAMPLE_RATE"}
+        if((effects.audioEffects!=AudioEffects.NONE || effects.normalizeAudio) && playedSeconds!=null)filters += exactly(playedSeconds)
         filters += fades(effects, playedSeconds)
         return filters
     }

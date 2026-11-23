@@ -410,12 +410,12 @@ internal fun AudioSectionContent(
                                     ),
                                 )
                             }
-                            // Loudness levelling works on the final mix.
-                            if (!clipScope) {
+                            // Clip levelling is rendered before the join; whole levelling uses the final mix.
+                            run {
                                 SwitchCard(
                                     icon = Icons.Rounded.GraphicEq,
                                     title = stringResource(R.string.audio_normalize),
-                                    subtitle = stringResource(R.string.audio_normalize_hint),
+                                    subtitle = if(clipScope) "Only this clip, before the join. Heard on export; live preview does not include clip normalization." else stringResource(R.string.audio_normalize_hint),
                                     checked = normalizeAudio,
                                     onCheckedChange = onNormalizeAudio,
                                 )

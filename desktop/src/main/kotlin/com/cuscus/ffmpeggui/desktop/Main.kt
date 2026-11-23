@@ -150,13 +150,13 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                                     tabs.forEach { title -> FilterChip(selected=controller.tab==title,onClick={ controller.tab=title },label={ Text(title) }) }
                                 }
                                 Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-                                    if(controller.tab in listOf("Pause cuts","Scenes","Beats","Transcript","Scene stems"))PanelCard {
+                                    if(controller.tab in listOf("Pause cuts","Scenes","Beats","Transcript","Scene stems","Audio"))PanelCard {
                                         Text("Tool scope",style=MaterialTheme.typography.titleMedium)
                                         FlowRowCompat {
-                                            FilterChip(controller.smartClipId==null,{controller.selectSmartClip(null)},label={Text("Selected source, all clips")},enabled=!controller.busy)
+                                            FilterChip(controller.smartClipId==null,{controller.selectSmartClip(null)},label={Text(if(controller.tab=="Audio")"Whole output" else "Selected source, all clips")},enabled=!controller.busy)
                                             project.timeline.clips.forEachIndexed {i,clip->FilterChip(controller.smartClipId==clip.id,{controller.selectSmartClip(clip.id)},label={Text("Clip ${i+1}")},enabled=!controller.busy)}
                                         }
-                                        Text(if(controller.tab=="Scene stems") {if(controller.smartClipId==null)"Exports stems from the selected original source. Choose Clip N for only that clip's played sound. No timeline changes." else "Exports only this clip's played sound. Other clips and the timeline are unchanged."} else if(controller.smartClipId==null)"All occurrences of the selected source can change. Choose Clip N to limit the tool." else "Only this clip occurrence is changed. Existing clip effects stay; cuts shift later content earlier. Originals are unchanged.")
+                                        Text(if(controller.tab=="Audio") {if(controller.smartClipId==null)"Final mixed sound, across every source and added sound track. Choose Clip N for before-join clip processing." else "Only this clip's sound is processed before the join. Other clips, added tracks and whole-project mastering are unchanged."} else if(controller.tab=="Scene stems") {if(controller.smartClipId==null)"Exports stems from the selected original source. Choose Clip N for only that clip's played sound. No timeline changes." else "Exports only this clip's played sound. Other clips and the timeline are unchanged."} else if(controller.smartClipId==null)"All occurrences of the selected source can change. Choose Clip N to limit the tool." else "Only this clip occurrence is changed. Existing clip effects stay; cuts shift later content earlier. Originals are unchanged.")
                                     }
 
                                     when(controller.tab) {
@@ -399,12 +399,17 @@ private fun EditPanel(c: EditorController,p: DesktopProject,window:java.awt.Fram
 }
 
 @Composable private fun AudioMasterPanel(c:EditorController,p:DesktopProject) {
-    val a=p.audioEffects
-    fun change(value:AudioEffects) {c.mutate(p.copy(audioEffects=value))}
+    val selected=p.timeline.clips.firstOrNull {it.id==c.smartClipId}
+    val a=selected?.effects?.audioEffects ?: p.audioEffects
+    fun change(value:AudioEffects) {c.mutate(if(selected==null)p.copy(audioEffects=value)else p.copy(timeline=p.timeline.updateEffects(selected.id){it.copy(audioEffects=value)}))}
     PanelCard {
-        Text("Audio mastering",style=MaterialTheme.typography.titleLarge)
+        Text(if(selected==null)"Audio mastering" else "Selected clip audio",style=MaterialTheme.typography.titleLarge)
+        if(selected!=null) {
+            Text("This clip only, before the join and whole-project mastering. Export or render to hear it. Tails stop at the clip boundary.")
+            Row {Checkbox(selected.effects.normalizeAudio,{value->c.mutate(p.copy(timeline=p.timeline.updateEffects(selected.id){it.copy(normalizeAudio=value)}))},enabled=!c.busy);Text("Normalize selected clip")}
+        }
         Text("The original ten-band EQ and mastering filter chain. Render edited preview to hear the actual result. Live DSP preview and waveform editing remain unported; sound tracks are edited separately.",style=MaterialTheme.typography.bodySmall)
-        OutlinedButton(onClick={change(AudioEffects.NONE)},enabled=!c.busy) {Text("Reset mastering")}
+        OutlinedButton(onClick={change(AudioEffects.NONE)},enabled=!c.busy) {Text(if(selected==null)"Reset mastering" else "Reset clip effects")}
         AudioEffects.EQ_BANDS_HZ.forEachIndexed { index,hz -> ValueSlider("$hz Hz (dB)",a.equalizerGains[index],-12f..12f,!c.busy) { value ->change(a.copy(equalizer=a.equalizerGains.toMutableList().also {it[index]=value}))} }
         ValueSlider("Low cut Hz (0 = off)",a.lowCutHz.toFloat(),0f..500f,!c.busy) {change(a.copy(lowCutHz=it.toInt()))}
         ValueSlider("High cut Hz (0 = off)",a.highCutHz.toFloat(),0f..20000f,!c.busy) {change(a.copy(highCutHz=it.toInt()))}

@@ -30,6 +30,9 @@ data class Effects(
     val muted: Boolean = false,
     /** 0..1, 0 = off. */
     val audioDenoise: Float = 0f,
+    /** Processing of this clip's sound before the join, independent of final mastering. */
+    val audioEffects: AudioEffects = AudioEffects.NONE,
+    val normalizeAudio: Boolean = false,
     /**
      * The voice and the rest of the clip's sound at their own levels (linear,
      * 0..2, 1 = as recorded), once its file's voice has been separated (see

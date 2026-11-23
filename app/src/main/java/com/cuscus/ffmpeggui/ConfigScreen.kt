@@ -1165,6 +1165,7 @@ fun ConfigScreen(
                 item(EditorTool.VOLUME, clip.id),
                 item(EditorTool.AUDIO_DENOISE, clip.id),
                 item(EditorTool.VOICE_SPLIT, clip.id),
+                item(EditorTool.AUDIO_EQ,clip.id),item(EditorTool.AUDIO_CLEAN,clip.id),item(EditorTool.AUDIO_DYNAMICS,clip.id),item(EditorTool.AUDIO_SPACE,clip.id),item(EditorTool.AUDIO_FX,clip.id),item(EditorTool.AUDIO_STEREO,clip.id),item(EditorTool.AUDIO_PITCH,clip.id),
                 item(EditorTool.FADE, clip.id),
                 item(EditorTool.SMART_CUTS,clip.id),
                 item(EditorTool.SMART_BEATS,clip.id),
@@ -1179,6 +1180,13 @@ fun ConfigScreen(
             if (gifMode) null else item(EditorTool.VOLUME, clip.id),
             if (gifMode || selectedClipIsStill) null else item(EditorTool.AUDIO_DENOISE, clip.id),
             if (gifMode || selectedClipIsStill) null else item(EditorTool.VOICE_SPLIT, clip.id),
+            if(gifMode || selectedClipIsStill)null else item(EditorTool.AUDIO_EQ,clip.id),
+            if(gifMode || selectedClipIsStill)null else item(EditorTool.AUDIO_CLEAN,clip.id),
+            if(gifMode || selectedClipIsStill)null else item(EditorTool.AUDIO_DYNAMICS,clip.id),
+            if(gifMode || selectedClipIsStill)null else item(EditorTool.AUDIO_SPACE,clip.id),
+            if(gifMode || selectedClipIsStill)null else item(EditorTool.AUDIO_FX,clip.id),
+            if(gifMode || selectedClipIsStill)null else item(EditorTool.AUDIO_STEREO,clip.id),
+            if(gifMode || selectedClipIsStill)null else item(EditorTool.AUDIO_PITCH,clip.id),
             item(EditorTool.TRANSFORM, clip.id),
             item(EditorTool.FRAMING, clip.id),
             item(EditorTool.COLOR, clip.id),
@@ -1267,9 +1275,11 @@ fun ConfigScreen(
 
     // The effects tools edit the selected sound's own effects, or else the final sound's.
     val fxSound = selectedSound
-    val fxEffects = fxSound?.effects ?: audioEffects
+    val fxEffects = fxSound?.effects ?: selectedClip?.effects?.audioEffects ?: audioEffects
     val fxChange: AudioChange = if (fxSound != null) {
         { key, change -> updateSound(fxSound.id, key?.let { "fx:$it" }) { it.copy(effects = change(it.effects)) } }
+    } else if(selectedClip!=null) {
+        { _,change -> onUpdateEffects(selectedClip.id) {it.copy(audioEffects=change(it.audioEffects))} }
     } else {
         onAudioEffects
     }
@@ -1696,6 +1706,7 @@ fun ConfigScreen(
                     }
                 }
             }
+            if(scopeClipId!=null && tool in listOf(EditorTool.AUDIO_EQ,EditorTool.AUDIO_CLEAN,EditorTool.AUDIO_DYNAMICS,EditorTool.AUDIO_SPACE,EditorTool.AUDIO_FX,EditorTool.AUDIO_STEREO,EditorTool.AUDIO_PITCH)) Text("This clip only, before the join. Export includes these changes. Live preview does not yet include this clip's audio effects.",style=MaterialTheme.typography.bodySmall)
             if(tool==EditorTool.SUBTITLE && scopeClipId!=null) Text("Transcript cuts and Keep affect this clip only. A line outside this clip makes no change.",style=MaterialTheme.typography.bodySmall)
             when (tool) {
                 EditorTool.TRIM_ALL -> WholeTrimPanel(
@@ -1756,11 +1767,11 @@ fun ConfigScreen(
                     clipScope = scopeClipId != null,
                     removeAudio = scopeEffects.muted,
                     volumeLevel = scopeEffects.volume,
-                    normalizeAudio = normalizeAudio,
+                    normalizeAudio = selectedClip?.effects?.normalizeAudio ?: normalizeAudio,
                     sounds = audioClips,
                     onRemoveAudio = { muted -> updateScope { it.copy(muted = muted) } },
                     onVolumeLevel = { volume -> updateScope { it.copy(volume = volume) } },
-                    onNormalizeAudio = onNormalizeAudio,
+                    onNormalizeAudio = {value->if(scopeClipId==null)onNormalizeAudio(value)else onUpdateEffects(scopeClipId){it.copy(normalizeAudio=value)}},
                     onAddSound = addSound,
                     onSelectSound = { id ->
                         selectedTool = null
@@ -1816,7 +1827,7 @@ fun ConfigScreen(
                 EditorTool.SMART_SCENES -> SceneSplitsPanel(smartEdit)
                 EditorTool.SMART_BEATS -> BeatsPanel(smartEdit)
                 EditorTool.SMART_FOLLOW_CROP -> FollowCropPanel(smartEdit)
-                EditorTool.AUDIO_PITCH -> AudioPitchContent(audioEffects, onAudioEffects)
+                EditorTool.AUDIO_PITCH -> AudioPitchContent(fxEffects, fxChange)
                 EditorTool.AUDIO_EQ -> AudioEqualizerContent(fxEffects, fxChange)
                 EditorTool.AUDIO_DENOISE -> {
                     // Read through derivedStateOf: only a change of clip recomposes, not every tick.

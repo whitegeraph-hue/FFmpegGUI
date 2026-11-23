@@ -75,6 +75,29 @@ fun main(args:Array<String>)=runBlocking {
         check(!File(temporary).exists())
         check(runCatching {DesktopClipAudio.use(initial,"gone",media) {}}.isFailure)
     }
+    verify("selected clip DSP normalize persistence Undo and outside audio isolation") {
+        val first=Clip("dsp-neighbour",video.path,0,2000)
+        val selected=first.copy(id="dsp-selected")
+        val last=first.copy(id="dsp-last")
+        val initial=DesktopProject.create(video).copy(format=OutputFormat.WAV,timeline=Timeline(listOf(first,selected,last)))
+        val effect=AudioEffects(highCutHz=150,lofiBits=5,echo=Echo(250,.5f),pitchSemitones=3f)
+        val changed=initial.copy(timeline=initial.timeline.updateEffects(selected.id){it.copy(audioEffects=effect,normalizeAudio=true)})
+        check(changed.timeline.clips.first()==first && changed.timeline.clips.last()==last)
+        val saved=File(folder,"clip-dsp.ffgui.json");DesktopProjects.save(changed,saved)
+        check(DesktopProjects.load(saved,media).timeline==changed.timeline)
+        val old=com.cuscus.ffmpeggui.core.project.ModelJson.effects(com.cuscus.ffmpeggui.core.project.Json.Obj(emptyMap()))
+        check(old.audioEffects==AudioEffects.NONE && !old.normalizeAudio)
+        val before=exporter.export(initial,File(folder,"clip-dsp-before.wav"))
+        val after=exporter.export(changed,File(folder,"clip-dsp-after.wav"))
+        check(kotlin.math.abs(after.info.durationMs-before.info.durationMs)<20) {"DSP changed length: ${before.info.durationMs} to ${after.info.durationMs}"}
+        val a=media.samples(before.path);val b=media.samples(after.path)
+        fun diff(start:Double,end:Double):Double {val range=(start*16000).toInt() until (end*16000).toInt();return range.sumOf {kotlin.math.abs(a[it]-b[it]).toDouble()}/range.count()}
+        check(diff(.2,1.8)<.0002 && diff(4.2,5.8)<.0002) {"DSP leaked outside selected occurrence"}
+        check(diff(2.2,3.8)>.005) {"Selected clip sound did not change"}
+        media.process.checked(listOf("ffmpeg","-v","error","-i",after.path,"-f","null","-"))
+        val scope=CoroutineScope(Dispatchers.Default+SupervisorJob());val c=EditorController(scope)
+        try {c.project=initial;c.mutate(changed);c.undo();check(c.project!!.timeline==initial.timeline)}finally {c.close();scope.cancel()}
+    }
     verify("sub100ms selected edge residues export with audio and decode") {
         val first=Clip("edge-neighbour",video.path,0,2000)
         val selected=Clip("edge-selected",video.path,2000,4000)

@@ -47,6 +47,15 @@ class SelectedClipRuntimeTest {
             val before = vm.settings.value.timeline
             assertEquals(2, before.clips.size)
             val second = before.clips[1].id
+            val dsp = com.cuscus.ffmpeggui.core.model.AudioEffects(highCutHz=150,echo=com.cuscus.ffmpeggui.core.model.Echo(),pitchSemitones=3f)
+            instrumentation.runOnMainSync { vm.updateEffects(second) { it.copy(audioEffects=dsp,normalizeAudio=true) } }
+            assertEquals(before.clips[0],vm.settings.value.timeline.clips[0])
+            assertEquals(dsp,vm.settings.value.timeline.clips[1].effects.audioEffects)
+            val encoded=com.cuscus.ffmpeggui.core.project.ModelJson.write(vm.settings.value.timeline)
+            assertEquals(vm.settings.value.timeline,com.cuscus.ffmpeggui.core.project.ModelJson.timeline(encoded))
+            instrumentation.runOnMainSync {vm.undo()}
+            assertEquals(before,vm.settings.value.timeline)
+
             assertTrue(Ui.clickScrolling("Scenes"))
             assertTrue(Ui.waitFor("Clip 2",15000))
             assertTrue(Ui.click("Clip 2"))

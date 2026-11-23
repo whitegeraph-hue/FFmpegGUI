@@ -90,6 +90,8 @@ object ModelJson {
         put("volume", e.volume)
         put("muted", e.muted)
         put("audioDenoise", e.audioDenoise)
+        put("audioEffects", write(e.audioEffects))
+        put("normalizeAudio", e.normalizeAudio)
         put("voiceLevel", e.voiceLevel)
         put("backgroundLevel", e.backgroundLevel)
         put("motion", e.motion, ::write)
@@ -184,6 +186,8 @@ object ModelJson {
             volume = o.float("volume", d.volume),
             muted = o.bool("muted", d.muted),
             audioDenoise = o.float("audioDenoise", d.audioDenoise),
+            audioEffects = o.obj("audioEffects")?.let(::audioEffects) ?: d.audioEffects,
+            normalizeAudio = o.bool("normalizeAudio", d.normalizeAudio),
             voiceLevel = o.float("voiceLevel", d.voiceLevel),
             backgroundLevel = o.float("backgroundLevel", d.backgroundLevel),
             motion = o.objOrNull("motion", d.motion, ::stillMotion),
