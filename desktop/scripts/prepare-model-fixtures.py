@@ -6,6 +6,8 @@ Usage: python3 prepare_fixtures.py --repo /path/to/FFmpegGUI --output /tmp/model
 Requires Python 3 standard library and ffmpeg on PATH (or --ffmpeg).
 """
 import argparse
+import time
+import urllib.error
 import hashlib
 import pathlib
 import shutil
@@ -51,8 +53,15 @@ def obtain(name, out, repo):
         if name == "tokens.txt":
             shutil.copyfile(repo / "app/src/main/assets/speech/parakeet-tdt-0.6b-v3-tokens.txt", stage)
         else:
-            with urllib.request.urlopen(URLS[name], timeout=120) as response, stage.open("wb") as target_stream:
-                shutil.copyfileobj(response, target_stream)
+            for attempt in range(3):
+                try:
+                    with urllib.request.urlopen(URLS[name], timeout=120) as response, stage.open("wb") as target_stream:
+                        shutil.copyfileobj(response, target_stream)
+                    break
+                except urllib.error.HTTPError as error:
+                    if error.code not in (429, 500, 502, 503, 504) or attempt == 2:
+                        raise
+                    time.sleep(2 ** attempt)
         if not valid(stage, PINS[name]):
             raise RuntimeError("Fixture hash/size mismatch: " + name + ". Do not update pins to work around a changed upstream file.")
         stage.replace(target)
