@@ -174,7 +174,7 @@ class DesktopExport(private val media: DesktopMedia = DesktopMedia()) {
         return if(format==OutputFormat.SRT) SrtSubtitles.write(SubtitleLayout.ofWords(words,project.subtitleStyle ?: SubtitleStyle(),request.subtitleFrameRatio),project.effects.effectiveSpeed)
         else TranscriptText.write(words,project.effects.effectiveSpeed)
     }
-    suspend fun export(project: DesktopProject, output: File): DesktopSource {
+    suspend fun export(project: DesktopProject, output: File,onPhase:(String)->Unit={}): DesktopSource {
         require((project.sources+project.sounds.map {it.source}+project.pictures.map {it.source}).none { File(it.path).canonicalFile == output.canonicalFile }) { "Choose a new output. Source files are never overwritten." }
         require(project.image.key?.mask?.let {File(it).canonicalFile!=output.canonicalFile} ?: true) {"Cannot replace a subject mask with output."}
         require(project.format != OutputFormat.CUSTOM) { "This output needs an adapter that is still being ported." }
@@ -242,9 +242,11 @@ class DesktopExport(private val media: DesktopMedia = DesktopMedia()) {
             if(builder.needsStabilizationAnalysis(request)) {
                 val filters=media.process.checked(listOf("ffmpeg","-hide_banner","-filters"))
                 require(filters.contains("vidstabdetect") && filters.contains("vidstabtransform")) {"Installed FFmpeg lacks vid.stab. Install an FFmpeg build with vidstabdetect and vidstabtransform, or turn stabilization off."}
+                onPhase("Stabilization pass 1 of 2: analysing edited footage…")
                 media.process.checked(listOf("ffmpeg","-nostdin")+builder.buildStabilizationAnalysis(request,paths).arguments)
                 require(File(paths.stabilizationTransforms!!).length()>0){"Stabilization analysis produced no transforms"}
             }
+            onPhase(if(request.stabilization!=null)"Stabilization pass 2 of 2: rendering smoothed output…" else "Rendering edited output…")
             media.process.checked(listOf("ffmpeg", "-nostdin") + builder.build(request,paths).arguments)
             if(hdr!=null && hdrPictures!=null)DesktopHdr.assemble(temporary,File(hdrPictures.finalPng),File(hdrPictures.plainPng),hdr)
             val result = media.probe(temporary.path)

@@ -165,7 +165,7 @@ class EditorController(val scope: CoroutineScope) {
     fun export(output: File) {
         val p=project ?: return
         work("Exporting locally with the shared FFmpeg engine…") {
-            val result=exporter.export(p,output)
+            val result=exporter.export(p,output){status=it}
             status="Export complete: ${result.path} · ${result.info.durationFormatted}"
         }
     }
@@ -179,7 +179,7 @@ class EditorController(val scope: CoroutineScope) {
         val file=File.createTempFile("ffmpeggui-preview-", ".${p.format.extension}").apply { delete() }
         work("Rendering an exact edited preview. This includes cuts and effects…") {
             try {
-                exporter.export(p,file)
+                exporter.export(p,file){status=it}
                 rendered?.delete(); rendered=file
                 if (p.format.hasVideo || p.format.isImage) previewFrame=media.frame(file.path,0)?.toComposeImageBitmap()
                 status=if(p.sources[selectedSource].info.isStill) "Edited picture is ready. Source file is unchanged." else "Edited preview is ready. Play inside the editor to inspect audio and motion."

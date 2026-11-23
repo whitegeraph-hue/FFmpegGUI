@@ -516,7 +516,9 @@ fun main(args:Array<String>)=runBlocking {
     }
     verify("real two-pass stabilization joined clip effects and project persistence") {
         val edited=p.copy(timeline=Timeline(listOf(Clip("stable-a",video.path,endMs=1800,effects=Effects(speed=1.5f)),Clip("stable-b",video.path,startMs=3000,endMs=4500,effects=Effects(reversed=true)))),stabilization=Stabilization(7,12))
-        val output=exporter.export(edited,File(folder,"stabilized.mp4"))
+        val phases=mutableListOf<String>()
+        val output=exporter.export(edited,File(folder,"stabilized.mp4")){phases+=it}
+        check(phases.size==2 && phases[0].contains("1 of 2") && phases[1].contains("2 of 2"))
         check(kotlin.math.abs(output.info.durationMs-edited.outputDurationMs)<180)
         check(media.frame(output.path,500)!=null)
         val file=File(folder,"stabilized.ffgui.json");DesktopProjects.save(edited,file);check(DesktopProjects.load(file,media).stabilization==edited.stabilization)
