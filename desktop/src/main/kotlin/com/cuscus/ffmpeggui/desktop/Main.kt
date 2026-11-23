@@ -100,7 +100,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                         OutlinedButton(onClick={ controller.project?.let { p -> pick(true,"project.ffgui.json")?.let { file -> controller.work("Saving project…") { DesktopProjects.save(p,file); controller.status="Project saved: ${file.path}" } } } },enabled=!controller.busy && controller.project!=null) { Text("Save project") }
                         OutlinedButton(onClick={ controller.undo() },enabled=!controller.busy && controller.project!=null) { Text("Undo") }
                         FilledTonalButton(onClick={showSettings=true}) {Text("Settings")}
-                        Button(onClick={showExport=true},enabled=!controller.busy && controller.project!=null){Text("Export")}
+                        Button(onClick={showExport=true},enabled=!controller.busy && controller.project!=null){Text("Export ${controller.project?.format?.name ?: ""}")}
                     }
                     Text("Work in progress: not all Android editors and AI tools have been ported. Originals are never edited.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                     HorizontalDivider()
@@ -356,7 +356,7 @@ private val desktopGroups=linkedMapOf(
                         val i=span.index
                         val selected=c.smartClipId==p.timeline.clips[i].id
                         val lane=if(spans.zipWithNext().any {(a,b)->a.endMs>b.startMs})i%2 else 0
-                        Surface(onClick={c.selectSmartClip(p.timeline.clips[i].id);c.seek(p.clock().mediaMsForOutput(span.startMs+1))},enabled=!c.busy,shape=RoundedCornerShape(8.dp),color=if(selected)MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerHighest,modifier=Modifier.offset(x=(width*span.startMs/duration).dp,y=(lane*26).dp).width((width*(span.endMs-span.startMs)/duration).dp).height(if(lane==0 && spans.none {it.index!=i && it.startMs<span.endMs && it.endMs>span.startMs})52.dp else 26.dp).padding(end=2.dp),border=if(selected)BorderStroke(2.dp,MaterialTheme.colorScheme.primary)else null) {
+                        Surface(onClick={c.selectSmartClip(p.timeline.clips[i].id);c.seek(p.clock().mediaMsForOutput(span.startMs+1))},enabled=!c.busy,shape=RoundedCornerShape(8.dp),color=if(selected)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondaryContainer,contentColor=if(selected)MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSecondaryContainer,modifier=Modifier.offset(x=(width*span.startMs/duration).dp,y=(lane*26).dp).width((width*(span.endMs-span.startMs)/duration).dp).height(if(lane==0 && spans.none {it.index!=i && it.startMs<span.endMs && it.endMs>span.startMs})52.dp else 26.dp).padding(end=2.dp),border=BorderStroke(if(selected)3.dp else 1.dp,if(selected)MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.outline)) {
                             Text("${i+1}${if(span.backwards)" ←" else ""} · ${time(span.endMs-span.startMs)}",Modifier.padding(horizontal=6.dp,vertical=3.dp),maxLines=1,overflow=TextOverflow.Ellipsis,style=MaterialTheme.typography.labelSmall)
                         }
                     }

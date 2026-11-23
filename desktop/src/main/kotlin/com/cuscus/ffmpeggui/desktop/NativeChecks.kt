@@ -5,6 +5,7 @@ import com.cuscus.ffmpeggui.core.model.*
 import com.cuscus.ffmpeggui.core.timeline.*
 import com.cuscus.ffmpeggui.core.subtitles.*
 import kotlinx.coroutines.*
+import kotlinx.serialization.json.*
 import java.io.File
 import java.util.UUID
 
@@ -206,6 +207,22 @@ fun main(args:Array<String>)=runBlocking {
     verify("silent-video export") { val s=media.probe(File(folder,"silent.mp4").path);val result=exporter.export(DesktopProject.create(s),File(folder,"silent-copy.mp4"));check(!result.info.hasAudio && result.info.isVideo) }
     verify("original-overwrite blocked") { check(runCatching { exporter.export(p,File(video.path)) }.isFailure) }
     verify("project save and load shared models") { val file=File(folder,"project.ffgui.json");DesktopProjects.save(p,file);val restored=DesktopProjects.load(file,media);check(restored.timeline==p.timeline && restored.effects==p.effects && restored.sources==p.sources) }
+    verify("saved project restores per-clip speed reverse fades order and old missing defaults") {
+        val first=Clip("restore-first",video.path,1000,4000,Effects(speed=2f,reversed=true,fadeInSeconds=.3f,fadeOutSeconds=.4f,transition=Transition(TransitionKind.FADE,500)))
+        val last=Clip("restore-last",video.path,4000,8000,Effects(speed=.75f,fadeInSeconds=.2f))
+        val edited=p.copy(timeline=Timeline(listOf(first,last)),effects=Effects(speed=1.25f))
+        val file=File(folder,"restore-effects.ffgui.json");DesktopProjects.save(edited,file)
+        val restored=DesktopProjects.load(file,media)
+        check(restored.timeline==edited.timeline && restored.effects==edited.effects)
+        val data=Json.parseToJsonElement(file.readText()).jsonObject
+        val optional=setOf("resolution","quality","framerate","cpuSpeed","keepHdr","audioBitrate","audioSampleRate","audioDepth","gif","audioEffects","canvas","canvasFit","normalize","captions","pictures","sounds","image","tags")
+        val old=File(folder,"older-defaults.ffgui.json");old.writeText(JsonObject(data.filterKeys {it !in optional}).toString())
+        val compatible=DesktopProjects.load(old,media)
+        check(compatible.timeline==edited.timeline && compatible.effects==edited.effects)
+        check(compatible.encoding==EncodingSettings() && compatible.audioEffects==AudioEffects.NONE)
+        check(compatible.canvas==CanvasRatio.FIT && compatible.canvasFit==CanvasFit.FIT && !compatible.normalize)
+        check(compatible.tags==MetadataTags() && compatible.captions.isEmpty() && compatible.pictures.isEmpty() && compatible.sounds.isEmpty())
+    }
     val captioned=p.copy(words=listOf(SpokenWord(500,1800,"Hello Linux"),SpokenWord(2500,3800,"Timed subtitles")),subtitleStyle=SubtitleStyle())
     verify("real subtitle burn-in and retimed text") {
         val result=exporter.export(captioned,File(folder,"subtitled.mp4"))

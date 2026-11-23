@@ -200,7 +200,10 @@ class EditorController(val scope: CoroutineScope) {
             val result=exporter.export(p,output){status=it}
             // Remember confirmed choices only after a completed export. Cancellation
             // and a failed export leave both the project and its Undo history alone.
-            if(project!=p)mutate(p)
+            if(project!=p) {
+                project?.let {history.addLast(it);if(history.size>50)history.removeFirst()}
+                project=p
+            }
             status="Export complete: ${result.path} · ${result.info.durationFormatted}"
         }
     }
