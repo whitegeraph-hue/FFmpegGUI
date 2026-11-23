@@ -14,6 +14,25 @@ fun main(args:Array<String>)=runBlocking {
     var passed=0
     suspend fun verify(name:String,block:suspend ()->Unit) { block(); passed++;println("PASS $name") }
     val video=media.probe(File(folder,"video.mp4").path)
+    verify("desktop visible playback Split and preview step use edited clock") {
+        val first=Clip("clock-first",video.path,0,4000,Effects(speed=2f,reversed=true,transition=Transition(TransitionKind.FADE,500)))
+        val last=Clip("clock-last",video.path,4000,8000)
+        val p=pendingScopeProject(video,Timeline(listOf(first,last))).copy(effects=Effects(speed=2f))
+        val c=EditorController(CoroutineScope(Dispatchers.Unconfined+SupervisorJob()))
+        c.project=p;c.position=0
+        c.player.cue(File(video.path),500)
+        val visible=p.clock().mediaMsForOutput(500)
+        check(c.visibleFootagePosition()==visible)
+        c.splitHere()
+        check(c.project!!.timeline.clips.size==3)
+        check(c.project!!.timeline.clips[0].lengthMs==visible)
+        c.undo();check(c.project==p)
+        c.player.cue(File(video.path),500)
+        val expected=p.clock().mediaMsForOutput(540)
+        c.stepOutput(1);check(c.position==expected)
+        check(!c.player.engaged)
+        c.close()
+    }
     verify("selected existing clip smart cuts preserve duplicate occurrence effects and footage clock") {
         val first=Clip("first",video.path,0,4000,Effects(speed=2f,reversed=true))
         val selected=first.copy(id="selected")

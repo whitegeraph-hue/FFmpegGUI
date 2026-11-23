@@ -11,7 +11,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.*
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.foundation.lazy.LazyRow
+import com.cuscus.ffmpeggui.ui.theme.TealLightColorScheme
 import androidx.compose.ui.window.*
 import com.cuscus.ffmpeggui.*
 import com.cuscus.ffmpeggui.core.editing.wordBlocks
@@ -47,7 +56,19 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
 } else application {
     val scope=rememberCoroutineScope()
     val controller=remember { EditorController(scope) }
-    Window(onCloseRequest={ controller.close(); exitApplication() }, title="FFmpegGUI · Linux development preview", state=rememberWindowState(width=1280.dp,height=850.dp)) {
+    val preferences=remember {java.util.prefs.Preferences.userRoot().node("ffmpeggui-desktop")}
+    var lightTheme by remember {mutableStateOf(preferences.getBoolean("lightTheme",false))}
+    var showSettings by remember {mutableStateOf(false)}
+    var showExport by remember {mutableStateOf(false)}
+    Window(onCloseRequest={ controller.close(); exitApplication() }, title="FFmpegGUI · Linux development preview", state=rememberWindowState(width=1280.dp,height=850.dp),onPreviewKeyEvent={event->
+        if(event.type==KeyEventType.KeyDown && !showSettings) {
+            when {
+                event.isCtrlPressed && event.key==Key.Z -> {if(!controller.busy)controller.undo();true}
+                event.key==Key.Escape -> {controller.selectSmartClip(null);true}
+                else -> false
+            }
+        }else false
+    }) {
         LaunchedEffect(Unit) {
             System.getenv("FFMPEGGUI_OPEN")?.let { controller.open(it) }
             System.getenv("FFMPEGGUI_PROJECT")?.let {path->controller.work("Opening project…"){controller.project=DesktopProjects.load(File(path),controller.media);controller.selectedSource=0;controller.seek(0);controller.status="Project opened."}}
@@ -66,23 +87,20 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
             dialog.isVisible=true
             return dialog.file?.let { File(dialog.directory,it) }
         }
-        MaterialTheme(colorScheme=TealDarkColorScheme) {
+        MaterialTheme(colorScheme=if(lightTheme)TealLightColorScheme else TealDarkColorScheme) {
             Surface(Modifier.fillMaxSize()) {
-                Column(Modifier.padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+                Column(Modifier.padding(12.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
                     Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
                         Column(Modifier.weight(1f)) {
-                            Text("FFmpegGUI",style=MaterialTheme.typography.headlineMedium)
-                            Text("Linux development preview · shared Android editing core",style=MaterialTheme.typography.labelLarge,color=MaterialTheme.colorScheme.primary)
+                            Text("FFmpegGUI",style=MaterialTheme.typography.titleLarge)
+                            Text("Desktop preview",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.primary)
                         }
                         OutlinedButton(onClick={ pick()?.let { controller.open(it.path) } },enabled=!controller.busy) { Text("Open media") }
                         OutlinedButton(onClick={ pick()?.let { file -> controller.work("Opening project…") { controller.player.stop();controller.rendered?.delete();controller.rendered=null;controller.previewFrame=null;controller.drawingFrame=null;controller.project=DesktopProjects.load(file,controller.media);controller.selectedSource=0; controller.resetAnalysis(); controller.seek(0); controller.status="Project opened." } } },enabled=!controller.busy) { Text("Open project") }
                         OutlinedButton(onClick={ controller.project?.let { p -> pick(true,"project.ffgui.json")?.let { file -> controller.work("Saving project…") { DesktopProjects.save(p,file); controller.status="Project saved: ${file.path}" } } } },enabled=!controller.busy && controller.project!=null) { Text("Save project") }
                         OutlinedButton(onClick={ controller.undo() },enabled=!controller.busy && controller.project!=null) { Text("Undo") }
-                        Button(onClick={ controller.project?.let { p ->
-                            pick(true,"${File(p.sources[0].path).nameWithoutExtension}-edited.${p.format.extension}")?.let { file ->
-                                if (!file.exists() || javax.swing.JOptionPane.showConfirmDialog(window,"Replace ${file.name}?","Existing output",javax.swing.JOptionPane.YES_NO_OPTION)==0) controller.export(file)
-                            }
-                        } },enabled=!controller.busy && controller.project!=null) { Text("Export") }
+                        FilledTonalButton(onClick={showSettings=true}) {Text("Settings")}
+                        Button(onClick={showExport=true},enabled=!controller.busy && controller.project!=null){Text("Export")}
                     }
                     Text("Work in progress: not all Android editors and AI tools have been ported. Originals are never edited.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                     HorizontalDivider()
@@ -97,68 +115,36 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                             }
                         }
                     } else {
-                        Row(Modifier.weight(1f),horizontalArrangement=Arrangement.spacedBy(20.dp)) {
-                            Column(Modifier.weight(1.15f),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-                                Row(verticalAlignment=Alignment.CenterVertically) {
-                                    Text(File(project.sources[controller.selectedSource].path).name,style=MaterialTheme.typography.titleMedium,modifier=Modifier.weight(1f))
-                                    Text("${project.sources[controller.selectedSource].info.width} × ${project.sources[controller.selectedSource].info.height}",style=MaterialTheme.typography.labelMedium)
-                                }
-                                Box(Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(20.dp)).background(Color.Black),contentAlignment=Alignment.Center) {
-                                    val frame=if(controller.player.playing || controller.player.frame!=null) controller.player.frame else controller.previewFrame ?: controller.sourceFrame
-                                    if (frame!=null) Image(frame,if(controller.player.frame!=null || controller.previewFrame!=null) "Rendered edit playback" else "Source frame at the playhead, not an effects preview",modifier=Modifier.fillMaxSize())
-                                    else Text(if (project.sources[0].info.isVideo) "Reading frame…" else "Audio file",color=Color.White)
-                                }
-                                Text(if(controller.previewFrame!=null && project.sources[0].info.isStill) "Rendered edited picture. Source file is unchanged." else if(controller.previewFrame!=null && controller.player.frame==null) "Rendered edited frame. Play preview to inspect motion and sound." else if(controller.player.frame!=null) "Rendered edit · ${time(controller.player.positionMs)} / ${time(controller.player.durationMs)} · synchronized audio/video" else "Footage/source · ${time(controller.position)} / ${time(project.timeline.durationMs)}. Output about ${time(project.outputDurationMs)}.",style=MaterialTheme.typography.bodySmall)
-                                controller.player.failure?.let { Text(it,color=MaterialTheme.colorScheme.error,style=MaterialTheme.typography.bodySmall) }
-                                if(controller.player.frame!=null) {
-                                    var scrub by remember { mutableStateOf<Float?>(null) }
-                                    Slider(scrub ?: controller.player.positionMs.toFloat(),{ scrub=it },onValueChangeFinished={scrub?.let { controller.player.seek(it.toLong()) };scrub=null},valueRange=0f..controller.player.durationMs.coerceAtLeast(1).toFloat())
-                                }
-                                Slider(controller.position.toFloat(),{ controller.player.stop();controller.seek(it.toLong()) },valueRange=0f..project.timeline.durationMs.coerceAtLeast(1).toFloat(),enabled=!controller.busy)
-                                Text("Output position ${time(project.outputAt(controller.position))} / ${time(project.outputDurationMs)}. Layer capture uses this clock.",style=MaterialTheme.typography.bodySmall)
-                                Slider(project.outputAt(controller.position).toFloat(),{controller.player.stop();controller.seek(project.clock().mediaMsForOutput(it.toLong()))},valueRange=0f..project.outputDurationMs.coerceAtLeast(1).toFloat(),enabled=!controller.busy)
-
-                                Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                                    Button(onClick={ controller.splitHere() },enabled=!controller.busy && !project.sources[0].info.isStill) { Text("Split here") }
-                                    OutlinedButton(onClick={ controller.preview() },enabled=!controller.busy) { Text("Render edited preview") }
-                                    controller.rendered?.takeIf { !project.sources[0].info.isStill }?.let { file ->
-                                        OutlinedButton(onClick={ if(controller.player.playing) controller.player.pause() else controller.player.play(file) }) { Text(if(controller.player.playing) "Pause preview" else "Play preview") }
+                        Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(10.dp)) {
+                            Row(Modifier.weight(1f),horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+                                DesktopToolRail(controller)
+                                Column(Modifier.weight(1f).fillMaxHeight(),verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                                    Row(verticalAlignment=Alignment.CenterVertically) {
+                                        Text(File(project.sources[controller.selectedSource].path).name,maxLines=1,overflow=TextOverflow.Ellipsis,style=MaterialTheme.typography.titleSmall,modifier=Modifier.weight(1f))
+                                        Text("${project.sources[controller.selectedSource].info.width} × ${project.sources[controller.selectedSource].info.height}",style=MaterialTheme.typography.labelSmall)
                                     }
-                                }
-                                Row(verticalAlignment=Alignment.CenterVertically) {
-                                    Text("Timeline · ${project.timeline.clips.size} clips",style=MaterialTheme.typography.titleSmall,modifier=Modifier.weight(1f))
-                                    OutlinedButton(onClick={pick()?.let {controller.append(it.path)}},enabled=!controller.busy && !project.sources[0].info.isStill){Text("Add video / still")}
-                                }
-                                LazyColumn(Modifier.heightIn(max=180.dp),verticalArrangement=Arrangement.spacedBy(5.dp)) {
-                                    itemsIndexed(project.timeline.clips) { index,clip ->
-                                        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.surfaceContainerHigh).padding(horizontal=10.dp,vertical=3.dp),verticalAlignment=Alignment.CenterVertically) {
-                                            Text("${index+1}   ${time(clip.startMs)} → ${time(clip.endMs ?: 0)}",modifier=Modifier.weight(1f),style=MaterialTheme.typography.bodySmall)
-                                            TextButton(onClick={ controller.seek(project.timeline.startOf(index)) },enabled=!controller.busy) { Text("Seek") }
-                                            TextButton(onClick={ controller.moveClip(index,-1) },enabled=!controller.busy && index>0) { Text("↑") }
-                                            TextButton(onClick={ controller.moveClip(index,1) },enabled=!controller.busy && index<project.timeline.clips.lastIndex) { Text("↓") }
-                                            TextButton(onClick={ controller.removeClip(index) },enabled=!controller.busy && project.timeline.clips.size>1) { Text("Remove") }
-                                        }
+                                    Box(Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(28.dp)).background(Color.Black),contentAlignment=Alignment.Center) {
+                                        val frame=controller.player.frame ?: controller.previewFrame ?: controller.sourceFrame
+                                        if(frame!=null)Image(frame,if(controller.player.frame!=null || controller.previewFrame!=null)"Rendered edit" else "Source frame, render to inspect effects",Modifier.fillMaxSize())
+                                        else Text(if(project.sources[controller.selectedSource].info.isVideo)"Reading frame…" else "Audio clip",color=Color.White)
                                     }
-                                }
-                            }
-                            Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(10.dp)) {
-                                val tabs=listOf("Edit","Clip editor","Transcript","Pause cuts","Scenes","Beats","Follow crop","Models","Subtitles","Audio","Text layers","Sound tracks","Tags","Image layers","Drawing","Subject cutout","Scene stems","Compression","Translation","Magic eraser","Dubbing","Command studio")
-                                if(project.sources.size>1)FlowRowCompat {
-                                    project.sources.forEachIndexed {i,source->FilterChip(controller.selectedSource==i,{controller.selectSource(i)},label={Text("${i+1}: ${File(source.path).name.take(20)}")},enabled=!controller.busy)}
-                                }
-                                FlowRowCompat {
-                                    tabs.forEach { title -> FilterChip(selected=controller.tab==title,onClick={ controller.tab=title },label={ Text(title) }) }
-                                }
-                                Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-                                    if(controller.tab in listOf("Pause cuts","Scenes","Beats","Transcript","Scene stems","Audio"))PanelCard {
-                                        Text("Tool scope",style=MaterialTheme.typography.titleMedium)
-                                        FlowRowCompat {
-                                            FilterChip(controller.smartClipId==null,{controller.selectSmartClip(null)},label={Text(if(controller.tab=="Audio")"Whole output" else "Selected source, all clips")},enabled=!controller.busy)
-                                            project.timeline.clips.forEachIndexed {i,clip->FilterChip(controller.smartClipId==clip.id,{controller.selectSmartClip(clip.id)},label={Text("Clip ${i+1}")},enabled=!controller.busy)}
-                                        }
-                                        Text(if(controller.tab=="Audio") {if(controller.smartClipId==null)"Final mixed sound, across every source and added sound track. Choose Clip N for before-join clip processing." else "Only this clip's sound is processed before the join. Other clips, added tracks and whole-project mastering are unchanged."} else if(controller.tab=="Scene stems") {if(controller.smartClipId==null)"Exports stems from the selected original source. Choose Clip N for only that clip's played sound. No timeline changes." else "Exports only this clip's played sound. Other clips and the timeline are unchanged."} else if(controller.smartClipId==null)"All occurrences of the selected source can change. Choose Clip N to limit the tool." else "Only this clip occurrence is changed. Existing clip effects stay; cuts shift later content earlier. Originals are unchanged.")
+                                    Text(if(controller.player.frame!=null)"Rendered preview · ${time(controller.player.positionMs)} / ${time(controller.player.durationMs)}" else if(controller.previewFrame!=null)"Rendered edit. Original unchanged." else "Source preview · Play edit renders first",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                                        FilledTonalButton(onClick={controller.stepOutput(-1)},enabled=!controller.busy){Text("−1f")}
+                                        Button(onClick={controller.togglePlayback()},enabled=!controller.busy){Text(if(controller.player.playing)"Ⅱ Pause" else "▶ Play edit")}
+                                        FilledTonalButton(onClick={controller.stepOutput(1)},enabled=!controller.busy){Text("+1f")}
+                                        if(controller.rendered!=null)TextButton(onClick={controller.preview()},enabled=!controller.busy){Text("Re-render")}
+                                        TextButton(onClick={controller.splitHere()},enabled=!controller.busy && !project.sources[0].info.isStill){Text("Split")}
+                                        Spacer(Modifier.weight(1f))
+                                        Text(time(if(controller.player.engaged)controller.player.positionMs else project.outputAt(controller.position))+" · 25fps preview",style=MaterialTheme.typography.labelSmall)
                                     }
-
+                                    controller.player.failure?.let {Text(it,color=MaterialTheme.colorScheme.error,style=MaterialTheme.typography.labelSmall)}
+                                }
+                                Surface(Modifier.width(360.dp).fillMaxHeight(),shape=RoundedCornerShape(28.dp),color=MaterialTheme.colorScheme.surfaceContainerLow) {
+                                    Column(Modifier.padding(14.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
+                                        Text(controller.tab,style=MaterialTheme.typography.titleLarge)
+                                        ScrollArea(Modifier.weight(1f)) {
+                                            if(controller.tab in listOf("Pause cuts","Scenes","Beats","Transcript","Scene stems","Audio"))DesktopScopePicker(controller,project)
                                     when(controller.tab) {
                                         "Edit" -> EditPanel(controller,project,window)
                                         "Subject cutout" -> SubjectPanel(controller,project)
@@ -219,8 +205,11 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                                             OutlinedButton(onClick={ Desktop.getDesktop().browse(java.net.URI("https://github.com/whitegeraph-hue/FFmpegGUI/blob/linux-desktop/docs/MODELS.md")) }) { Text("Model licences and sources") }
                                         }
                                     }
+                                        }
+                                    }
                                 }
                             }
+                            DesktopTimeline(controller,project,onAdd={pick()?.let {controller.append(it.path)}})
                         }
                     }
                     if (controller.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
@@ -228,9 +217,149 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                         Text(controller.status,modifier=Modifier.weight(1f),style=MaterialTheme.typography.bodySmall)
                         if (controller.busy) TextButton(onClick={ controller.status="Stopping the local process…";controller.job?.cancel() }) { Text("Stop") }
                     }
+                    if(showExport && project!=null)AlertDialog(onDismissRequest={showExport=false},title={Text("Export · ${project.format.name}")},text={
+                        ScrollArea(Modifier.heightIn(max=400.dp)) {EditPanel(controller,project,window)}
+                    },confirmButton={Button(onClick={
+                        showExport=false
+                        pick(true,"${File(project.sources[0].path).nameWithoutExtension}-edited.${project.format.extension}")?.let {file->if(!file.exists() || javax.swing.JOptionPane.showConfirmDialog(window,"Replace ${file.name}?","Existing output",javax.swing.JOptionPane.YES_NO_OPTION)==0)controller.export(file)}
+                    }){Text("Choose file & export")}},dismissButton={TextButton(onClick={showExport=false}){Text("Cancel")}})
+                    if(showSettings)AlertDialog(onDismissRequest={showSettings=false},title={Text("Settings")},text={
+                        ScrollArea(Modifier.heightIn(max=470.dp)) {
+                            Text("Appearance",style=MaterialTheme.typography.titleMedium)
+                            Row(verticalAlignment=Alignment.CenterVertically){Switch(lightTheme,{lightTheme=it;preferences.putBoolean("lightTheme",it)});Spacer(Modifier.width(10.dp));Text("Light theme")}
+                            Text("Offline models",style=MaterialTheme.typography.titleMedium)
+                            Text("Import and manage speech, subject and sound models locally. Models are never downloaded automatically.")
+                            FilledTonalButton(onClick={controller.tab="Models";showSettings=false}){Text("Manage models")}
+                            Text("Export settings",style=MaterialTheme.typography.titleMedium)
+                            TextButton(onClick={showExport=true;showSettings=false}){Text("Open format & quality")}
+                            
+                            Text("Preview",style=MaterialTheme.typography.titleMedium)
+                            Text("Play edit renders the edited result first, then plays it with sound. Edits invalidate that render. Source view does not show effects live.")
+                            Text("Shortcuts: Ctrl+Z undoes the last edit. Esc clears clip selection. Click a timeline clip to select it; use Move left/right to reorder. Drag reordering is not available.",style=MaterialTheme.typography.bodySmall)
+                            Text("Development preview. Not every mobile feature is available yet. Original files are never edited.",style=MaterialTheme.typography.bodySmall)
+                        }
+                    },confirmButton={TextButton(onClick={showSettings=false}){Text("Done")}})
                     controller.error?.let { message -> AlertDialog(onDismissRequest={ controller.error=null },title={ Text("Could not finish") },text={ Box(Modifier.heightIn(max=350.dp).verticalScroll(rememberScrollState())) { Text(message) } },confirmButton={ TextButton(onClick={ controller.error=null }) { Text("Close") } }) }
                 }
             }
+        }
+    }
+}
+
+@Composable private fun ScrollArea(modifier:Modifier=Modifier,content:@Composable ColumnScope.()->Unit) {
+    val scroll=rememberScrollState()
+    Box(modifier) {
+        Column(Modifier.fillMaxWidth().padding(end=10.dp).verticalScroll(scroll),verticalArrangement=Arrangement.spacedBy(12.dp),content=content)
+        VerticalScrollbar(rememberScrollbarAdapter(scroll),Modifier.align(Alignment.CenterEnd).fillMaxHeight().width(7.dp))
+    }
+}
+private val desktopGroups=linkedMapOf(
+    "Edit" to listOf("Clip editor","Scenes","Pause cuts","Beats","Follow crop"),
+    "Audio" to listOf("Audio","Sound tracks","Scene stems","Dubbing"),
+    "Text" to listOf("Transcript","Subtitles","Text layers","Translation"),
+    "Picture" to listOf("Image layers","Drawing","Subject cutout","Magic eraser"),
+    "Export" to listOf("Edit","Compression","Tags","Command studio"),
+    "Models" to listOf("Models")
+)
+@Composable private fun DesktopToolRail(c:EditorController) {
+    val group=desktopGroups.entries.firstOrNull {c.tab in it.value}?.key ?: "Edit"
+    ScrollArea(Modifier.width(154.dp).fillMaxHeight()) {
+        Text("TOOLS",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.padding(8.dp))
+        desktopGroups.entries.toList().chunked(2).forEach {pair->
+            Row(horizontalArrangement=Arrangement.spacedBy(6.dp)) {
+                pair.forEach {(name,tools)->
+                    val selected=group==name
+                    Surface(onClick={c.tab=tools.first()},shape=RoundedCornerShape(14.dp),color=if(selected)MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerLow,modifier=Modifier.weight(1f)) {
+                        Text(name,Modifier.padding(horizontal=8.dp,vertical=12.dp),style=MaterialTheme.typography.labelLarge,maxLines=1)
+                    }
+                }
+            }
+        }
+        HorizontalDivider(Modifier.padding(vertical=6.dp))
+        desktopGroups[group].orEmpty().forEach {tool->
+            Surface(onClick={c.tab=tool},shape=RoundedCornerShape(14.dp),color=if(c.tab==tool)MaterialTheme.colorScheme.secondaryContainer else Color.Transparent,modifier=Modifier.fillMaxWidth()) {
+                Text(if(tool=="Edit")"Format & quality" else tool,Modifier.padding(horizontal=10.dp,vertical=9.dp),style=MaterialTheme.typography.labelLarge)
+            }
+        }
+    }
+}
+@Composable private fun DesktopScopePicker(c:EditorController,p:DesktopProject) {
+    var expanded by remember {mutableStateOf(false)}
+    val number=p.timeline.clips.indexOfFirst {it.id==c.smartClipId}
+    Text("Apply to · select a timeline clip to change scope",style=MaterialTheme.typography.labelSmall)
+    Box {
+        FilledTonalButton(onClick={expanded=true},enabled=!c.busy,modifier=Modifier.fillMaxWidth()) {Text(if(number>=0)"Clip ${number+1}" else if(c.tab=="Audio")"Whole output" else "Selected source · all clips")}
+        DropdownMenu(expanded,{expanded=false}) {
+            DropdownMenuItem(text={Text(if(c.tab=="Audio")"Whole output" else "Selected source · all clips")},onClick={c.selectSmartClip(null);expanded=false})
+            p.timeline.clips.forEachIndexed {i,clip->DropdownMenuItem(text={Text("Clip ${i+1} · ${time(clip.lengthMs)}")},onClick={c.selectSmartClip(clip.id);expanded=false})}
+        }
+    }
+    Text(if(number>=0)"Only this clip occurrence. Other clips stay unchanged." else if(c.tab=="Audio")"Final mix, including every source and added sound." else "All occurrences of the selected source. Choose a clip to limit changes.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+    if(p.sources.size>1) {
+        var sources by remember {mutableStateOf(false)}
+        Box {TextButton(onClick={sources=true}){Text("Source: "+File(p.sources[c.selectedSource].path).name.take(24))};DropdownMenu(sources,{sources=false}) {p.sources.forEachIndexed {i,source->DropdownMenuItem(text={Text(File(source.path).name)},onClick={c.selectSource(i);sources=false})}}}
+    }
+}
+@Composable private fun DesktopTimeline(c:EditorController,p:DesktopProject,onAdd:()->Unit) {
+    Surface(Modifier.fillMaxWidth().height(164.dp),shape=RoundedCornerShape(24.dp),color=MaterialTheme.colorScheme.surfaceContainer) {
+        Column(Modifier.padding(horizontal=14.dp,vertical=6.dp),verticalArrangement=Arrangement.spacedBy(2.dp)) {
+            Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                Text("Timeline",style=MaterialTheme.typography.titleMedium)
+                Text("${p.timeline.clips.size} clips · ${time(p.timeline.durationMs)} footage / ${time(p.outputDurationMs)} output",style=MaterialTheme.typography.labelSmall,modifier=Modifier.weight(1f))
+                val index=p.timeline.clips.indexOfFirst {it.id==c.smartClipId}
+                TextButton(onClick={c.moveClip(index,-1)},enabled=!c.busy && index>0){Text("Move left")}
+                TextButton(onClick={c.moveClip(index,1)},enabled=!c.busy && index>=0 && index<p.timeline.clips.lastIndex){Text("Move right")}
+                TextButton(onClick={c.removeClip(index)},enabled=!c.busy && index>=0 && p.timeline.clips.size>1){Text("Remove")}
+                FilledTonalButton(onClick=onAdd,enabled=!c.busy && !p.sources[0].info.isStill){Text("+ Add clip")}
+            }
+            val scroll=rememberScrollState()
+            val width=maxOf(1300f,p.timeline.durationMs/10f)
+            val density=androidx.compose.ui.platform.LocalDensity.current.density
+            LaunchedEffect(c.smartClipId,p.timeline.clips) {
+                val index=p.timeline.clips.indexOfFirst {it.id==c.smartClipId}
+                if(index>=0) {
+                    val x=(width*p.timeline.startOf(index)/p.timeline.durationMs.coerceAtLeast(1)*density).toInt()
+                    if(x<scroll.value || x>scroll.value+scroll.viewportSize-60)scroll.animateScrollTo((x-40).coerceIn(0,scroll.maxValue))
+                }
+            }
+            LaunchedEffect(c.player.playing) {
+                while(c.player.playing) {
+                    val x=(width*c.visibleFootagePosition()/p.timeline.durationMs.coerceAtLeast(1)*density).toInt()
+                    if(x<scroll.value || x>scroll.value+scroll.viewportSize-30)scroll.scrollTo((x-60).coerceIn(0,scroll.maxValue))
+                    delay(250)
+                }
+            }
+            Column(Modifier.weight(1f).horizontalScroll(scroll)) {
+                Box(Modifier.width(width.dp).height(22.dp).pointerInput(p.timeline.durationMs){detectTapGestures {at->if(!c.busy){c.player.stop();c.seek((at.x/size.width*p.timeline.durationMs).toLong())}}}) {
+                    val step=maxOf(1000L,(p.timeline.durationMs/12/1000)*1000)
+                    var t=0L
+                    while(t<=p.timeline.durationMs) {
+                        Text(time(t),Modifier.offset(x=(width*t/p.timeline.durationMs.coerceAtLeast(1)).dp),style=MaterialTheme.typography.labelSmall)
+                        t+=step
+                    }
+                }
+                Box(Modifier.width(width.dp).weight(1f)) {
+                    Row(Modifier.fillMaxSize(),horizontalArrangement=Arrangement.spacedBy(0.dp)) {
+                        p.timeline.clips.forEachIndexed {i,clip->
+                            val selected=c.smartClipId==clip.id
+                            Surface(onClick={c.player.stop();c.selectSmartClip(clip.id);c.seek(p.timeline.startOf(i))},enabled=!c.busy,shape=RoundedCornerShape(10.dp),color=if(selected)MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerHighest,modifier=Modifier.width((width*clip.lengthMs/p.timeline.durationMs.coerceAtLeast(1)).dp).fillMaxHeight().padding(end=3.dp),border=if(selected)BorderStroke(2.dp,MaterialTheme.colorScheme.primary)else null) {
+                                Column(Modifier.padding(8.dp),verticalArrangement=Arrangement.Center) {
+                                    Text("Clip ${i+1}",maxLines=1,style=MaterialTheme.typography.labelLarge)
+                                    Text(time(clip.lengthMs),maxLines=1,style=MaterialTheme.typography.labelSmall)
+                                }
+                            }
+                        }
+                    }
+                    Canvas(Modifier.fillMaxSize()) {
+                        val at=c.visibleFootagePosition()
+                        val x=size.width*at/p.timeline.durationMs.coerceAtLeast(1)
+                        drawLine(Color(0xff82d5c7),Offset(x,0f),Offset(x,size.height),3f)
+                        drawCircle(Color(0xff82d5c7),5f,Offset(x,4f))
+                    }
+                }
+            }
+            HorizontalScrollbar(rememberScrollbarAdapter(scroll),Modifier.fillMaxWidth().height(7.dp))
+            Text("Footage time · click a clip to select · ruler seeks · scroll horizontally →",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -765,7 +894,7 @@ private fun EditPanel(c: EditorController,p: DesktopProject,window:java.awt.Fram
 }
 
 @Composable private fun ClipEditorPanel(c:EditorController,p:DesktopProject) {
-    val index=(p.timeline.locate(c.position)?.index ?: 0).coerceIn(p.timeline.clips.indices)
+    val index=p.timeline.clips.indexOfFirst {it.id==c.smartClipId}.takeIf {it>=0} ?: (p.timeline.locate(c.position)?.index ?: 0).coerceIn(p.timeline.clips.indices)
     val clip=p.timeline.clips[index]
     val source=p.sources.first {it.path==clip.sourceId}
     val f=clip.effects

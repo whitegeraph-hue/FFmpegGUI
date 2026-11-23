@@ -25,7 +25,16 @@ class DesktopPlayer(private val scope:CoroutineScope,private val media:DesktopMe
     private var audioLine:SourceDataLine?=null
     private var videoProcess:Process?=null
     private var audioProcess:Process?=null
-    private var source:File?=null
+    private var source by mutableStateOf<File?>(null)
+    val engaged:Boolean get()=source!=null
+    suspend fun cue(file:File,at:Long) {
+        stop()
+        source=file
+        val info=media.probe(file.path).info
+        durationMs=info.durationMs
+        positionMs=at.coerceIn(0,(durationMs-1).coerceAtLeast(0))
+        if(info.isVideo)frame=media.frame(file.path,positionMs)?.toComposeImageBitmap()
+    }
     fun play(file:File,at:Long=positionMs) {
         val previous=job
         stop(false)

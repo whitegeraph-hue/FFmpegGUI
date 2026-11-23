@@ -99,6 +99,7 @@ class EditorController(val scope: CoroutineScope) {
     fun undo() { if (history.isNotEmpty()) { project=history.removeLast(); selectedSource=selectedSource.coerceIn(project!!.sources.indices);player.stop();rendered?.delete(); rendered=null;previewFrame=null; resetAnalysis(); seek(position);pruneMasks();status="Undid the last edit." } }
     fun seek(at: Long) {
         val p=project ?: return
+        player.stop()
         position=at.coerceIn(0,p.timeline.durationMs)
         val pos=p.timeline.locate(position) ?: return
         val clip=p.timeline.clips[pos.index]
@@ -106,12 +107,29 @@ class EditorController(val scope: CoroutineScope) {
         frameJob=scope.launch {
             delay(120)
             try {
+                rendered?.let {player.cue(it,p.outputAt(position));return@launch}
                 val info=p.sources.first { it.path==clip.sourceId }.info
                 if (!info.isVideo) { sourceFrame=null; return@launch }
                 val frame=media.frame(clip.sourceId,clip.startMs+pos.offsetMs)
                 sourceFrame=frame?.toComposeImageBitmap()
             } catch (e: CancellationException) { throw e } catch (_: Exception) { sourceFrame=null }
         }
+    }
+    fun visibleFootagePosition():Long {
+        val p=project ?: return position
+        return if(player.engaged)p.clock().mediaMsForOutput(player.positionMs) else position
+    }
+    fun togglePlayback() {
+        val p=project ?: return
+        if(player.playing)player.pause()
+        else rendered?.let {player.play(it,if(player.engaged)player.positionMs else p.outputAt(position))} ?: preview(true)
+    }
+    fun stepOutput(direction:Int) {
+        val p=project ?: return
+        val current=if(player.engaged)player.positionMs else p.outputAt(position)
+        // The integrated preview is 25 fps, independently of source/export frame rate.
+        val output=(current+direction*40L).coerceIn(0,p.outputDurationMs)
+        seek(p.clock().mediaMsForOutput(output))
     }
     fun seekWord(word: SpokenWord) {
         val p=project ?: return
@@ -121,7 +139,10 @@ class EditorController(val scope: CoroutineScope) {
     fun splitHere() {
         val p=project ?: return
         val beats=(beatStatus as? BeatsStatus.Ready)?.beatsMs.orEmpty()
-        val at=if (snap) BeatTrack.nearest(beats,position) ?: position else position
+        val visible=visibleFootagePosition()
+        val at=if (snap) BeatTrack.nearest(beats,visible) ?: visible else visible
+        if(!p.timeline.canSplitAt(at)){status="Choose a point inside a clip, not an existing boundary.";return}
+        position=at
         mutate(p.copy(timeline=p.splitFootageAt(listOf(at)),followCrop=null))
         status="Split at ${time(at)}. Export applies the timeline; source is untouched."
     }
@@ -180,7 +201,7 @@ class EditorController(val scope: CoroutineScope) {
             status="Export complete: ${result.path} · ${result.info.durationFormatted}"
         }
     }
-    fun preview() {
+    fun preview(playWhenReady:Boolean=false) {
         val current=project ?: return
         if(current.format==OutputFormat.SVG || current.format.isTextArt) {
             status="SVG and text art can be exported. Their in-editor preview is still being ported.";return
@@ -193,6 +214,7 @@ class EditorController(val scope: CoroutineScope) {
                 exporter.export(p,file){status=it}
                 rendered?.delete(); rendered=file
                 if (p.format.hasVideo || p.format.isImage) previewFrame=media.frame(file.path,0)?.toComposeImageBitmap()
+                if(playWhenReady && !p.sources[0].info.isStill)player.play(file,p.outputAt(position))
                 status=if(p.sources[selectedSource].info.isStill) "Edited picture is ready. Source file is unchanged." else "Edited preview is ready. Play inside the editor to inspect audio and motion."
             } catch (e: Exception) { file.delete(); throw e }
         }
