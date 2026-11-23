@@ -194,8 +194,8 @@ class EditorController(val scope: CoroutineScope) {
             } catch (e: Exception) { beatStatus=BeatsStatus.Failed; throw e }
         }
     }
-    fun export(output: File) {
-        val p=project ?: return
+    fun export(output: File,settings:DesktopProject?=project) {
+        val p=settings ?: return
         work("Exporting locally with the shared FFmpeg engine…") {
             val result=exporter.export(p,output){status=it}
             status="Export complete: ${result.path} · ${result.info.durationFormatted}"

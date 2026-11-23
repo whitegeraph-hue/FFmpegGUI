@@ -25,6 +25,14 @@ fun main(args:Array<String>)=runBlocking {
         check(reversed[0]==DesktopClipSpan(0,1750,2750,false)){reversed}
         check(reversed[1]==DesktopClipSpan(1,0,2000,true)){reversed}
         check(p.clock().mediaMsForOutput(500)==2000L)
+        val curve=SpeedCurve(listOf(SpeedPoint(0f,.5f),SpeedPoint(.5f,2f),SpeedPoint(1f,1f)))
+        val curved=p.copy(timeline=Timeline(listOf(first.copy(effects=first.effects.copy(speedCurve=curve,transition=Transition(TransitionKind.FADE,9000))),second)))
+        val curvedSpans=curved.outputClipSpans()
+        val cc=curved.clock()
+        check(cc.overlaps[0]<=minOf(cc.clipPosition(0).playedLengthMs,4000)/2)
+        check(curvedSpans[1].endMs==curved.outputDurationMs)
+        check(curvedSpans[0].endMs-curvedSpans[1].startMs in (cc.overlaps[0]/2-1)..(cc.overlaps[0]/2+1))
+
     }
     verify("desktop visible playback Split and preview step use edited clock") {
         val first=Clip("clock-first",video.path,0,4000,Effects(speed=2f,reversed=true,transition=Transition(TransitionKind.FADE,500)))

@@ -217,12 +217,19 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                         Text(controller.status,modifier=Modifier.weight(1f),style=MaterialTheme.typography.bodySmall)
                         if (controller.busy) TextButton(onClick={ controller.status="Stopping the local process…";controller.job?.cancel() }) { Text("Stop") }
                     }
-                    if(showExport && project!=null)AlertDialog(onDismissRequest={showExport=false},title={Text("Export · ${project.format.name}")},text={
-                        ScrollArea(Modifier.heightIn(max=400.dp)) {EditPanel(controller,project,window)}
-                    },confirmButton={Button(onClick={
-                        showExport=false
-                        pick(true,"${File(project.sources[0].path).nameWithoutExtension}-edited.${project.format.extension}")?.let {file->if(!file.exists() || javax.swing.JOptionPane.showConfirmDialog(window,"Replace ${file.name}?","Existing output",javax.swing.JOptionPane.YES_NO_OPTION)==0)controller.export(file)}
-                    }){Text("Choose file & export")}},dismissButton={TextButton(onClick={showExport=false}){Text("Cancel")}})
+                    if(showExport && project!=null) {
+                        val draftController=remember {EditorController(scope).apply {this.project=project}}
+                        DisposableEffect(Unit){onDispose {draftController.close()}}
+                        val draft=draftController.project ?: project
+                        AlertDialog(onDismissRequest={showExport=false},title={Text("Export · ${draft.format.name}")},text={
+                            ScrollArea(Modifier.heightIn(max=400.dp)) {ExportOptions(draftController,draft)}
+                        },confirmButton={Button(onClick={
+                            val file=pick(true,"${File(project.sources[0].path).nameWithoutExtension}-edited.${draft.format.extension}")
+                            if(file!=null && (!file.exists() || javax.swing.JOptionPane.showConfirmDialog(window,"Replace ${file.name}?","Existing output",javax.swing.JOptionPane.YES_NO_OPTION)==0)) {
+                                showExport=false;controller.export(file,draft)
+                            }
+                        }){Text("Choose file & export")}},dismissButton={TextButton(onClick={showExport=false}){Text("Cancel")}})
+                    }
                     if(showSettings)AlertDialog(onDismissRequest={showSettings=false},title={Text("Settings")},text={
                         ScrollArea(Modifier.heightIn(max=470.dp)) {
                             Text("Appearance",style=MaterialTheme.typography.titleMedium)
@@ -369,16 +376,7 @@ private val desktopGroups=linkedMapOf(
 
 @Composable
 private fun EditPanel(c: EditorController,p: DesktopProject,window:java.awt.Frame) {
-    PanelCard {
-        Text("Export format",style=MaterialTheme.typography.titleMedium)
-        val formats=when { p.sources[0].info.isStill -> listOf(OutputFormat.JPG,OutputFormat.PNG,OutputFormat.WEBP,OutputFormat.BMP,OutputFormat.TIFF,OutputFormat.SVG,OutputFormat.ASCII,OutputFormat.ANSI)
-            !p.sources[0].info.isVideo -> listOf(OutputFormat.MP3,OutputFormat.M4A,OutputFormat.OGG,OutputFormat.OPUS,OutputFormat.FLAC,OutputFormat.WAV,OutputFormat.SRT,OutputFormat.TXT)
-            else -> listOf(OutputFormat.MP4,OutputFormat.MKV,OutputFormat.AVI,OutputFormat.GIF,OutputFormat.MP3,OutputFormat.WAV,OutputFormat.SRT,OutputFormat.TXT) }
-        FlowRowCompat {
-            formats.forEach { format -> FilterChip(p.format==format,{ c.mutate(p.copy(format=format)) },label={ Text(format.name) },enabled=!c.busy) }
-        }
-    }
-    EncodingPanel(c,p)
+    ExportOptions(c,p)
     if(p.sources[0].info.isVideo && !p.sources[0].info.isStill)PanelCard {
         Text("Canvas",style=MaterialTheme.typography.titleMedium)
         FlowRowCompat {CanvasRatio.entries.forEach {v->FilterChip(p.canvas==v,{c.mutate(p.copy(canvas=v))},label={Text(v.name)},enabled=!c.busy)}}
@@ -407,6 +405,18 @@ private fun EditPanel(c: EditorController,p: DesktopProject,window:java.awt.Fram
         val command=remember(p) { runCatching { c.exporter.command(p,"output.${p.format.extension}").arguments.joinToString(" ") }.getOrElse { it.message.orEmpty() } }
         SelectionContainerCompat(command)
     }
+}
+@Composable private fun ExportOptions(c:EditorController,p:DesktopProject) {
+    PanelCard {
+        Text("Export format",style=MaterialTheme.typography.titleMedium)
+        val formats=when { p.sources[0].info.isStill -> listOf(OutputFormat.JPG,OutputFormat.PNG,OutputFormat.WEBP,OutputFormat.BMP,OutputFormat.TIFF,OutputFormat.SVG,OutputFormat.ASCII,OutputFormat.ANSI)
+            !p.sources[0].info.isVideo -> listOf(OutputFormat.MP3,OutputFormat.M4A,OutputFormat.OGG,OutputFormat.OPUS,OutputFormat.FLAC,OutputFormat.WAV,OutputFormat.SRT,OutputFormat.TXT)
+            else -> listOf(OutputFormat.MP4,OutputFormat.MKV,OutputFormat.AVI,OutputFormat.GIF,OutputFormat.MP3,OutputFormat.WAV,OutputFormat.SRT,OutputFormat.TXT) }
+        FlowRowCompat {
+            formats.forEach { format -> FilterChip(p.format==format,{ c.mutate(p.copy(format=format)) },label={ Text(format.name) },enabled=!c.busy) }
+        }
+    }
+    if(!p.format.isTranscript)EncodingPanel(c,p)
 }
 @Composable private fun SelectionContainerCompat(text: String) { androidx.compose.foundation.text.selection.SelectionContainer { Text(text,style=MaterialTheme.typography.bodySmall) } }
 @Composable private fun ValueSlider(label:String,value:Float,range:ClosedFloatingPointRange<Float>,enabled:Boolean,onChange:(Float)->Unit) {
@@ -470,13 +480,13 @@ private fun EditPanel(c: EditorController,p: DesktopProject,window:java.awt.Fram
 @Composable private fun SubtitlesPanel(c:EditorController,p:DesktopProject,pick:()->File?) {
     val style=p.subtitleStyle ?: SubtitleStyle()
     PanelCard {
-        Text("Subtitles",style=MaterialTheme.typography.titleLarge)
-        Text("Source-clock SRT/ASS/SSA files follow their source through cuts, speed and reverse. Import binds to the selected source. File contents are embedded in projects, not their fonts. ASS keeps its own styling; embedded fonts/graphics are removed at export.",style=MaterialTheme.typography.bodySmall)
+        Text("Subtitles follow the selected source through cuts, speed and reverse.",style=MaterialTheme.typography.bodySmall)
         Button(onClick={pick()?.let {file->c.work("Reading subtitle file…"){val imported=DesktopSubtitles.import(file,c.selectedSource);c.mutate(p.copy(externalSubtitles=imported));c.status="Subtitle file imported. Render preview to inspect timing."}}},enabled=!c.busy){Text("Import SRT / ASS / SSA")}
         p.externalSubtitles?.let {v->
             Text("${v.name}, source ${v.sourceIndex+1}")
             if(v.enabled && DesktopSubtitles.cuesOnTimeline(v,p.request()).isEmpty())Text("No imported cues remain on this edit. Export will contain no imported subtitles.",color=MaterialTheme.colorScheme.error)
-            Row(verticalAlignment=Alignment.CenterVertically) {Switch(v.enabled,{c.mutate(p.copy(externalSubtitles=v.copy(enabled=it)))},enabled=!c.busy);Text("Use imported subtitles");TextButton(onClick={c.mutate(p.copy(externalSubtitles=null))},enabled=!c.busy){Text("Remove")}}
+            Row(verticalAlignment=Alignment.CenterVertically) {Switch(v.enabled,{c.mutate(p.copy(externalSubtitles=v.copy(enabled=it)))},enabled=!c.busy);Text("Use imported subtitles",Modifier.weight(1f))}
+            TextButton(onClick={c.mutate(p.copy(externalSubtitles=null))},enabled=!c.busy){Text("Remove imported subtitles")}
         }
         val canStyle=p.externalSubtitles?.enabled==true || p.sources.indices.any {p.sourceWords(it).isNotEmpty()}
         Row(verticalAlignment=Alignment.CenterVertically) {
