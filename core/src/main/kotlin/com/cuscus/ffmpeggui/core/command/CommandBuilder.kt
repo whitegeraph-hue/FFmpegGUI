@@ -764,7 +764,7 @@ class CommandBuilder(fonts: FontProvider) {
         val mixedStills = segments.any { request.sources[it.source].isStill }
         val fit = "scale=$width:$height:force_original_aspect_ratio=decrease," +
             "pad=$width:$height:(ow-iw)/2:(oh-ih)/2,setsar=1" +
-            (if (transitions || mixedStills) ",fps=${transitionFrameRate(request)},settb=AVTB,format=${if (keptHdr(request) != null) "yuv420p10le" else "yuv420p"}" else "")
+            (if (transitions || mixedStills) ",fps=${transitionFrameRate(request)}${if(mixedStills) ",settb=AVTB" else ""},format=${if (keptHdr(request) != null) "yuv420p10le" else "yuv420p"}" else "")
 
         // A clip without sound gets silence, which needs its length.
         val audio = withAudio && segments.all { request.sources[it.source].hasAudio || request.playedLengthMs(it) != null }

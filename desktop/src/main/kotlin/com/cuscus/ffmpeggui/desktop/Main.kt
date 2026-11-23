@@ -136,7 +136,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                                         if(controller.rendered!=null)TextButton(onClick={controller.preview()},enabled=!controller.busy){Text("Re-render")}
                                         TextButton(onClick={controller.splitHere()},enabled=!controller.busy && !project.sources[0].info.isStill){Text("Split")}
                                         Spacer(Modifier.weight(1f))
-                                        Text(time(if(controller.player.engaged)controller.player.positionMs else project.outputAt(controller.position))+" output · 25fps",style=MaterialTheme.typography.labelSmall)
+                                        Text("%.3f s output · 25fps".format(java.util.Locale.US,(if(controller.player.engaged)controller.player.positionMs else project.outputAt(controller.position))/1000.0),style=MaterialTheme.typography.labelSmall)
                                     }
                                     controller.player.failure?.let {Text(it,color=MaterialTheme.colorScheme.error,style=MaterialTheme.typography.labelSmall)}
                                 }
@@ -305,7 +305,7 @@ private val desktopGroups=linkedMapOf(
         var zoom by remember {mutableStateOf(1f)}
         Column(Modifier.padding(horizontal=14.dp,vertical=6.dp),verticalArrangement=Arrangement.spacedBy(2.dp)) {
             Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                Text(c.smartClipId?.let {id->"Clip "+(p.timeline.clips.indexOfFirst {it.id==id}+1)} ?: "Timeline",style=MaterialTheme.typography.titleMedium)
+                Text(c.smartClipId?.let {id->"Clip "+(p.timeline.clips.indexOfFirst {it.id==id}+1)+" / "+p.timeline.clips.size} ?: "Timeline",style=MaterialTheme.typography.titleMedium)
                 Text("${p.timeline.clips.size} clips · ${time(p.timeline.durationMs)} footage / ${time(p.outputDurationMs)} output",style=MaterialTheme.typography.labelSmall,modifier=Modifier.weight(1f))
                 TextButton(onClick={zoom=(zoom/2).coerceAtLeast(.25f)}){Text("−")}
                 TextButton(onClick={zoom=(zoom*2).coerceAtMost(16f)}){Text("Zoom +")}
@@ -906,7 +906,7 @@ private fun EditPanel(c: EditorController,p: DesktopProject,window:java.awt.Fram
     fun change(update:(Effects)->Effects){c.mutate(p.copy(timeline=p.timeline.updateEffects(clip.id,update),followCrop=null))}
     PanelCard {
         Text("Clip ${index+1}: ${File(clip.sourceId).name}",style=MaterialTheme.typography.titleLarge)
-        Text("Click a timeline clip to select it. The ruler shows footage time, before speed and transitions. Play edit shows the final output.")
+        Text("Click a timeline clip to select it. The ruler shows output time with speed and transitions. Seek inside the clip before Split; its first instant is already a boundary.")
         FlowRowCompat {
             OutlinedButton(onClick={c.mutate(p.copy(timeline=p.timeline.duplicate(clip.id,java.util.UUID.randomUUID().toString()),followCrop=null))},enabled=!c.busy){Text("Duplicate clip")}
             OutlinedButton(onClick={change {Effects.NONE}},enabled=!c.busy){Text("Reset clip effects")}
