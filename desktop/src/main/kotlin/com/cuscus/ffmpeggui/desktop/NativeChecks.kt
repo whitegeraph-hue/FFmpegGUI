@@ -21,6 +21,9 @@ internal fun runNativeChecks(args:Array<String>)=runBlocking {
 
     val video=media.probe(File(folder,"video.mp4").path)
     verify("layer alignment fractions scope guards noops history and key overrides") {
+        check(layerAlignmentPercent("12.5","75")==(.125f to .75f))
+        check(layerAlignmentPercent(" 0 ","100.0000")== (0f to 1f))
+        for(text in listOf("","-1","100.01","NaN","Infinity","1e2","1,5",".5","0.00001","101"))check(layerAlignmentPercent(text,"50")==null && layerAlignmentPercent("50",text)==null)
         check(layerAlignmentAt(50f,25f,100f,100f)==(.5f to .25f))
         check(layerAlignmentAt(0f,100f,100f,100f)==(0f to 1f))
         for(v in listOf(-1f,101f,Float.NaN))check(layerAlignmentAt(v,0f,100f,100f)==null)
