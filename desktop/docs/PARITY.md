@@ -545,3 +545,25 @@ rejected until its adapter exists. Latest full package8b6predatesHDR/canvas.
   inference and visual inspection. Local2GiB host correctly refuses its2,000MiB
   available-memory guard; no output claim. Desktop conversion pin does not
   weaken or replace the original Android unpinned LaMa placeholder.
+
+
+### 2026-11-23 06:00 EET: original HDR and exact packaged LaMa
+- Original embedded Ultra HDR gain maps now decode with bounded primary/source
+  size, are brought through shared geometry, converted from map fractions to
+  original stops, then use GainMapBuilder.original with original strength.
+  EXIF gain-map orientation is normalized; camera/vendor format breadth and
+  physical HDR hardware remain unverified. Canvas still blocked.
+- Visual inspection caught distro FFmpeg/ffprobe selecting the appended map
+  rather than primary picture. Supported Ultra HDR now probes primary ImageIO
+  dimensions and normalizes primary pixels to a private PNG for media inputs.
+ 60native checks pass, including actual white primary preview/output pixels,
+  dimensions, rotated original-map geometry/max stops and plain-input refusal.
+- Clean Ubuntu9ed9dbd exact packaged launcher LaMa inference passes, including
+  saved TrustMark decode, metadata, source dimensions, selected pixels changed,
+  existing destination protection and cancellation. CI output pixels inspected:
+  the synthetic black box is filled, with some banding; not broad photo quality.
+  https://github.com/whitegeraph-hue/FFmpegGUI/actions/runs/45107591030
+- LaMa import/selector now exposed behind original TrustMark gate and exact
+  desktop conversion pin, no auto-download;2,000MiB freeRAM requirement retained.
+  Local host cannot run it, correctly refuses. Selector/limits displayed and
+  visually inspected. Import picker not clicked; inference tested in CI.

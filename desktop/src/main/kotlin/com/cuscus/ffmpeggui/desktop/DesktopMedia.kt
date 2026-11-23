@@ -72,6 +72,9 @@ class DesktopMedia(val process: DesktopProcess = DesktopProcess()) {
         val duration=if(still)0L else measuredDuration
         var w = video?.get("width")?.jsonPrimitive?.intOrNull ?: 0
         var h = video?.get("height")?.jsonPrimitive?.intOrNull ?: 0
+        if(still && DesktopStillInputs.isUltraHdr(file)) {
+            ImageIO.createImageInputStream(file).use {input->val reader=ImageIO.getImageReaders(input).next();try {reader.input=input;w=reader.getWidth(0);h=reader.getHeight(0)}finally {reader.dispose()}}
+        }
         val rotation = video?.get("side_data_list")?.jsonArray?.mapNotNull { it.jsonObject["rotation"]?.jsonPrimitive?.intOrNull }?.firstOrNull() ?: 0
         if (kotlin.math.abs(rotation) % 180 == 90) { val swap = w; w = h; h = swap }
         if(still && DesktopStillInputs.orientation(file)>=5 && kotlin.math.abs(rotation)%180!=90){val swap=w;w=h;h=swap}
@@ -249,7 +252,8 @@ class DesktopExport(private val media: DesktopMedia = DesktopMedia()) {
             } else null
             require(project.image.hdr==null || project.format==OutputFormat.JPG) {"HDR is enabled but this output is not JPG. Choose JPG or turn HDR off."}
             val hdr=project.image.hdr
-            require(hdr==null || (hdr.mode==HdrMode.GENERATED && hdr.hasArea && project.image.canvas==null)) {"This HDR mode needs an adapter still being ported."}
+            require(hdr==null || (hdr.hasArea && project.image.canvas==null)) {"This HDR mode needs an adapter still being ported."}
+            if(hdr?.mode==HdrMode.ORIGINAL)DesktopHdr.original(File(project.sources.single().path))
             val hdrPictures=hdr?.let {HdrPictures(File(auxiliaries,"hdr-final.png").path,File(auxiliaries,"hdr-plain.png").path)}
             val cover=project.coverPng?.let {encoded->
                 require(project.format.coverWriting!=null) {"This format cannot hold album art. Choose MP3, M4A, FLAC, OGG or OPUS, or remove the cover."}

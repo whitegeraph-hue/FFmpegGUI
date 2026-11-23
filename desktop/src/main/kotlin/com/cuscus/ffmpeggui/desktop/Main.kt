@@ -506,9 +506,10 @@ private fun EditPanel(c: EditorController,p: DesktopProject,window:java.awt.Fram
         ValueSlider("Maximum output side (0 keeps original)",e.output.maxSide.toFloat(),0f..3840f,!c.busy){edit(e.copy(output=e.output.copy(maxSide=if(it<64)0 else it.toInt())))}
         ValueSlider("Photo quality",e.output.quality,0f..1f,!c.busy){edit(e.copy(output=e.output.copy(quality=it)))}
         ValueSlider("Round corners",e.corners,0f..1f,!c.busy){edit(e.copy(corners=it))}
-        Row {Switch(e.hdr!=null,{on->edit(e.copy(hdr=if(on)ImageHdr()else null))},enabled=!c.busy);Text("Generated Ultra HDR JPG")}
+        Row {Switch(e.hdr!=null,{on->edit(e.copy(hdr=if(on)ImageHdr()else null))},enabled=!c.busy);Text("Ultra HDR JPG")}
         e.hdr?.let {hdr->
             if(p.format!=OutputFormat.JPG)Text("HDR is on, but export requires JPG. Choose JPG or turn HDR off.",color=MaterialTheme.colorScheme.error)
+            FlowRowCompat {HdrMode.entries.forEach {mode->FilterChip(hdr.mode==mode,{edit(e.copy(hdr=hdr.copy(mode=mode)))},label={Text(mode.name)},enabled=!c.busy)}}
             ValueSlider("HDR intensity",hdr.intensity,0f..1f,!c.busy){edit(e.copy(hdr=hdr.copy(intensity=it)))}
             Text("HDR area")
             FlowRowCompat {HdrArea.entries.forEach {area->FilterChip(hdr.area==area,{edit(e.copy(hdr=hdr.copy(area=area)))},label={Text(area.name)},enabled=!c.busy)}}
@@ -521,10 +522,10 @@ private fun EditPanel(c: EditorController,p: DesktopProject,window:java.awt.Fram
                 }}},enabled=!c.busy){Text("Choose HDR alpha mask")}
                 e.key?.mask?.let {path->OutlinedButton(onClick={edit(e.copy(hdr=if(hdr.area==HdrArea.BRUSH)hdr.copy(brush=path)else hdr.copy(mask=path)))},enabled=!c.busy){Text("Use current subject mask")}}
             }
-            Text("JPG only, up to 8 megapixels, no picture canvas. Gain map is generated from edited light, not AI. SDR screens keep the ordinary JPG. HDR hardware display is not verified. Original-camera gain maps and direct HDR brush painting remain in progress.")
+            Text("JPG only, up to 8 megapixels, no picture canvas. GENERATED uses edited light, not AI. ORIGINAL requires a supported embedded Ultra HDR source up to32MB, midpoint keeps its original strength. SDR screens show the ordinary JPG. HDR hardware display is not verified. Direct HDR brush painting remains in progress.")
         }
         OutlinedButton(onClick={c.mutate(p.copy(image=ImageEdit(),photoPlacement=null))},enabled=!c.busy){Text("Reset photo settings")}
-        Text("Drawing and subject-mask brushes have separate tabs. Original HDR, direct HDR brush painting and richer layer gestures remain in progress.",style=MaterialTheme.typography.bodySmall)
+        Text("Drawing and subject-mask brushes have separate tabs. Direct HDR brush painting and richer layer gestures remain in progress.",style=MaterialTheme.typography.bodySmall)
     }
 }
 
@@ -919,9 +920,10 @@ private fun EditPanel(c: EditorController,p: DesktopProject,window:java.awt.Fram
 
 @Composable private fun ErasePanel(c:EditorController,p:DesktopProject,window:java.awt.Frame,save:(String)->File?) {
     var mask by remember {mutableStateOf<File?>(null)}
+    var precise by remember {mutableStateOf(false)}
     PanelCard {
         Text("Magic eraser: new PNG",style=MaterialTheme.typography.titleLarge)
-        Text("Works on the original still picture, not the edited timeline. Select a matching upright PNG mask: opaque pixels are filled, transparent pixels are kept. Up to2megapixels. The original is unchanged. MI-GAN can invent details: inspect the saved PNG. LaMa and integrated edit replacement are still being ported.")
+        Text("Works on the original still picture, not the edited timeline. Select a matching upright PNG mask: opaque pixels are filled, transparent pixels are kept. Up to2megapixels. The original is unchanged. MI-GAN and LaMa invent details: inspect the saved PNG. Integrated edit replacement is still being ported.")
         Text("The PNG must pass invisible TrustMark readback and carry AI picture disclosure. This does not guarantee the invisible mark survives later edits or recompression. Export a new PNG only; it is not silently added to your project.",style=MaterialTheme.typography.bodySmall)
         OutlinedButton(onClick={Desktop.getDesktop().browse(java.net.URI(com.cuscus.ffmpeggui.marking.MarkerModel.FILES_URL))},enabled=!c.busy){Text("Open original AI mark downloads")}
         Button(onClick={
@@ -930,11 +932,15 @@ private fun EditPanel(c: EditorController,p: DesktopProject,window:java.awt.Fram
         },enabled=!c.busy){Text("Import two TrustMark files")}
         OutlinedButton(onClick={Desktop.getDesktop().browse(java.net.URI("https://huggingface.co/andraniksargsyan/migan"))},enabled=!c.busy){Text("Open MI-GAN model page")}
         Button(onClick={val d=FileDialog(window,"Choose migan_pipeline_v2.onnx",FileDialog.LOAD);d.isVisible=true;d.file?.let {name->val f=File(d.directory,name);c.work("Checking pinned MI-GAN model…"){DesktopModels.importErase(f);c.status="MI-GAN imported and hash checked."}}},enabled=!c.busy){Text("Import MI-GAN model")}
-        Text("MI-GAN by Picsart AI Research, MIT. TrustMark by Adobe, MIT. Models are separate imports, not bundled. Original notices: AI mark release above and MI-GAN model page.",style=MaterialTheme.typography.bodySmall)
+        OutlinedButton(onClick={Desktop.getDesktop().browse(java.net.URI("https://huggingface.co/Carve/LaMa-ONNX"))},enabled=!c.busy){Text("Open pinned LaMa conversion page")}
+        Button(onClick={val d=FileDialog(window,"Choose Carve lama_fp32.onnx",FileDialog.LOAD);d.isVisible=true;d.file?.let {name->val file=File(d.directory,name);c.work("Checking pinned LaMa conversion…"){DesktopModels.importLama(file);c.status="LaMa imported and hash checked."}}},enabled=!c.busy){Text("Import LaMa model")}
+        FlowRowCompat {FilterChip(!precise,{precise=false},label={Text("MI-GAN")},enabled=!c.busy);FilterChip(precise,{precise=true},label={Text("LaMa")},enabled=!c.busy)}
+        Text("MI-GAN needs1,200MiB free RAM; LaMa needs2,000MiB free RAM. Up to2megapixels. LaMa is the fixed512Carve conversion, not arbitrary ONNX.")
+        Text("MI-GAN by Picsart AI Research, MIT. LaMa/Carve conversion, Apache2.0. TrustMark by Adobe, MIT. Models are separate imports, not bundled. See model pages and bundled notices.",style=MaterialTheme.typography.bodySmall)
         Button(onClick={val d=FileDialog(window,"Select alpha erase mask PNG",FileDialog.LOAD);d.isVisible=true;d.file?.let {mask=File(d.directory,it)}},enabled=!c.busy){Text("Choose alpha mask")}
         Button(onClick={runCatching {DesktopEraseMask.paint(File(p.sources.first().path),window)}.onSuccess {if(it!=null)mask=it}.onFailure {c.error=it.message}},enabled=!c.busy && p.sources.size==1 && p.sources.first().info.isStill){Text("Paint erase mask")}
         Text(mask?.name ?: "No mask selected. Paint a mask here or choose an external alpha mask.")
-        Button(onClick={val chosen=mask ?: return@Button;save("erased.png")?.let {target->c.work("Preparing magic eraser…"){c.models.erase(p.sources.first().path,chosen,target){c.status=it};c.status="New AI-marked PNG saved: ${target.path}. Original and project are unchanged."}}},enabled=!c.busy && mask!=null && p.sources.size==1 && p.sources.first().info.isStill){Text("Erase to new PNG")}
+        Button(onClick={val chosen=mask ?: return@Button;save("erased.png")?.let {target->c.work("Preparing magic eraser…"){c.models.erase(p.sources.first().path,chosen,target,precise){c.status=it};c.status="New AI-marked PNG saved: ${target.path}. Original and project are unchanged."}}},enabled=!c.busy && mask!=null && p.sources.size==1 && p.sources.first().info.isStill){Text("Erase to new PNG")}
     }
 }
 

@@ -11,6 +11,38 @@ import kotlinx.coroutines.ensureActive
 
 /** Gain map from the original core; decoder reads bands, never two whole pictures. */
 object DesktopHdr {
+    fun original(file:File):Pair<Raster,GainMapMetadata> {
+        require(file.length() in 1..32_000_000) {"Original HDR input is limited to 32 MB"}
+        val embedded=UltraHdr.read(file.readBytes()) ?: error("No supported Ultra HDR gain map in this source")
+        ImageIO.createImageInputStream(java.io.ByteArrayInputStream(embedded.gainMapJpeg)).use {input->
+            val readers=ImageIO.getImageReaders(input);require(readers.hasNext()) {"Cannot decode original gain map"};val reader=readers.next()
+            try {
+                reader.input=input;val w=reader.getWidth(0);val h=reader.getHeight(0)
+                require(w>0 && h>0 && w.toLong()*h<=8_000_000) {"Original HDR gain map is too large"}
+                val step=maxOf(1,(maxOf(w,h)+1023)/1024)
+                val image=reader.read(0,reader.defaultReadParam.apply {setSourceSubsampling(step,step,0,0)})
+                try {
+                    val orientation=DesktopStillInputs.orientation(file);val swapped=orientation>=5
+                    val width=if(swapped)image.height else image.width;val height=if(swapped)image.width else image.height
+                    val pixels=IntArray(width*height)
+                    for(y in 0 until image.height)for(x in 0 until image.width) {
+                        val (dx,dy)=when(orientation) {
+                            2->image.width-1-x to y;3->image.width-1-x to image.height-1-y;4->x to image.height-1-y
+                            5->y to x;6->image.height-1-y to x;7->image.height-1-y to image.width-1-x;8->y to image.width-1-x
+                            else->x to y
+                        }
+                        pixels[dy*width+dx]=image.getRGB(x,y)
+                    }
+                    return Raster(width,height,pixels) to embedded.metadata
+                }finally {image.flush()}
+            }finally {reader.dispose()}
+        }
+    }
+    private fun rect(project:DesktopProject,builder:GainMapBuilder):FloatArray {
+        val source=project.sources.single();val (w,h)=editedSize(project.image,project.effects,source.info.width,source.info.height)
+        val border=borderPixels(project.image,w,h);val sx=builder.mapWidth.toFloat()/(w+2*border);val sy=builder.mapHeight.toFloat()/(h+2*border)
+        return floatArrayOf(border*sx,border*sy,w*sx,h*sy)
+    }
     fun readMask(file:File,width:Int,height:Int):Raster {
         require(file.length() in 1..24_000_000) {"HDR mask is missing or too large"}
         ImageIO.createImageInputStream(file).use {input->
@@ -26,7 +58,6 @@ object DesktopHdr {
     }
 
     suspend fun assemble(primary:File,finalPng:File,plainPng:File,hdr:ImageHdr,project:DesktopProject?=null):Boolean {
-        require(hdr.mode==HdrMode.GENERATED) {"Original HDR still needs a desktop adapter."}
         require(hdr.hasArea) {"Choose an HDR area mask first"}
         val finalStream=ImageIO.createImageInputStream(finalPng)
         val plainStream=ImageIO.createImageInputStream(plainPng)
@@ -52,11 +83,17 @@ object DesktopHdr {
                 val area=if(hdr.area==HdrArea.EVERYWHERE)null else {
                     val p=requireNotNull(project) {"HDR area needs source geometry"};val source=p.sources.single()
                     val mask=readMask(File(requireNotNull(hdr.areaMask)),source.info.width,source.info.height)
-                    val (ew,eh)=editedSize(p.image,p.effects,source.info.width,source.info.height)
-                    val border=borderPixels(p.image,ew,eh);val sx=builder.mapWidth.toFloat()/(ew+2*border);val sy=builder.mapHeight.toFloat()/(eh+2*border)
-                    HdrAreas.share(hdr.area,HdrAreas.aligned(mask,p.image,p.effects,builder.mapWidth,builder.mapHeight,floatArrayOf(border*sx,border*sy,ew*sx,eh*sy)))
+                    HdrAreas.share(hdr.area,HdrAreas.aligned(mask,p.image,p.effects,builder.mapWidth,builder.mapHeight,rect(p,builder)))
                 }
-                val map=builder.generated(hdr.intensity,area) ?: return false
+                val map=when(hdr.mode) {
+                    HdrMode.GENERATED->builder.generated(hdr.intensity,area)
+                    HdrMode.ORIGINAL->{
+                        val p=requireNotNull(project);val (raster,metadata)=original(File(p.sources.single().path))
+                        val aligned=HdrAreas.aligned(raster,p.image,p.effects,builder.mapWidth,builder.mapHeight,rect(p,builder),outside=Float.NaN)
+                        val stops=FloatArray(aligned.size){i->if(aligned[i].isNaN())Float.NaN else metadata.stopsOf(aligned[i])}
+                        builder.original(stops,hdr.intensity.coerceIn(0f,1f)*2f,area)
+                    }
+                } ?: return false
                 val grey=GreyJpeg.encode(map.values,map.width,map.height,90)
                 primary.writeBytes(UltraHdr.assemble(primary.readBytes(),grey,map.metadata))
                 return true

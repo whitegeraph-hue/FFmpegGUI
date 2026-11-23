@@ -517,6 +517,21 @@ fun main(args:Array<String>)=runBlocking {
         check(runCatching {exporter.export(noMask,File(folder,"hdr-no-mask.jpg"))}.isFailure)
         check(runCatching {DesktopHdr.readMask(File(folder,"video.mp4"),100,100)}.isFailure)
     }
+    verify("original Ultra HDR map survives rotate export and rejects plain input") {
+        val source=media.probe(File(folder,"hdr-area-subject.jpg").path)
+        check(source.info.width==100 && source.info.height==100) {"Ultra HDR probe must use primary picture"}
+        val frame=media.frame(source.path,0)!!;try {check((frame.getRGB(frame.width/2,frame.height/2) and 255)>200) {"Preview selected gain map instead of primary"}}finally {frame.flush()}
+        val project=DesktopProject.create(source).copy(format=OutputFormat.JPG,effects=Effects(rotation=Rotation.entries.first {it.degrees==90}),image=ImageEdit(hdr=ImageHdr(mode=HdrMode.ORIGINAL,intensity=.5f)))
+        val out=File(folder,"hdr-original-rotated.jpg");exporter.export(project,out)
+        val primary=javax.imageio.ImageIO.read(out);try {check(primary.width==100 && (primary.getRGB(25,25) and 255)>200) {"Output must retain primary white pixels"}}finally {primary.flush()}
+        val original=DesktopHdr.original(File(source.path));val restored=DesktopHdr.original(out)
+        check(kotlin.math.abs(original.second.maxStops-restored.second.maxStops)<.1f)
+        val map=restored.first;val left=map.pixels[map.height/2*map.width+map.width/4] and 255;val right=map.pixels[map.height/2*map.width+3*map.width/4] and 255
+        check(kotlin.math.abs(left-right)>100) {"Original rotated gain map lost geometry: $left $right"}
+        val plain=media.probe(File(folder,"sticker.png").path);val failed=File(folder,"hdr-original-rejected.jpg");failed.delete()
+        check(runCatching {exporter.export(DesktopProject.create(plain).copy(format=OutputFormat.JPG,image=ImageEdit(hdr=ImageHdr(mode=HdrMode.ORIGINAL))),failed)}.isFailure);check(!failed.exists())
+        val saved=File(folder,"hdr-original.ffgui.json");DesktopProjects.save(project,saved);check(DesktopProjects.load(saved,media).image.hdr==project.image.hdr)
+    }
     verify("HDR non-JPG output explicitly rejected") {
         val still=media.probe(File(folder,"exif-6.jpg").path)
         val error=runCatching {exporter.export(DesktopProject.create(still).copy(format=OutputFormat.PNG,image=ImageEdit(hdr=ImageHdr())),File(folder,"hdr-rejected.png"))}.exceptionOrNull()

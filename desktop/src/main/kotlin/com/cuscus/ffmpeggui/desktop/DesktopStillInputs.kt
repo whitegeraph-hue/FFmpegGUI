@@ -10,6 +10,8 @@ import kotlinx.coroutines.ensureActive
 
 /** Read JPEG EXIF orientation without decoding pixels. Original files are never changed. */
 object DesktopStillInputs {
+    fun isUltraHdr(file:File):Boolean = file.extension.lowercase() in setOf("jpg","jpeg") && file.length() in 1..32_000_000 && com.cuscus.ffmpeggui.core.hdr.UltraHdr.read(file.readBytes())!=null
+
     fun orientation(file:File):Int = runCatching {
         RandomAccessFile(file,"r").use {input->
             if(input.length()<4 || input.readUnsignedShort()!=0xffd8)return@use 1
@@ -45,7 +47,7 @@ object DesktopStillInputs {
     suspend fun resolve(path:String,directory:File):String=withContext(Dispatchers.IO) {
         val file=File(path)
         val orientation=orientation(file)
-        if(orientation==1)return@withContext path
+        if(orientation==1 && !isUltraHdr(file))return@withContext path
         val stream=ImageIO.createImageInputStream(file)
         try {
             stream.use {input->
