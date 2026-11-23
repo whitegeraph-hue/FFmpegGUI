@@ -198,6 +198,9 @@ class EditorController(val scope: CoroutineScope) {
         val p=settings ?: return
         work("Exporting locally with the shared FFmpeg engine…") {
             val result=exporter.export(p,output){status=it}
+            // Remember confirmed choices only after a completed export. Cancellation
+            // and a failed export leave both the project and its Undo history alone.
+            if(project!=p)mutate(p)
             status="Export complete: ${result.path} · ${result.info.durationFormatted}"
         }
     }

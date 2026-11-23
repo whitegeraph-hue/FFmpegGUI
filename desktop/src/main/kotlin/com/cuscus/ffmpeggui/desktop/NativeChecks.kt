@@ -14,6 +14,21 @@ fun main(args:Array<String>)=runBlocking {
     var passed=0
     suspend fun verify(name:String,block:suspend ()->Unit) { block(); passed++;println("PASS $name") }
     val video=media.probe(File(folder,"video.mp4").path)
+    verify("confirmed export remembers settings one Undo restores and saved project retains them") {
+        val base=DesktopProject.create(video).copy(timeline=Timeline(listOf(Clip("export-options",video.path,0,400))))
+        val scope=CoroutineScope(Dispatchers.Default+SupervisorJob());val c=EditorController(scope)
+        try {
+            c.project=base
+            val draft=base.copy(format=OutputFormat.WAV,encoding=base.encoding.copy(audio=base.encoding.audio.copy(bitDepth=24)))
+            check(c.project==base)
+            c.export(File(folder,"confirmed-options.wav"),draft);c.job?.join();check(c.error==null){c.error.orEmpty()}
+            check(c.project==draft)
+            val saved=File(folder,"confirmed-options.ffgui.json");DesktopProjects.save(c.project!!,saved)
+            val loaded=DesktopProjects.load(saved,media);check(loaded.format==OutputFormat.WAV && loaded.encoding.audio.bitDepth==24)
+            check(loaded.timeline==base.timeline)
+            c.undo();check(c.project==base)
+        }finally {c.close();scope.cancel()}
+    }
     verify("desktop output ruler spans speed reverse whole reverse and transition overlap") {
         val first=Clip("geometry-first",video.path,0,4000,Effects(speed=2f,reversed=true,transition=Transition(TransitionKind.FADE,500)))
         val second=Clip("geometry-last",video.path,4000,8000)
