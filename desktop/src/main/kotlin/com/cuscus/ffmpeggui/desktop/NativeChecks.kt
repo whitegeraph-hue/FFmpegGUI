@@ -36,6 +36,31 @@ fun main(args:Array<String>)=runBlocking {
             c.undo();check(c.project==base)
         }finally {c.close();scope.cancel()}
     }
+    verify("opening saved project isolates Undo selection and rejected load preserves edit") {
+        val original=DesktopProject.create(video)
+        val loadedProject=original.copy(timeline=Timeline(listOf(Clip("other-project",video.path,1000,4000))))
+        val file=File(folder,"other-project.ffgui.json");DesktopProjects.save(loadedProject,file)
+        val expected=DesktopProjects.load(file,media)
+        val scope=CoroutineScope(Dispatchers.Default+SupervisorJob());val c=EditorController(scope)
+        try {
+            c.project=original;c.mutate(original.copy(format=OutputFormat.WAV));c.smartClipId=original.timeline.clips.first().id
+            c.openProject(file);c.job?.join();check(c.error==null){c.error.orEmpty()}
+            check(c.project!!.timeline==expected.timeline && c.smartClipId==null && c.position==0L)
+            val opened=c.project
+            c.undo();check(c.project===opened)
+            c.mutate(opened!!.copy(format=OutputFormat.MKV));val before=c.project
+            val cache=File(folder,"failed-load-preview.mp4").apply {writeText("keep")};c.rendered=cache
+            c.smartClipId="other-project";c.snap=true
+            val invalid=File(folder,"invalid-project.ffgui.json").apply {writeText("{}")}
+            c.openProject(invalid);c.job?.join();check(c.error!=null && c.project===before)
+            check(c.rendered==cache && cache.exists() && c.smartClipId=="other-project" && c.snap)
+            c.undo();check(c.project===opened)
+            c.mutate(opened.copy(format=OutputFormat.WAV));c.smartClipId="other-project"
+            c.open(video.path);c.job?.join();check(c.error==null){c.error.orEmpty()}
+            val mediaProject=c.project;check(c.smartClipId==null && c.position==0L && c.rendered==null)
+            c.undo();check(c.project===mediaProject)
+        }finally {c.close();scope.cancel()}
+    }
     verify("desktop output ruler spans speed reverse whole reverse and transition overlap") {
         val first=Clip("geometry-first",video.path,0,4000,Effects(speed=2f,reversed=true,transition=Transition(TransitionKind.FADE,500)))
         val second=Clip("geometry-last",video.path,4000,8000)

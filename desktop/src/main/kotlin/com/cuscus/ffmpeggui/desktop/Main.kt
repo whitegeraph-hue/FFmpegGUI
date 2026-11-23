@@ -71,7 +71,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
     }) {
         LaunchedEffect(Unit) {
             System.getenv("FFMPEGGUI_OPEN")?.let { controller.open(it) }
-            System.getenv("FFMPEGGUI_PROJECT")?.let {path->controller.work("Opening project…"){controller.project=DesktopProjects.load(File(path),controller.media);controller.selectedSource=0;controller.seek(0);controller.status="Project opened."}}
+            System.getenv("FFMPEGGUI_PROJECT")?.let {path->controller.openProject(File(path))}
             System.getenv("FFMPEGGUI_TAB")?.let { controller.tab=it }
             System.getenv("FFMPEGGUI_SCREENSHOT")?.let { path ->
                 delay(System.getenv("FFMPEGGUI_CAPTURE_DELAY")?.toLongOrNull() ?: 5000)
@@ -96,7 +96,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                             Text("Desktop preview",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.primary)
                         }
                         OutlinedButton(onClick={ pick()?.let { controller.open(it.path) } },enabled=!controller.busy) { Text("Open media") }
-                        OutlinedButton(onClick={ pick()?.let { file -> controller.work("Opening project…") { controller.player.stop();controller.rendered?.delete();controller.rendered=null;controller.previewFrame=null;controller.drawingFrame=null;controller.project=DesktopProjects.load(file,controller.media);controller.selectedSource=0; controller.resetAnalysis(); controller.seek(0); controller.status="Project opened." } } },enabled=!controller.busy) { Text("Open project") }
+                        OutlinedButton(onClick={ pick()?.let { file -> controller.openProject(file) } },enabled=!controller.busy) { Text("Open project") }
                         OutlinedButton(onClick={ controller.project?.let { p -> pick(true,"project.ffgui.json")?.let { file -> controller.work("Saving project…") { DesktopProjects.save(p,file); controller.status="Project saved: ${file.path}" } } } },enabled=!controller.busy && controller.project!=null) { Text("Save project") }
                         OutlinedButton(onClick={ controller.undo() },enabled=!controller.busy && controller.project!=null) { Text("Undo") }
                         FilledTonalButton(onClick={showSettings=true}) {Text("Settings")}

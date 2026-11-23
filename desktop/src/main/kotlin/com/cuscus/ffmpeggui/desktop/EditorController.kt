@@ -63,11 +63,19 @@ class EditorController(val scope: CoroutineScope) {
     }
     fun open(path: String) = work("Reading media locally…") {
         val source=media.probe(path)
-        player.stop()
-        selectedSource=0;drawingFrame=null;project=DesktopProject.create(source)
-        history.clear();smartClipId=null;pruneMasks(); resetAnalysis(); rendered?.delete();rendered=null;previewFrame=null; position=0
+        replaceProject(DesktopProject.create(source))
         status="${File(path).name} · ${source.info.durationFormatted} · ${source.info.width} × ${source.info.height}"
-        seek(0)
+    }
+    private suspend fun replaceProject(loaded:DesktopProject) {
+        frameJob?.cancelAndJoin();frameJob=null
+        player.stop();rendered?.delete();rendered=null;previewFrame=null;sourceFrame=null;drawingFrame=null
+        project=loaded;selectedSource=0;smartClipId=null;history.clear();resetAnalysis()
+        position=0;pruneMasks();seek(0)
+    }
+    fun openProject(file:File)=work("Opening project…") {
+        // Validate first so a rejected project cannot disturb the current edit.
+        val loaded=DesktopProjects.load(file,media)
+        replaceProject(loaded);status="Project opened."
     }
     fun selectSource(index:Int) {
         val p=project ?: return
