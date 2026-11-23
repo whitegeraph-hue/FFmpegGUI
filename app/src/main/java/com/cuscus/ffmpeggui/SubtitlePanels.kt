@@ -144,6 +144,7 @@ class SubtitleEditing(
     val fonts: SubtitleFonts? = null,
     /** The names of the files, by source id. */
     val sourceNames: Map<String, String> = emptyMap(),
+    val editableSourceIds:Set<String> = setOf(EditorSource.MAIN_ID),
     val onSetFile: (Uri?, String) -> Unit = { _, _ -> },
     /** Listens: to the files not done yet, or to all again (true). */
     val onGenerate: (Boolean) -> Unit = {},
@@ -865,8 +866,8 @@ private fun LinesPage(subtitles: SubtitleEditing, onSeekLine: (String, Long) -> 
                 subtitles.onEditLine(line.sourceId, line.startMs, line.endMs, text)
                 editing = null
             },
-            // Only the main file plays on the sequence being edited: only its lines can be cut away.
-            onCut = if (line.sourceId == EditorSource.MAIN_ID) {
+            // Timeline sources can be cut. Placed sound transcripts are not video cuts.
+            onCut = if (line.sourceId in subtitles.editableSourceIds) {
                 {
                     haptics.performHapticFeedback(HapticFeedbackType.Confirm)
                     subtitles.onCutLine(line.sourceId, line.startMs, line.endMs)
@@ -875,7 +876,7 @@ private fun LinesPage(subtitles: SubtitleEditing, onSeekLine: (String, Long) -> 
             } else {
                 null
             },
-            onKeep = if (line.sourceId == EditorSource.MAIN_ID) {
+            onKeep = if (line.sourceId in subtitles.editableSourceIds) {
                 {
                     haptics.performHapticFeedback(HapticFeedbackType.Confirm)
                     subtitles.onKeepLine(line.sourceId, line.startMs, line.endMs)

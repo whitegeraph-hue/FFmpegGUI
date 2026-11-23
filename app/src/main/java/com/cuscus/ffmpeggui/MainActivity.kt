@@ -1120,6 +1120,7 @@ class MainActivity : ComponentActivity() {
                                             // The sounds placed on the video are listened to as well.
                                             s.audioClips.filter { !it.muted }.distinctBy { it.uri }.count { soundWordsKey(it.uri) !in s.spokenWords },
                                         fonts = container.subtitleFonts,
+                                        editableSourceIds = s.timeline.clips.map {it.sourceId}.toSet(),
                                         sourceNames = s.sources.associate { it.id to it.fileName } + s.audioClips.associate { soundWordsKey(it.uri) to it.name },
                                         onSetFile = vm::setSubtitle,
                                         onGenerate = vm::generateSubtitles,
