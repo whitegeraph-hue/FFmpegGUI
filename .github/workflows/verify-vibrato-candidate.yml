@@ -52,7 +52,7 @@ jobs:
           sudo udevadm trigger --name-match=kvm
           ls -l /dev/kvm
 
-      - name: Run the smart-editing UI tests on an emulator
+      - name: Run isolated candidate and negative-control processes
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 34
@@ -65,7 +65,7 @@ jobs:
           # One line: the runner runs each line in its own shell, so a multiline
           # script would lose rc and mask test failures. The debug package is
           # com.cuscus.ffmpeggui.debug.
-          script: mkdir -p ci-shots; rc=0; for trial in 1 2 3; do adb shell am force-stop com.cuscus.ffmpeggui.debug; adb logcat -c; ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.cuscus.ffmpeggui.VibratoCandidateRuntimeTest -Pandroid.testInstrumentationRunnerArguments.candidateDspValidation=true --stacktrace; result=$?; if [ "$result" -ne 0 ]; then rc=$result; fi; adb logcat -d -s VIBRATO-CANDIDATE > ci-shots/vibrato-candidate-process-$trial.txt; cp -r app/build/outputs/androidTest-results ci-shots/test-results-$trial; done; exit $rc
+          script: mkdir -p ci-shots; rc=0; adb shell am force-stop com.cuscus.ffmpeggui.debug; ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.cuscus.ffmpeggui.VibratoCandidateRuntimeTest#unpaddedSilenceNegativeControl -Pandroid.testInstrumentationRunnerArguments.candidateDspValidation=true --stacktrace; negative=$?; if [ "$negative" -ne 0 ]; then rc=$negative; fi; adb pull /sdcard/Android/data/com.cuscus.ffmpeggui.debug/files/vibrato-negative-control ci-shots/negative-control; for trial in 1 2 3; do adb shell am force-stop com.cuscus.ffmpeggui.debug; adb logcat -c; ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.cuscus.ffmpeggui.VibratoCandidateRuntimeTest#fullPeriodInitializationRealBuilderScopesAndKotlinParity -Pandroid.testInstrumentationRunnerArguments.candidateDspValidation=true --stacktrace; result=$?; if [ "$result" -ne 0 ]; then rc=$result; fi; adb logcat -d -s VIBRATO-CANDIDATE > ci-shots/vibrato-candidate-process-$trial.txt; cp -r app/build/outputs/androidTest-results ci-shots/test-results-$trial; adb pull /sdcard/Android/data/com.cuscus.ffmpeggui.debug/files/vibrato-evidence ci-shots/commands-$trial; done; exit $rc
 
       - uses: actions/upload-artifact@v4
         if: always()
