@@ -176,7 +176,7 @@ class AppContainer(
     /** The speech model and what runs it: subtitles made from what is said (the settings' smart features). */
     val smartFeatures: SmartFeatures by lazy { SmartFeatures(appContext, ffmpegExecutor, workNotifier) }
 
-    val commandBuilder: CommandBuilder by lazy { CommandBuilder(fontProvider) }
+    val commandBuilder: CommandBuilder by lazy { CommandBuilder(com.cuscus.ffmpeggui.core.command.AudioRuntime.ANDROID_BUNDLED_6_1_6, fontProvider) }
 
     /** The system's monospaced font measured for text art, the same for the editor and the export. */
     val glyphAtlas: com.cuscus.ffmpeggui.core.engine.GlyphAtlasSource by lazy { com.cuscus.ffmpeggui.media.AndroidGlyphAtlas() }

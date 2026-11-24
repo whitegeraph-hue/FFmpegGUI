@@ -57,10 +57,11 @@ import kotlin.math.abs
  *
  * Hand-written commands are not handled here; see [ManualCommandResolver].
  */
-class CommandBuilder(fonts: FontProvider) {
+class CommandBuilder(audioRuntime: AudioRuntime, fonts: FontProvider) {
+    constructor(fonts: FontProvider) : this(AudioRuntime.SYSTEM, fonts)
 
     private val videoFilters = VideoFilters(fonts)
-    private val audioFilters = AudioFilters()
+    private val audioFilters = AudioFilters(audioRuntime)
 
     fun build(request: ConversionRequest, paths: MediaPaths): FfmpegCommand {
         return buildFor(request.withStillsForward(), paths, pass = 0)

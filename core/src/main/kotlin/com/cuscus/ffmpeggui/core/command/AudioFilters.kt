@@ -17,7 +17,16 @@ import kotlin.math.abs
  * Builds the sound filter chains: one per clip (before the join), one for the
  * joined sound and one per placed sound. Stateless.
  */
-internal class AudioFilters {
+internal class AudioFilters(private val runtime: AudioRuntime = AudioRuntime.SYSTEM) {
+    private fun stageFilter(stage: com.cuscus.ffmpeggui.core.audio.AudioStage): String {
+        if (runtime != AudioRuntime.ANDROID_BUNDLED_6_1_6 || stage !is com.cuscus.ffmpeggui.core.audio.AudioStage.Vibrato) return stage.filter
+        // Native vibrato leaves its delay ring uninitialized. Prime for a complete LFO
+        // period so the audible phase also matches Kotlin preview. These stages run
+        // after an explicit 48k resample in masterChain and soundShaping.
+        val period = Math.rint(WORK_SAMPLE_RATE.toDouble() / stage.frequency + 0.5).toLong()
+        return "adelay=${period}S:all=1,${stage.filter},atrim=start_sample=$period,asetpts=PTS-STARTPTS"
+    }
+
 
     /**
      * Filters of one clip's sound.
@@ -136,7 +145,7 @@ internal class AudioFilters {
         if (ownStages.isNotEmpty()) {
             filters += "aresample=$WORK_SAMPLE_RATE"
             filters += "aformat=sample_fmts=fltp"
-            filters += ownStages.map { it.filter }
+            filters += ownStages.map { stageFilter(it) }
             val length = sound.lengthMs
             if (length != null && ownStages.any { it.ringsOn }) filters += fmt("atrim=end=%.3f", length / 1000.0)
         }
@@ -190,7 +199,7 @@ internal class AudioFilters {
             // Fixed working rate keeps every supported EQ band below Nyquist, including low-rate speech.
             filters += "aresample=$WORK_SAMPLE_RATE"
             filters += "aformat=sample_fmts=fltp"
-            filters += stages.map { it.filter }
+            filters += stages.map { stageFilter(it) }
         }
         if (shifts) {
             val shiftedRate = Math.round(WORK_SAMPLE_RATE * factor)
