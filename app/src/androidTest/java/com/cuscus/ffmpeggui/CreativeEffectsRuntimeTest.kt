@@ -75,9 +75,9 @@ class CreativeEffectsRuntimeTest {
         InstrumentationRegistry.getInstrumentation().context.assets.open("creative-speech16.wav").use{src->speech.outputStream().use{src.copyTo(it)}}
         val executor=FfmpegKitExecutor()
         val failures=mutableListOf<String>()
-        for(rate in listOf(8000,16000,48000)) for(level in listOf(0,1,8)) {
+        for(rate in listOf(8000,16000,48000)) for(level in listOf(0,1,8)) for(channels in listOf(1,2)) {
             val input=File(context.cacheDir,"gritty-input.wav")
-            assertEquals(ExecutionResult.Success,executor.execute(FfmpegCommand(listOf("-y","-i",speech.path,"-t","1","-af","volume=$level","-ar",rate.toString(),input.path))) {})
+            assertEquals(ExecutionResult.Success,executor.execute(FfmpegCommand(listOf("-y","-i",speech.path,"-t","1","-af","volume=$level","-ar",rate.toString(),"-ac",channels.toString(),input.path))) {})
             for((name,fx) in CreativeVoice.entries.filter{it!=CreativeVoice.CLEAN}.map{it.name to it.effects}) {
                 val output=File(context.cacheDir,"gritty-output.wav")
                 val req=ConversionRequest(OutputFormat.WAV,input.name,sources=listOf(SourceInfo(1000,0,0,true)),segments=listOf(Segment(0,0,1000)),audioEffects=fx)
@@ -90,9 +90,10 @@ class CreativeEffectsRuntimeTest {
                 val raw=File(context.cacheDir,"gritty.f32")
                 assertEquals(ExecutionResult.Success,executor.execute(FfmpegCommand(listOf("-y","-i",output.path,"-ac","1","-f","f32le",raw.path))) {})
                 val data=java.nio.ByteBuffer.wrap(raw.readBytes()).order(java.nio.ByteOrder.LITTLE_ENDIAN);var nonzero=false
-                var finite=true
-                while(data.remaining()>=4) {val sample=data.float;if(!sample.isFinite())finite=false;if(kotlin.math.abs(sample)>.00001f)nonzero=true}
-                if(!finite || (level>0 && !nonzero))failures+="$name $rate level$level finite=$finite nonzero=$nonzero"
+                var finite=true;var peak=0f
+                while(data.remaining()>=4) {val sample=data.float;if(!sample.isFinite())finite=false else peak=maxOf(peak,kotlin.math.abs(sample));if(kotlin.math.abs(sample)>.00001f)nonzero=true}
+                android.util.Log.i("CATALOG-PEAK","$name $rate level$level ch$channels finite=$finite nonzero=$nonzero peak=$peak")
+                if(!finite || peak>4f || (level>0 && !nonzero) || (level==0 && nonzero))failures+="$name $rate level$level ch$channels finite=$finite nonzero=$nonzero peak=$peak"
                 raw.delete();output.delete()
             }
         }
@@ -174,6 +175,32 @@ class CreativeEffectsRuntimeTest {
         speech.delete()
     }
 
+
+
+    @Test fun deliveredCatalogSilentAacPeakCollection(): Unit = runBlocking {
+        val context=InstrumentationRegistry.getInstrumentation().targetContext;val executor=FfmpegKitExecutor()
+        val input=File(context.cacheDir,"catalog-silence.wav");val failures=mutableListOf<String>();var cases=0
+        for(rate in listOf(8000,16000,48000)) for(channels in listOf(1,2)) {
+            assertEquals(ExecutionResult.Success,executor.execute(FfmpegCommand(listOf("-y","-f","lavfi","-i","anullsrc=r=$rate:cl=${if(channels==1)"mono"else "stereo"}","-t","1",input.path))) {})
+            for(voice in CreativeVoice.entries.filter{it!=CreativeVoice.CLEAN}) {
+                cases++;val output=File(context.cacheDir,"catalog-silence.m4a");val raw=File(context.cacheDir,"catalog-silence.f32")
+                val req=ConversionRequest(OutputFormat.M4A,input.name,sources=listOf(SourceInfo(1000,0,0,true)),segments=listOf(Segment(0,0,1000)),audioEffects=voice.effects)
+                val cmd=CommandBuilder{"/fonts/Regular.ttf"}.build(req,MediaPaths(inputs=listOf(input.path),output=output.path))
+                val result=executor.execute(cmd){}
+                if(result!=ExecutionResult.Success){failures+="${voice.name}/$rate/ch$channels execute=$result";continue}
+                val decoded=executor.execute(FfmpegCommand(listOf("-y","-i",output.path,"-ac","1","-f","f32le",raw.path))){}
+                if(decoded!=ExecutionResult.Success){failures+="${voice.name}/$rate/ch$channels decode=$decoded";continue}
+                val data=java.nio.ByteBuffer.wrap(raw.readBytes()).order(java.nio.ByteOrder.LITTLE_ENDIAN);var peak=0f;var bad=0
+                while(data.remaining()>=4){val v=data.float;if(!v.isFinite())bad++ else peak=maxOf(peak,kotlin.math.abs(v))}
+                android.util.Log.i("CATALOG-PEAK","SILENT-AAC ${voice.name}/$rate/ch$channels bad=$bad peak=$peak")
+                if(bad>0 || peak>0.00001f)failures+="${voice.name}/$rate/ch$channels bad=$bad peak=$peak"
+                output.delete();raw.delete()
+            }
+        }
+        android.util.Log.i("CATALOG-PEAK","SILENT-AAC SUMMARY cases=$cases failures=${failures.size}")
+        assertTrue(failures.joinToString("\n"),failures.isEmpty())
+    }
+
     @Test fun allNewShadersCompileAndRealPhoneRenders() = runBlocking {
         PictureLook.entries.filter{it.ordinal>=PictureLook.SEPIA.ordinal}.forEach {RuntimeShader(lookShader(it))}
         val context=InstrumentationRegistry.getInstrumentation().targetContext
@@ -196,7 +223,9 @@ class CreativeEffectsRuntimeTest {
                 val decoded=executor.execute(FfmpegCommand(listOf("-y","-i",output.path,"-vn","-ac","1","-ar","48000","-f","f32le",raw.path))){}
                 assertEquals(ExecutionResult.Success,decoded)
                 val data=java.nio.ByteBuffer.wrap(raw.readBytes()).order(java.nio.ByteOrder.LITTLE_ENDIAN)
-                var nonzero=false;while(data.remaining()>=4) {val sample=data.float;assertTrue("Voice AAC decoded non-finite sample",sample.isFinite());if(kotlin.math.abs(sample)>0.00001f)nonzero=true}
+                var nonzero=false;var peak=0f;while(data.remaining()>=4) {val sample=data.float;assertTrue("Voice AAC decoded non-finite sample",sample.isFinite());peak=maxOf(peak,kotlin.math.abs(sample));if(kotlin.math.abs(sample)>0.00001f)nonzero=true}
+                android.util.Log.i("CATALOG-PEAK","MP4 case$index peak=$peak nonzero=$nonzero")
+                assertTrue("Voice AAC extreme peak=$peak",peak<=4f)
                 assertTrue("Voice AAC must retain content",nonzero);raw.delete()
             }
             output.delete()
