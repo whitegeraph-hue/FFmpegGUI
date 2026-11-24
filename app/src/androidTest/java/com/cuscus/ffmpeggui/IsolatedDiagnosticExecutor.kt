@@ -11,7 +11,7 @@ import com.cuscus.ffmpeggui.core.engine.FfmpegExecutor
  */
 internal class IsolatedDiagnosticExecutor : FfmpegExecutor {
     override suspend fun execute(command: FfmpegCommand, onLog: (String) -> Unit): ExecutionResult {
-        check(InstrumentationRegistry.getArguments().getString("unsafeDspDiagnostics") == "true")
+        check(InstrumentationRegistry.getArguments().getString("unsafeDspDiagnostics") == "true" || InstrumentationRegistry.getArguments().getString("candidateDspValidation") == "true")
         val type=Class.forName("com.arthenica.ffmpegkit.FFmpegKit")
         val session=type.getMethod("executeWithArguments",Array<String>::class.java).invoke(null,command.arguments.toTypedArray())
         val log=session.javaClass.getMethod("getAllLogsAsString").invoke(session)?.toString().orEmpty()
