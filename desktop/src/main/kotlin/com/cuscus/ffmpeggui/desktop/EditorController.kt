@@ -203,6 +203,20 @@ class EditorController(val scope: CoroutineScope) {
         val p=project ?: return;val clip=p.timeline.clips.firstOrNull {it.id==smartClipId} ?: return
         val next=id();mutate(p.copy(timeline=p.timeline.duplicate(clip.id,next),looks=p.looks+p.looks.filter{it.clipId==clip.id}.map{it.copy(clipId=next)},followCrop=null));selectSmartClip(next);status="Duplicated selected clip. Undo removes the copy."
     }
+    internal var titleTextDraft:TitleTextDraft? = null
+    internal fun routeTitleTextHistory(redo:Boolean):Boolean {
+        val draft=titleTextDraft ?: return false
+        if(redo)draft.redo() else draft.undo()
+        return true
+    }
+    internal fun applyTitleText(draft:TitleTextDraft):Boolean {
+        if(!draft.isCurrent(this))return false
+        val layer=draft.layer.copy(text=draft.value.text)
+        if(layer==draft.layer)return true
+        mutate(draft.expected.copy(captions=draft.expected.captions.mapIndexed {i,old->if(i==draft.index)layer else old}))
+        status="Text applied. Undo restores the previous text."
+        return true
+    }
     internal fun applySoundTiming(expected:DesktopProject,index:Int,sound:DesktopSound,timing:SoundTiming):Boolean {
         if(busy || project!==expected || expected.sounds.getOrNull(index)!==sound)return false
         val valid=soundTiming(timing.startMs.toString(),timing.inMs.toString(),timing.outMs.toString(),sound.source.info.durationMs,expected.outputDurationMs) ?: return false

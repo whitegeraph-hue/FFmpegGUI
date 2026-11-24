@@ -69,6 +69,8 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
     Window(onCloseRequest={ protectEdits {controller.close();exitApplication()} }, title="FFmpegGUI · Linux development preview", state=rememberWindowState(width=1280.dp,height=850.dp),onKeyEvent={event->
         if(event.type==KeyEventType.KeyDown && !showSettings && !showExport && pendingDiscard==null && controller.error==null) {
             when {
+                controller.titleTextDraft!=null && event.isCtrlPressed && event.key==Key.Z -> {controller.routeTitleTextHistory(event.isShiftPressed);true}
+                controller.titleTextDraft!=null && event.isCtrlPressed && event.key==Key.Y -> {controller.routeTitleTextHistory(true);true}
                 event.isCtrlPressed && event.key==Key.Z -> {if(!controller.busy){if(event.isShiftPressed)controller.redo() else controller.undo()};true}
                 event.isCtrlPressed && event.key==Key.Y -> {if(!controller.busy)controller.redo();true}
                 event.key==Key.Escape -> {controller.selectSmartClip(null);controller.status="Clip selection cleared. Tools now apply to the whole output or selected source, as shown in Apply to.";true}
@@ -725,7 +727,7 @@ private fun EditPanel(c: EditorController,p: DesktopProject,window:java.awt.Fram
         fun update(v:TextOverlay)=c.mutate(p.copy(captions=p.captions.mapIndexed {i,old->if(i==index)v else old}))
         PanelCard {
             Text("Layer ${index+1}",style=MaterialTheme.typography.titleMedium)
-            OutlinedTextField(t.text,{update(t.copy(text=it))},label={Text("Text")},enabled=!c.busy,modifier=Modifier.isolateProjectHistory().fillMaxWidth())
+            TransactionalTitleText(c,p,index)
             LayerAlignmentPad(p,t.x,t.y,!c.busy && !t.hidden && !t.locked && !t.keyframes.hasPositionValues()){x,y->c.positionCaption(p,t.id,x,y)}
             if(t.keyframes.hasPositionValues())Text("Position keys override base alignment. Use the key controls below.",style=MaterialTheme.typography.bodySmall)
             ValueSlider("X",t.x,0f..1f,!c.busy){update(t.copy(x=it))}
