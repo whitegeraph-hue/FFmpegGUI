@@ -68,6 +68,23 @@ class CreativeEffectsRuntimeTest {
         }
     }
 
+    @Test fun telephoneFiniteStageDiagnostics() = runBlocking {
+        val context=InstrumentationRegistry.getInstrumentation().targetContext
+        val input=File(context.cacheDir,"telephone-diagnostic.mp4")
+        InstrumentationRegistry.getInstrumentation().context.assets.open("ci-test-video.mp4").use{src->input.outputStream().use{src.copyTo(it)}}
+        val t=CreativeVoice.TELEPHONE.effects
+        val variants=listOf("full" to t,"noeq" to t.copy(equalizer=AudioEffects.NONE.equalizer),"nocompressor" to t.copy(compressor=null),"nocrush" to t.copy(lofiBits=0),"nomono" to t.copy(stereo=StereoImage()),"nolimiter" to t.copy(limiter=null),"onlyeq" to AudioEffects(equalizer=t.equalizer),"onlycuts" to AudioEffects(lowCutHz=400,highCutHz=3200))+
+            t.equalizer.indices.map{index->"eq$index" to AudioEffects(equalizer=List(10){if(it==index)t.equalizer[it] else 0f})}
+        for((name,fx) in variants) {
+            val output=File(context.cacheDir,"telephone-diag-$name.mp4")
+            val req=ConversionRequest(OutputFormat.MP4,input.name,sources=listOf(SourceInfo(8000,640,360,true)),segments=listOf(Segment(0,0,1000)),audioEffects=fx)
+            val command=CommandBuilder{ "/fonts/Regular.ttf" }.build(req,MediaPaths(inputs=listOf(input.path),output=output.path))
+            val logs=StringBuilder();val result=FfmpegKitExecutor().execute(command){logs.append(it)}
+            android.util.Log.e("TELEPHONE-DIAG","$name result=$result tail=${logs.takeLast(1600)}")
+            output.delete()
+        }
+    }
+
     @Test fun allNewShadersCompileAndRealPhoneRenders() = runBlocking {
         PictureLook.entries.filter{it.ordinal>=PictureLook.SEPIA.ordinal}.forEach {RuntimeShader(lookShader(it))}
         val context=InstrumentationRegistry.getInstrumentation().targetContext

@@ -69,6 +69,17 @@ internal fun runNativeChecks(args:Array<String>)=runBlocking {
             val actual=media.process.checked(listOf("ffprobe","-v","error","-select_streams","a:0","-show_entries","stream=sample_rate","-of","csv=p=0",out.path)).trim().toInt()
             check(actual==(if(outputRate==0)48000 else outputRate)) {"Audio output rate $actual did not honor $outputRate"}
         }
+        for(inputRate in listOf(8000,44100,48000)) {
+            val av=File(folder,"creative-aac-$inputRate.mp4")
+            media.process.checked(listOf("ffmpeg","-y","-v","error","-i",File(folder,"video.mp4").path,"-i",speechFile.path,"-map","0:v:0","-map","1:a:0","-t","1","-c:v","copy","-c:a","aac","-ar",inputRate.toString(),av.path))
+            for(voice in listOf(CreativeVoice.TELEPHONE,CreativeVoice.ROBOT,CreativeVoice.WARM,CreativeVoice.DEEP)) {
+                val out=File(folder,"creative-${voice.name}-$inputRate.mp4")
+                exporter.export(DesktopProject.create(media.probe(av.path)).copy(audioEffects=voice.effects),out)
+                val pcm=File(folder,"creative-aac-check.pcm")
+                media.process.checked(listOf("ffmpeg","-y","-v","error","-i",out.path,"-f","s16le",pcm.path))
+                val data=pcm.readBytes();check(data.size>10000 && data.any{it.toInt()!=0}) {"$voice erased $inputRate Hz MP4 audio"}
+            }
+        }
         val t=CreativeVoice.TELEPHONE.effects
         check(t.lowCutHz==400 && t.highCutHz==3200 && t.stereo.mono && t.pitchSemitones==0f)
     }
