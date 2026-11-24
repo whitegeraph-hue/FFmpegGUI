@@ -64,9 +64,13 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
     var showSettings by remember {mutableStateOf(false)}
     var playbackNotice by remember {mutableStateOf<String?>(null)}
     var showExport by remember {mutableStateOf(false)}
+    var recoveryFiles by remember {mutableStateOf(controller.autosave.entries())}
+    var deleteRecovery by remember {mutableStateOf<File?>(null)}
+    var recoveryLabels by remember {mutableStateOf<Map<String,String>>(emptyMap())}
+    var showRecovery by remember {mutableStateOf(recoveryFiles.isNotEmpty())}
     var pendingDiscard by remember {mutableStateOf<(() -> Unit)?>(null)}
     fun protectEdits(action:()->Unit) {if(controller.hasUnsavedChanges || controller.busy)pendingDiscard=action else action()}
-    Window(onCloseRequest={ protectEdits {controller.close();exitApplication()} }, title="FFmpegGUI · Linux development preview", state=rememberWindowState(width=1280.dp,height=850.dp),onKeyEvent={event->
+    Window(onCloseRequest={ if(controller.busy)pendingDiscard={controller.closeSafely {exitApplication()}} else controller.closeSafely {exitApplication()} }, title="FFmpegGUI · Linux development preview", state=rememberWindowState(width=1280.dp,height=850.dp),onKeyEvent={event->
         if(event.type==KeyEventType.KeyDown && !showSettings && !showExport && pendingDiscard==null && controller.error==null) {
             when {
                 controller.titleTextDraft!=null && event.isCtrlPressed && event.key==Key.Z -> {controller.routeTitleTextHistory(event.isShiftPressed);true}
@@ -78,6 +82,9 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
             }
         }else false
     }) {
+        LaunchedEffect(showRecovery,recoveryFiles) {
+            if(showRecovery)recoveryLabels=withContext(Dispatchers.IO) {recoveryFiles.associate {it.path to controller.autosave.label(it)}}
+        }
         LaunchedEffect(Unit) {
             System.getenv("FFMPEGGUI_OPEN")?.let { controller.open(it) }
             System.getenv("FFMPEGGUI_PROJECT")?.let {path->controller.openProject(File(path))}
@@ -121,6 +128,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                         OutlinedButton(onClick=::openProject,enabled=!controller.busy) { SymbolLabel("folder","Open project") }
                         OutlinedButton(onClick={saveProject()},enabled=!controller.busy && controller.project!=null) { SymbolLabel("save","Save project") }
                         TextButton(onClick={saveProject(true)},enabled=!controller.busy && controller.project!=null) { Text("Save as…") }
+                        TextButton(onClick={recoveryFiles=controller.autosave.entries();showRecovery=true},enabled=!controller.busy) {Text("Recover") }
                         OutlinedButton(onClick={ controller.undo() },enabled=!controller.busy && controller.canUndo) { SymbolLabel("undo","Undo") }
                         OutlinedButton(onClick={ controller.redo() },enabled=!controller.busy && controller.canRedo) { Icon(DesktopSymbols.vector("undo"),null,Modifier.size(20.dp).graphicsLayer(scaleX=-1f));Spacer(Modifier.width(7.dp));Text("Redo") }
                     }
@@ -131,7 +139,8 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                     @Composable fun RowScope.ProjectTitle() {
                         Column(Modifier.weight(1f).widthIn(min=145.dp)) {
                             Text("FFmpegGUI",style=MaterialTheme.typography.titleLarge,maxLines=1)
-                            Text(if(controller.hasUnsavedChanges)"Unsaved changes" else controller.projectFile?.name ?: "Desktop preview",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.primary,maxLines=1,overflow=TextOverflow.Ellipsis)
+                            Text(if(controller.project!=null)(controller.projectFile?.name ?: "Unnamed project")+" · "+controller.autosaveStatus else "Desktop preview",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.primary,maxLines=1,overflow=TextOverflow.Ellipsis)
+                            if(controller.project!=null && (controller.hasUnsavedChanges || controller.projectFile==null))Text(if(controller.projectFile==null)"No manual project file yet" else "Manual copy not up to date",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                     Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
@@ -271,6 +280,21 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                             }
                         }){Text("Choose file & export")}},dismissButton={TextButton(onClick={showExport=false}){Text("Cancel")}})
                     }
+                    if(controller.closeRecoveryFailed)AlertDialog(onDismissRequest={controller.closeRecoveryFailed=false},title={Text("Recovery could not be saved")},text={Text("Keep editing to save a manual project or free disk space. Closing without recovery may lose the latest edits.")},confirmButton={TextButton(onClick={controller.closeRecoveryFailed=false;controller.close();exitApplication()}){Text("Close without recovery")}},dismissButton={TextButton(onClick={controller.closeRecoveryFailed=false}){Text("Keep editing")}})
+                    deleteRecovery?.let {file->AlertDialog(onDismissRequest={deleteRecovery=null},title={Text("Delete automatic save?")},text={Text("This removes this recovery and its previous version. It does not delete original media or a manual project. This cannot be undone.")},confirmButton={TextButton(onClick={runCatching {controller.autosave.delete(file)}.onFailure {controller.error=it.message};deleteRecovery=null;recoveryFiles=controller.autosave.entries()}){Text("Delete recovery")}},dismissButton={TextButton(onClick={deleteRecovery=null}){Text("Cancel")}})}
+                    if(showRecovery)AlertDialog(onDismissRequest={showRecovery=false},title={Text("Automatically saved projects")},text={
+                        Column(Modifier.heightIn(max=350.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                            Text("Edits are saved locally even before Save project. Original media must stay in place. Manual project files and their backups are unchanged.")
+                            if(recoveryFiles.isEmpty())Text("No automatic saves yet.")
+                            recoveryFiles.forEach {file->
+                                Row(verticalAlignment=Alignment.CenterVertically) {
+                                    TextButton(onClick={showRecovery=false;controller.recoverProject(file)},modifier=Modifier.weight(1f)) {Text((recoveryLabels[file.path] ?: "Reading automatic save…")+"\n"+java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(java.util.Date(file.lastModified())))}
+                                    if(DesktopProjects.previousFile(file).isFile)TextButton(onClick={showRecovery=false;controller.recoverProject(DesktopProjects.previousFile(file))}) {Text("Previous")}
+                                    TextButton(onClick={deleteRecovery=file},enabled=!controller.autosave.isCurrent(file)) {Text("Delete")}
+                                }
+                            }
+                        }
+                    },confirmButton={TextButton(onClick={showRecovery=false}) {Text("Keep editing")}})
                     if(showSettings)AlertDialog(onDismissRequest={showSettings=false},title={Row(verticalAlignment=Alignment.CenterVertically){SymbolLabel("settings","Settings")}},text={
                         ScrollArea(Modifier.heightIn(max=470.dp)) {
                             Text("Appearance",style=MaterialTheme.typography.titleMedium)
@@ -284,10 +308,11 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                             Text("Preview",style=MaterialTheme.typography.titleMedium)
                             Text("Play edit renders the edited result first, then plays it with sound. Edits invalidate that render. Source view does not show effects live.")
                             Text("Shortcuts: Ctrl+S saves to the current project file (asks on first save); Ctrl+Shift+S saves a copy to a new destination. Ctrl+O opens media; Ctrl+Shift+O opens a project. Ctrl+Z undoes the last edit; Ctrl+Shift+Z or Ctrl+Y redoes. A new edit clears Redo. Undo and Redo restore clip selection and position. Esc clears clip selection. After clicking the timeline: Space plays, arrows step one output frame, Home/End seek to output start/end, Alt+Left/Right move the selected clip in the shown direction, I/O mark the selected clip source in/out at the playhead, S splits, D duplicates, Delete removes. Source in/out follow source time, including when reverse is on. Project Undo/Redo do not run while typing in fields. These timeline keys do not run while typing in fields. Click or drag the ruler to stop playback, seek and focus the timeline. Release stays paused; press Play or Space to resume. Click inside a clip to select and seek; double-click to open its controls. Use timeline Left/Right buttons or the small arrow handle to reorder. Escape or releasing outside the timeline cancels a drag. Transitions move with their clip. No drag edge auto-scroll yet.",style=MaterialTheme.typography.bodySmall)
+                            Text("Automatic recovery: edits save locally after a short pause and on normal close, even without a project filename. Recover reopens automatic saves. Save project keeps a separate manual copy. Sources must stay in place. Power loss can lose the most recent edits before the save finishes. Unapplied dialog drafts are not project edits.")
                             Text("Development preview. Not every mobile feature is available yet. Original files are never edited.",style=MaterialTheme.typography.bodySmall)
                         }
                     },confirmButton={TextButton(onClick={showSettings=false}){Text("Done")}})
-                    pendingDiscard?.let { action -> AlertDialog(onDismissRequest={pendingDiscard=null},title={Text(if(controller.busy)"Local work is still running" else "Unsaved project changes")},text={Text(if(controller.busy)"Closing now stops the current local task. Any unsaved project changes will be lost. Keep editing to wait or save first." else "Save your project first to keep these edits. Discarding changes cannot be undone after opening another file or closing the app.")},confirmButton={TextButton(onClick={pendingDiscard=null;action()}){Text(if(controller.busy)"Stop & close" else "Discard changes")}},dismissButton={TextButton(onClick={pendingDiscard=null}){Text("Keep editing")}}) }
+                    pendingDiscard?.let { action -> AlertDialog(onDismissRequest={pendingDiscard=null},title={Text(if(controller.busy)"Local work is still running" else "Keep a manual project copy?")},text={Text(if(controller.busy)"Closing now stops the current local task. Any unsaved project changes will be lost. Keep editing to wait or save first." else "Your edits will be kept in automatic recovery before switching. Save project first if you also want a named manual copy. You can reopen automatic saves with Recover.")},confirmButton={TextButton(onClick={pendingDiscard=null;action()}){Text(if(controller.busy)"Stop & close" else "Continue with recovery copy")}},dismissButton={TextButton(onClick={pendingDiscard=null}){Text("Keep editing")}}) }
                     playbackNotice?.let {notice->AlertDialog(onDismissRequest={playbackNotice=null},title={Text("Silent video preview")},text={Text(notice)},confirmButton={TextButton(onClick={playbackNotice=null}){Text("Close")}})}
                     controller.error?.let { message -> AlertDialog(onDismissRequest={ controller.error=null },title={ Text("Could not finish") },text={ Box(Modifier.heightIn(max=350.dp).verticalScroll(rememberScrollState())) { Text(message) } },confirmButton={ TextButton(onClick={ controller.error=null }) { Text("Close") } }) }
                 }

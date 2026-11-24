@@ -71,7 +71,8 @@ import java.io.File
                 TextButton(onClick={c.removeClip(index)},enabled=!c.busy && index>=0 && p.timeline.clips.size>1){SymbolLabel("delete","Remove")}
                 FilledTonalButton(onClick=onAdd,enabled=!c.busy && !p.sources[0].info.isStill){SymbolLabel("add","Add")}
             }
-            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(6.dp)) {
+            val actionScroll=rememberScrollState()
+            Row(Modifier.fillMaxWidth().horizontalScroll(actionScroll),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(6.dp)) {
                 var chooseClip by remember {mutableStateOf(false)}
                 Box {TextButton(onClick={chooseClip=true},enabled=!c.busy) {Text(if(index>=0)"Clip ${index+1} ▾" else "Timeline ▾")}
                     DropdownMenu(chooseClip,{chooseClip=false}) {
@@ -83,6 +84,7 @@ import java.io.File
                 TextButton(onClick={zoom=(zoom*1.5f).coerceAtMost(32f)}){SymbolLabel("zoom_in","In")}
                 ClipActions()
             }
+            if(actionScroll.maxValue>0)HorizontalScrollbar(rememberScrollbarAdapter(actionScroll),Modifier.fillMaxWidth().height(7.dp))
 
             BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
                 val width=maxWidth.value*zoom

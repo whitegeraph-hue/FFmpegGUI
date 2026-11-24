@@ -13,7 +13,47 @@ import kotlinx.coroutines.*
 import java.io.File
 import java.util.UUID
 
-class EditorController(val scope: CoroutineScope) {
+class EditorController(val scope: CoroutineScope, val autosave:DesktopAutosave=DesktopAutosave()) {
+    var autosaveStatus by mutableStateOf("Automatic recovery ready")
+        private set
+    private var autosaveJob:Job?=null
+    var closeRecoveryFailed by mutableStateOf(false)
+    private var recoveredSnapshot:DesktopProject?=null
+    private var writingRecoverySnapshot:DesktopProject?=null
+    private var pendingRecoverySnapshot:DesktopProject?=null
+    private fun queueAutosave() {
+        val snapshot=project ?: return
+        autosaveJob?.cancel()
+        pendingRecoverySnapshot=snapshot
+        autosaveStatus="Saving recovery…"
+        autosaveJob=scope.launch {
+            delay(600)
+            try {
+                writingRecoverySnapshot=snapshot
+                try {autosave.save(snapshot)}finally {writingRecoverySnapshot=null}
+                if(project===snapshot) {recoveredSnapshot=snapshot;autosaveStatus="All edits saved for recovery"}
+            } catch(e:CancellationException) {throw e}
+            catch(e:Exception) {autosaveStatus="Recovery save failed: ${e.message}. Use Save project."}
+        }
+    }
+    suspend fun flushAutosave():Boolean {
+        autosaveJob?.cancelAndJoin();autosaveJob=null
+        val snapshot=project ?: return true
+        if(snapshot===recoveredSnapshot || (snapshot==savedProject && projectFile!=null))return true
+        return try {
+            autosave.save(snapshot);recoveredSnapshot=snapshot;autosaveStatus="All edits saved for recovery";true
+        } catch(e:Exception) {autosaveStatus="Recovery save failed: ${e.message}. Use Save project.";error=autosaveStatus;false}
+    }
+    fun closeSafely(done:()->Unit) {
+        scope.launch {job?.cancelAndJoin();if(flushAutosave()){close();done()}else closeRecoveryFailed=true}
+    }
+    fun recoverProject(file:File)=work("Recovering automatic save…") {
+        check(flushAutosave()) {"Current recovery could not be saved."}
+        val loaded=DesktopProjects.load(file,media)
+        replaceProject(loaded,saveInitial=false);autosave.resume(file);projectFile=null;savedProject=null;recoveredSnapshot=loaded;autosaveStatus="All edits saved for recovery"
+        status="Recovered edits. Save project to choose a permanent project filename."
+    }
+
     var smartClipId by mutableStateOf<String?>(null)
     fun selectSmartClip(id:String?) {
         if(busy)return
@@ -89,16 +129,18 @@ class EditorController(val scope: CoroutineScope) {
         projectFile=null
         status="${File(path).name} · ${source.info.durationFormatted} · ${source.info.width} × ${source.info.height}"
     }
-    private suspend fun replaceProject(loaded:DesktopProject) {
+    private suspend fun replaceProject(loaded:DesktopProject,saveInitial:Boolean=true) {
+        check(flushAutosave()) {"Current edits could not be saved for recovery. Save manually before switching projects."}
+        autosave.nextProject();recoveredSnapshot=null
         frameJob?.cancelAndJoin();frameJob=null
         player.stop();rendered?.delete();rendered=null;previewFrame=null;inspectedOutputMs=null;sourceFrame=null;drawingFrame=null
         project=loaded;savedProject=loaded;selectedSource=0;smartClipId=null;history.clear();future.clear();resetAnalysis()
-        position=0;pruneMasks();seek(0)
+        position=0;pruneMasks();seek(0);if(saveInitial)queueAutosave() else autosaveStatus="Manual project opened"
     }
     fun openProject(file:File)=work("Opening project…") {
         // Validate first so a rejected project cannot disturb the current edit.
         val loaded=DesktopProjects.load(file,media)
-        replaceProject(loaded);projectFile=file.absoluteFile;status="Project opened: ${file.name}"
+        replaceProject(loaded,saveInitial=false);projectFile=file.absoluteFile;status="Project opened: ${file.name}"
     }
     fun selectSource(index:Int) {
         val p=project ?: return
@@ -114,7 +156,7 @@ class EditorController(val scope: CoroutineScope) {
         mutate(p.copy(sources=sources,timeline=p.timeline.append(Clip(id(),source.path,endMs=if(source.info.isStill)5000 else source.info.durationMs)),followCrop=null))
         selectedSource=sources.indexOfFirst {it.path==source.path};resetAnalysis();status="Source added: ${File(source.path).name}"
     }
-    private fun pruneMasks(){DesktopMasks.prune((history.map {it.project}+future.map {it.project}+listOfNotNull(project,savedProject)).flatMap {listOfNotNull(it.image.key?.mask,it.image.hdr?.mask,it.image.hdr?.brush)}.toSet())}
+    private fun pruneMasks(){DesktopMasks.prune((history.map {it.project}+future.map {it.project}+listOfNotNull(project,savedProject,pendingRecoverySnapshot,writingRecoverySnapshot)).flatMap {listOfNotNull(it.image.key?.mask,it.image.hdr?.mask,it.image.hdr?.brush)}.toSet())}
     fun resetAnalysis() { pauseStatus=PauseCutsStatus.Idle; sceneStatus=SceneSplitsStatus.Idle; beatStatus=BeatsStatus.Idle; snap=false; followStatus=FollowCropStatus.Idle }
     fun mutate(next: DesktopProject) {
         rememberEdit()
@@ -125,14 +167,14 @@ class EditorController(val scope: CoroutineScope) {
         resetAnalysis()
         if(next.timeline.clips.none {it.id==smartClipId})smartClipId=null
         seek(position)
-        pruneMasks()
+        pruneMasks();queueAutosave()
     }
     private fun restore(saved:HistoryEntry) {
         project=saved.project
         selectedSource=saved.source.coerceIn(saved.project.sources.indices)
         smartClipId=saved.clipId?.takeIf {id->saved.project.timeline.clips.any {it.id==id}}
         player.stop();rendered?.delete();rendered=null;previewFrame=null;inspectedOutputMs=null;resetAnalysis()
-        seek(saved.position);pruneMasks()
+        seek(saved.position);pruneMasks();queueAutosave()
     }
     fun undo() {
         if(busy || history.isEmpty())return
@@ -382,7 +424,7 @@ class EditorController(val scope: CoroutineScope) {
             if(project!=p) {
                 val previous=project
                 rememberEdit()
-                project=p;pruneMasks()
+                project=p;pruneMasks();queueAutosave()
                 // The preview keeps its picture when only the delivery container changes.
                 // Encoding changes can change cached dimensions, cadence or audio quality.
                 if(previous?.encoding!=p.encoding) {
@@ -519,7 +561,7 @@ class EditorController(val scope: CoroutineScope) {
         onStopFollowCrop={ job?.cancel(); followStatus=FollowCropStatus.Idle },
         onClearFollowCrop={ project?.let { mutate(it.copy(followCrop=null)) } }, onOpenCutoutModel={ tab="Models" }
     )
-    fun close() { player.stop(); job?.cancel(); frameJob?.cancel(); rendered?.delete() }
+    fun close() { autosaveJob?.cancel();player.stop(); job?.cancel(); frameJob?.cancel(); rendered?.delete() }
 }
 private fun toggle(set: Set<Int>, index: Int) = if (index in set) set-index else set+index
 fun time(ms: Long) = java.lang.String.format(java.util.Locale.US,"%d:%02d.%01d",ms/60000,(ms/1000)%60,(ms/100)%10)
