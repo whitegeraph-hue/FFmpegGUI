@@ -26,8 +26,14 @@ class VibratoCandidateRuntimeTest {
         suspend fun execute(command:FfmpegCommand):Boolean {
             val id=++executions
             File(evidence,"command-$id.txt").writeText(command.toDisplayString())
+            val display=command.toDisplayString()
+            val chunks=display.chunked(1200)
+            chunks.forEachIndexed {part,text->android.util.Log.i("VIBRATO-CANDIDATE","COMMAND id=$id part=${part+1}/${chunks.size} $text")}
             val log=StringBuilder();val result=executor.execute(command){log.append(it)}
-            if(!versionWritten && log.contains("ffmpeg version")) {File(evidence,"runtime-version.txt").writeText(log.toString());versionWritten=true}
+            if(!versionWritten && log.contains("ffmpeg version")) {
+                File(evidence,"runtime-version.txt").writeText(log.toString());versionWritten=true
+                android.util.Log.i("VIBRATO-CANDIDATE","RUNTIME "+log.lineSequence().first{it.contains("ffmpeg version")})
+            }
             if(result!=ExecutionResult.Success) {failures+="execute=$result ${log.takeLast(1200)}";return false}
             return true
         }
@@ -153,7 +159,9 @@ class VibratoCandidateRuntimeTest {
             val out=File(context.cacheDir,"vibrato-negative.f32")
             val command=FfmpegCommand(listOf("-y","-f","lavfi","-i","anullsrc=r=48000:cl=mono","-t","1","-af","vibrato=f=$frequency:d=0.55","-f","f32le",out.path))
             File(evidence,"command-$frequency.txt").writeText(command.toDisplayString())
+            android.util.Log.i("VIBRATO-CANDIDATE","NEGATIVE-COMMAND f$frequency "+command.toDisplayString())
             val log=StringBuilder();val result=executor.execute(command){log.append(it)}
+            android.util.Log.i("VIBRATO-CANDIDATE","NEGATIVE-RUNTIME "+log.lineSequence().firstOrNull{it.contains("ffmpeg version")})
             File(evidence,"runtime-$frequency.txt").writeText(log.toString())
             assertEquals(ExecutionResult.Success,result)
             val b=ByteBuffer.wrap(out.readBytes()).order(ByteOrder.LITTLE_ENDIAN);val values=FloatArray(b.remaining()/4){b.float}
