@@ -105,11 +105,11 @@ class VibratoCandidateRuntimeTest {
             // Keep channels separate for amplitude/saturation. The historical mono
             // measurement below is for timing/silence, not a channel peak claim.
             val channelsRaw=File(dir,"vibrato-channel-decode.f32")
-            if(!execute(FfmpegCommand(listOf("-y","-i",out.path,"-vn","-ar","48000","-f","f32le",channelsRaw.path))))return
+            if(!execute(FfmpegCommand(listOf("-y","-i",out.path,"-vn","-f","f32le",channelsRaw.path))))return
             val separate=read(channelsRaw)
             val perChannelPeak=separate.filter{it.isFinite()}.maxOfOrNull{abs(it)} ?: 0f
-            val saturation=separate.count{it>=32767f/32768f || it<=-1f}
-            android.util.Log.i("VIBRATO-CANDIDATE","CHANNEL-METRIC $label decodedPeak=$perChannelPeak boundarySamples=$saturation samples=${separate.size}")
+            val saturation=if(out.extension=="wav")separate.count{it==32767f/32768f || it==-1f}else -1
+            android.util.Log.i("VIBRATO-CANDIDATE","CHANNEL-METRIC $label decodedPeak=$perChannelPeak pcm16BoundarySamples=$saturation samples=${separate.size}")
             val actual=read(raw);val bad=actual.count{!it.isFinite()};val peak=actual.filter{it.isFinite()}.maxOfOrNull{abs(it)} ?: 0f
             val nonzero=actual.any{abs(it)>.00001f};val duration=actual.size*1000L/48000
             val leak=actual.indices.count {i->abs(actual[i])>.00001f && (i*1000L/48000<quietBefore || (quietAfter!=null && i*1000L/48000>quietAfter))}
