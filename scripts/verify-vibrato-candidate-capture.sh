@@ -29,6 +29,8 @@ for trial in 1 2 3; do
   grep -q 'SUMMARY cases=237 failures=0' "$file" || rc=1
   [ "$(grep -c 'COMMAND id=' "$file")" -ge 456 ] || rc=1
   grep -q 'RUNTIME.*ffmpeg version' "$file" || rc=1
+  [ "$(grep -c 'GUARD-REFUSAL.*returnCode=-7301' "$file")" -eq 3 ] || rc=1
+  [ "$(grep -c 'CHANNEL-METRIC' "$file")" -eq 215 ] || rc=1
   grep -q 'PRODUCTION-AUDIT count=1' "$file" || rc=1
 done
 exit "$rc"

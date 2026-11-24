@@ -102,6 +102,14 @@ class VibratoCandidateRuntimeTest {
             if(!execute(auditProduction(command)))return
             val raw=File(dir,"vibrato-candidate-decode.f32");raw.delete()
             if(!execute(FfmpegCommand(listOf("-y","-i",out.path,"-vn","-ac","1","-ar","48000","-f","f32le",raw.path))))return
+            // Keep channels separate for amplitude/saturation. The historical mono
+            // measurement below is for timing/silence, not a channel peak claim.
+            val channelsRaw=File(dir,"vibrato-channel-decode.f32")
+            if(!execute(FfmpegCommand(listOf("-y","-i",out.path,"-vn","-ar","48000","-f","f32le",channelsRaw.path))))return
+            val separate=read(channelsRaw)
+            val perChannelPeak=separate.filter{it.isFinite()}.maxOfOrNull{abs(it)} ?: 0f
+            val saturation=separate.count{it>=32767f/32768f || it<=-1f}
+            android.util.Log.i("VIBRATO-CANDIDATE","CHANNEL-METRIC $label decodedPeak=$perChannelPeak boundarySamples=$saturation samples=${separate.size}")
             val actual=read(raw);val bad=actual.count{!it.isFinite()};val peak=actual.filter{it.isFinite()}.maxOfOrNull{abs(it)} ?: 0f
             val nonzero=actual.any{abs(it)>.00001f};val duration=actual.size*1000L/48000
             val leak=actual.indices.count {i->abs(actual[i])>.00001f && (i*1000L/48000<quietBefore || (quietAfter!=null && i*1000L/48000>quietAfter))}
@@ -176,7 +184,9 @@ class VibratoCandidateRuntimeTest {
         }
         // Direct manual native calls remain blocked, even when a safe-looking pad is pasted.
         for(graph in listOf("vibrato=f=3","aresample=48000,adelay=16000S:all=1,vibrato=f=3:d=.3,atrim=start_sample=16000,asetpts=PTS-STARTPTS","acrusher=bits=9")) {
-            val result=normalExecutor.execute(FfmpegCommand(listOf("-y","-f","lavfi","-i","anullsrc","-t","1","-af",graph,File(dir,"must-not-export.wav").path))){}
+            val refusalLog=StringBuilder()
+            val result=normalExecutor.execute(FfmpegCommand(listOf("-y","-f","lavfi","-i","anullsrc","-t","1","-af",graph,File(dir,"must-not-export.wav").path))){refusalLog.append(it)}
+            android.util.Log.i("VIBRATO-CANDIDATE","GUARD-REFUSAL graph=$graph result=$result reason=$refusalLog")
             check(result==ExecutionResult.Failed(com.cuscus.ffmpeggui.core.audio.AudioExecutionSafety.RETURN_CODE))
         }
         android.util.Log.i("VIBRATO-CANDIDATE","SUMMARY cases=$cases failures=${failures.size}")
