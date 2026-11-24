@@ -597,8 +597,8 @@ internal fun AudioEffectsContent(effects: AudioEffects, onChange: AudioChange) {
     val modulation = effects.modulation
     Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = panelModifier) {
         Text("Voice presets", style = MaterialTheme.typography.titleMedium)
-        PanelHint(com.cuscus.ffmpeggui.core.audio.AudioExecutionSafety.NOTICE)
-        if (!com.cuscus.ffmpeggui.core.audio.AudioExecutionSafety.available(effects)) {
+        PanelHint("Android generated exports use initialized vibrato with the bundled FFmpeg 6.1.6 runtime. Alien wobble and Ghost are available here. Lo-fi bitcrushing stays blocked. Desktop and manual native vibrato remain restricted. Saved settings are unchanged.")
+        if (!com.cuscus.ffmpeggui.core.audio.AudioExecutionSafety.available(effects, com.cuscus.ffmpeggui.core.command.AudioRuntime.ANDROID_BUNDLED_6_1_6)) {
             PanelHint("This scope retains a blocked effect. Use Off, turn off lo-fi, or choose Clean / reset. Saving keeps your settings.")
         }
         PanelHint("Replaces effects in the selected clip, sound track or whole-output scope. Old telephone is a band-limited mono voice. Export DSP uses 48 kHz internally; an explicit export sample rate is applied afterward. Low-rate live preview can differ. Only available presets can render/export. Live Kotlin preview is not export verification; character presets are DSP, not AI voices.")
@@ -609,7 +609,7 @@ internal fun AudioEffectsContent(effects: AudioEffects, onChange: AudioChange) {
             }
         }
         OptionTileRow(
-            options = com.cuscus.ffmpeggui.core.model.CreativeVoice.entries.filter {it.family==family || it==com.cuscus.ffmpeggui.core.model.CreativeVoice.CLEAN}.map { TileOption(it, it.title + if(com.cuscus.ffmpeggui.core.audio.AudioExecutionSafety.available(it.effects)) "" else " (render blocked)", icon=Icons.Rounded.GraphicEq, enabled=com.cuscus.ffmpeggui.core.audio.AudioExecutionSafety.available(it.effects)) },
+            options = com.cuscus.ffmpeggui.core.model.CreativeVoice.entries.filter {it.family==family || it==com.cuscus.ffmpeggui.core.model.CreativeVoice.CLEAN}.map { TileOption(it, it.title + if(com.cuscus.ffmpeggui.core.audio.AudioExecutionSafety.available(it.effects, com.cuscus.ffmpeggui.core.command.AudioRuntime.ANDROID_BUNDLED_6_1_6)) "" else " (render blocked)", icon=Icons.Rounded.GraphicEq, enabled=com.cuscus.ffmpeggui.core.audio.AudioExecutionSafety.available(it.effects, com.cuscus.ffmpeggui.core.command.AudioRuntime.ANDROID_BUNDLED_6_1_6)) },
             selected = com.cuscus.ffmpeggui.core.model.CreativeVoice.entries.firstOrNull {it.effects==effects},
             onSelect = { preset -> onChange(null) { preset.effects } },
         )

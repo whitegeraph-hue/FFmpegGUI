@@ -53,13 +53,26 @@ class CreativeEffectsRuntimeTest {
             assertEquals(ExecutionResult.Failed(com.cuscus.ffmpeggui.core.audio.AudioExecutionSafety.RETURN_CODE),result)
             assertTrue(logs.isNotBlank());assertFalse(output.exists())
         }
-        var fx by mutableStateOf(CreativeVoice.ALIEN.effects)
+        var fx by mutableStateOf(CreativeVoice.RADIO.effects)
         rule.setContent {Column(Modifier.verticalScroll(rememberScrollState())) {AudioEffectsContent(fx){_,change->fx=change(fx)}}}
         rule.onNodeWithText("This scope retains a blocked effect. Use Off, turn off lo-fi, or choose Clean / reset. Saving keeps your settings.").assertExists()
-        rule.runOnIdle {assertEquals(CreativeVoice.ALIEN.effects,fx)}
+        rule.runOnIdle {assertEquals(CreativeVoice.RADIO.effects,fx)}
         ShellShot.take("blocked-effect-retained-warning")
         rule.onNodeWithText("Clean / reset").performScrollTo().performClick()
         rule.runOnIdle {assertEquals(AudioEffects.NONE,fx)}
+    }
+    @Test fun androidVibratoPresetsAreAvailableWhileCrusherStaysBlocked() {
+        var fx by mutableStateOf(CreativeVoice.ALIEN.effects)
+        rule.setContent {Column(Modifier.verticalScroll(rememberScrollState())) {AudioEffectsContent(fx){_,change->fx=change(fx)}}}
+        rule.onNodeWithText("Character",useUnmergedTree=true).performScrollTo().performClick()
+        rule.onNodeWithText("Alien wobble").performScrollTo().performClick()
+        rule.runOnIdle {assertEquals(CreativeVoice.ALIEN.effects,fx)}
+        ShellShot.take("android-initialized-vibrato-alien")
+        rule.onNodeWithText("Texture",useUnmergedTree=true).performScrollTo().performClick()
+        rule.onNodeWithText("Ghost").performScrollTo().performClick()
+        rule.runOnIdle {assertEquals(CreativeVoice.GHOST.effects,fx)}
+        ShellShot.take("android-initialized-vibrato-ghost")
+        rule.onNodeWithText("8-bit voice (render blocked)").assertExists()
     }
     @Test fun allVoiceRecipesPreserveEightAndSixteenKhzSpeech() = runBlocking {
         val context=InstrumentationRegistry.getInstrumentation().targetContext
