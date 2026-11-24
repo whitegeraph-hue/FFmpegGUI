@@ -78,12 +78,16 @@ class CreativeEffectsRuntimeTest {
         val cases=PictureLook.entries.filter{it.ordinal>=PictureLook.SEPIA.ordinal}.map{request().copy(looks=listOf(LookSpan(it,0,900)))}+
             CreativeVoice.entries.map{request().copy(audioEffects=it.effects)}+
             TransitionKind.entries.filter{it.ordinal in TransitionKind.VENETIAN.ordinal..TransitionKind.CROSS_REVEAL.ordinal}.map{kind->request().copy(segments=listOf(Segment(0,0,1000,Effects(transition=Transition(kind,300))),Segment(0,4000,5000)))}
+        val failures=mutableListOf<String>()
         for((index,req) in cases.withIndex()) {
             val output=File(context.cacheDir,"creative-export-$index.mp4")
             val command=CommandBuilder{ "/fonts/Regular.ttf" }.build(req,MediaPaths(inputs=listOf(input.path),output=output.path))
-            assertEquals("render case $index",ExecutionResult.Success,executor.execute(command){})
-            assertTrue(output.length()>1000);output.delete()
+            val logs=StringBuilder()
+            val result=executor.execute(command){logs.append(it)}
+            if(result!=ExecutionResult.Success || output.length()<=1000) failures+="case $index looks=${req.looks} voice=${req.audioEffects} result=$result command=${command.arguments} logs=${logs.takeLast(10000)}"
+            output.delete()
         }
+        assertTrue(failures.joinToString("\n"),failures.isEmpty())
         for(cue in OriginalSound.entries) {
             val file=File(context.cacheDir,"cue-${cue.name}.wav");file.outputStream().use{cue.writeWav(it)}
             val reader=android.media.MediaMetadataRetriever();reader.setDataSource(file.path)
