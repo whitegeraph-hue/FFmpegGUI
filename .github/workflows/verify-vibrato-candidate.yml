@@ -16,6 +16,9 @@ on:
       - 'core/src/main/kotlin/com/cuscus/ffmpeggui/core/engine/**'
       - 'media/src/main/kotlin/com/cuscus/ffmpeggui/media/FfmpegKitExecutor.kt'
       - 'app/src/main/java/com/cuscus/ffmpeggui/di/AppContainer.kt'
+      - 'app/src/main/java/com/cuscus/ffmpeggui/AudioPanels.kt'
+      - 'app/src/main/java/com/cuscus/ffmpeggui/ConfigScreen.kt'
+      - 'app/src/androidTest/java/com/cuscus/ffmpeggui/CreativeEffectsRuntimeTest.kt'
       - 'app/src/androidTest/java/com/cuscus/ffmpeggui/VibratoCandidateRuntimeTest.kt'
       - 'app/src/androidTest/java/com/cuscus/ffmpeggui/IsolatedDiagnosticExecutor.kt'
   workflow_dispatch:
