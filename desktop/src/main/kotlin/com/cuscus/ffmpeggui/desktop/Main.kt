@@ -61,6 +61,9 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
     val controller=remember { EditorController(scope) }
     val preferences=remember {java.util.prefs.Preferences.userRoot().node("ffmpeggui-desktop")}
     var lightTheme by remember {mutableStateOf(preferences.getBoolean("lightTheme",false))}
+    val workspaceStore=remember {DesktopWorkspaceStore(preferences)}
+    var workspace by remember {mutableStateOf(workspaceStore.load())}
+    var showWorkspace by remember {mutableStateOf(false)}
     var inspectorExpanded by remember {mutableStateOf(false)}
     var showSettings by remember {mutableStateOf(false)}
     var playbackNotice by remember {mutableStateOf<String?>(null)}
@@ -72,12 +75,12 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
     var pendingDiscard by remember {mutableStateOf<(() -> Unit)?>(null)}
     fun protectEdits(action:()->Unit) {if(controller.hasUnsavedChanges || controller.busy)pendingDiscard=action else action()}
     Window(onCloseRequest={ if(controller.busy)pendingDiscard={controller.closeSafely {exitApplication()}} else controller.closeSafely {exitApplication()} }, title="FFmpegGUI · Linux development preview", state=rememberWindowState(width=1280.dp,height=850.dp),onKeyEvent={event->
-        if(event.type==KeyEventType.KeyDown && !showSettings && !showExport && pendingDiscard==null && controller.error==null) {
+        if(event.type==KeyEventType.KeyDown && !showSettings && !showWorkspace && !showExport && pendingDiscard==null && controller.error==null) {
             when {
                 controller.titleTextDraft!=null && event.isCtrlPressed && event.key==Key.Z -> {controller.routeTitleTextHistory(event.isShiftPressed);true}
                 controller.titleTextDraft!=null && event.isCtrlPressed && event.key==Key.Y -> {controller.routeTitleTextHistory(true);true}
-                event.isCtrlPressed && event.key==Key.Z -> {if(!controller.busy){if(event.isShiftPressed)controller.redo() else controller.undo()};true}
-                event.isCtrlPressed && event.key==Key.Y -> {if(!controller.busy)controller.redo();true}
+                workspace.action(event)=="Undo" -> {if(!controller.busy)controller.undo();true}
+                (workspace.action(event)=="Redo" || event.workspaceStroke()=="Ctrl+Y") -> {if(!controller.busy)controller.redo();true}
                 event.key==Key.Escape -> {controller.selectSmartClip(null);controller.status="Clip selection cleared. Tools now apply to the whole output or selected source, as shown in Apply to.";true}
                 else -> false
             }
@@ -111,12 +114,15 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
             val target=if(saveAs)null else controller.projectFile
             (target ?: pick(true,controller.projectFile?.path ?: "project.ffgui.json","Save project"))?.let {controller.saveProject(it)}
         }
-        MaterialTheme(colorScheme=if(lightTheme)TealLightColorScheme else TealDarkColorScheme) {
+        CompositionLocalProvider(LocalDesktopWorkspace provides workspace) {
+        MaterialTheme(colorScheme=workspaceColors(if(lightTheme)TealLightColorScheme else TealDarkColorScheme,workspace)) {
             Surface(Modifier.fillMaxSize().onPreviewKeyEvent {event->
-                if(event.type!=KeyEventType.KeyDown || !event.isCtrlPressed || event.isAltPressed || event.isMetaPressed || showSettings || showExport || pendingDiscard!=null || controller.error!=null)false
-                else when(event.key) {
-                    Key.S->{saveProject(event.isShiftPressed);true}
-                    Key.O->{if(event.isShiftPressed)openProject() else openMedia();true}
+                if(event.type!=KeyEventType.KeyDown || !event.isCtrlPressed || event.isMetaPressed || showSettings || showWorkspace || showExport || pendingDiscard!=null || controller.error!=null)false
+                else when(workspace.action(event)) {
+                    "Save project"->{saveProject();true}
+                    "Save as"->{saveProject(true);true}
+                    "Open media"->{openMedia();true}
+                    "Open project"->{openProject();true}
                     else->false
                 }
             }) {
@@ -124,15 +130,18 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                 val compact=maxWidth<1490.dp
                 val narrow=maxWidth<1150.dp
                 val short=maxHeight<720.dp
+                val timelineLimit=(maxHeight.value*.36f).toInt().coerceAtLeast(120)
                 Column(Modifier.padding(if(short)12.dp else 16.dp),verticalArrangement=Arrangement.spacedBy(if(short)8.dp else 10.dp)) {
                     @Composable fun RowScope.ProjectActions() {
-                        OutlinedButton(onClick=::openMedia,enabled=!controller.busy) { SymbolLabel("folder_open","Open media") }
-                        OutlinedButton(onClick=::openProject,enabled=!controller.busy) { SymbolLabel("folder","Open project") }
-                        FilledTonalButton(onClick={saveProject()},enabled=!controller.busy && controller.project!=null) { SymbolLabel("save","Save project") }
-                        TextButton(onClick={saveProject(true)},enabled=!controller.busy && controller.project!=null) { Text("Save as…") }
-                        TextButton(onClick={recoveryFiles=controller.autosave.entries();showRecovery=true},enabled=!controller.busy) {Text("Recover") }
-                        DesktopHint("Undo (Ctrl+Z)") {OutlinedButton(contentPadding=PaddingValues(horizontal=12.dp),onClick={ controller.undo() },enabled=!controller.busy && controller.canUndo) { if(narrow)Symbol("undo",description="Undo") else SymbolLabel("undo","Undo") }}
-                        DesktopHint("Redo (Ctrl+Shift+Z)") {OutlinedButton(contentPadding=PaddingValues(horizontal=12.dp),onClick={ controller.redo() },enabled=!controller.busy && controller.canRedo) { Icon(DesktopSymbols.vector("undo"),if(narrow)"Redo" else null,Modifier.size(20.dp).graphicsLayer(scaleX=-1f));if(!narrow){Spacer(Modifier.width(7.dp));Text("Redo")} }}
+                        workspace.projectToolbar.forEach {action->when(action) {
+                            "Open media" -> {OutlinedButton(onClick=::openMedia,enabled=!controller.busy) { SymbolLabel("folder_open","Open media") }}
+                            "Open project" -> {OutlinedButton(onClick=::openProject,enabled=!controller.busy) { SymbolLabel("folder","Open project") }}
+                            "Save project" -> {FilledTonalButton(onClick={saveProject()},enabled=!controller.busy && controller.project!=null) { SymbolLabel("save","Save project") }}
+                            "Save as" -> {TextButton(onClick={saveProject(true)},enabled=!controller.busy && controller.project!=null) { Text("Save as…") }}
+                            "Recover" -> {TextButton(onClick={recoveryFiles=controller.autosave.entries();showRecovery=true},enabled=!controller.busy) {Text("Recover") }}
+                            "Undo" -> {DesktopHint("Undo ("+workspace.shortcuts["Undo"]+")") {OutlinedButton(contentPadding=PaddingValues(horizontal=12.dp),onClick={ controller.undo() },enabled=!controller.busy && controller.canUndo) { if(narrow)Symbol("undo",description="Undo") else SymbolLabel("undo","Undo") }}}
+                            "Redo" -> {DesktopHint("Redo ("+workspace.shortcuts["Redo"]+")") {OutlinedButton(contentPadding=PaddingValues(horizontal=12.dp),onClick={ controller.redo() },enabled=!controller.busy && controller.canRedo) { Icon(DesktopSymbols.vector("undo"),if(narrow)"Redo" else null,Modifier.size(20.dp).graphicsLayer(scaleX=-1f));if(!narrow){Spacer(Modifier.width(7.dp));Text("Redo")} }}}
+                        }}
                     }
                     @Composable fun RowScope.WindowActions() {
                         FilledTonalButton(onClick={showSettings=true}) {SymbolLabel("settings","Settings")}
@@ -165,9 +174,12 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                         }
                     } else {
                         Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(10.dp)) {
+                            val workspaceTimeline=remember { movableContentOf { p:DesktopProject, expanded:Boolean, height:Int -> DesktopTimeline(controller,p,expandedWorkspace=expanded,availableHeight=height,onAdd={pick()?.let {controller.append(it.path)}}) } }
+                            if(workspace.timelineTop)workspaceTimeline(project,inspectorExpanded,timelineLimit)
+
                             Row(Modifier.weight(1f),horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-                                DesktopToolRail(controller)
-                                Column(Modifier.weight(1f).fillMaxHeight(),verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                                @Composable fun RowScope.ToolsPane() {DesktopToolRail(controller,workspace.railWidth.coerceAtMost(if(narrow)164 else 250))}
+                                @Composable fun RowScope.PreviewPane() {Column(Modifier.weight(1f).fillMaxHeight(),verticalArrangement=Arrangement.spacedBy(8.dp)) {
                                     Row(verticalAlignment=Alignment.CenterVertically) {
                                         Text((if(short){if(controller.inspectedOutputMs!=null)"Edited frame · " else if(controller.player.frame!=null || controller.previewFrame!=null)"Rendered · " else "Source · "} else "")+File(project.sources[controller.selectedSource].path).name,maxLines=1,overflow=TextOverflow.Ellipsis,style=MaterialTheme.typography.titleSmall,modifier=Modifier.weight(1f))
                                         Text(if(short)"%.3f s output".format(java.util.Locale.US,(if(controller.player.engaged)controller.player.positionMs else project.outputAt(controller.position))/1000.0) else "${project.sources[controller.selectedSource].info.width} × ${project.sources[controller.selectedSource].info.height}",style=MaterialTheme.typography.labelSmall)
@@ -189,8 +201,8 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                                     if(!short)Text("%.3f s output · 25fps".format(java.util.Locale.US,(if(controller.player.engaged)controller.player.positionMs else project.outputAt(controller.position))/1000.0),style=MaterialTheme.typography.labelSmall,maxLines=1)
                                     controller.player.notice?.let {notice->Text(if(short)"Silent video · audio output unavailable" else notice,style=MaterialTheme.typography.labelSmall,maxLines=if(short)1 else 2,overflow=TextOverflow.Ellipsis,modifier=Modifier.clickable {playbackNotice=notice})}
                                     controller.player.failure?.let {failure->Text(if(short)"Playback unavailable. Click for details." else failure,color=MaterialTheme.colorScheme.error,style=MaterialTheme.typography.labelSmall,maxLines=if(short)1 else 3,overflow=TextOverflow.Ellipsis,modifier=Modifier.clickable {controller.error=failure})}
-                                }
-                                Surface(Modifier.width(if(narrow)300.dp else if(compact)330.dp else 360.dp).fillMaxHeight(),shape=RoundedCornerShape(20.dp),color=MaterialTheme.colorScheme.surfaceContainerLow) {
+                                }}
+                                @Composable fun RowScope.InspectorPane() {Surface(Modifier.width(workspace.inspectorWidth.coerceAtMost(if(narrow)300 else if(compact)400 else 520).dp).fillMaxHeight(),shape=RoundedCornerShape(20.dp),color=MaterialTheme.colorScheme.surfaceContainerLow) {
                                     Column(Modifier.padding(14.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
                                         Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(10.dp)) {
                                             Symbol(desktopToolSymbols[controller.tab] ?: "edit",size=22)
@@ -265,9 +277,11 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                                     }
                                         }
                                     }
-                                }
+                                }}
+                                workspace.paneOrder.forEach {pane->key(pane) {when(pane) {"tools"->ToolsPane();"preview"->PreviewPane();"inspector"->InspectorPane()}}}
+
                             }
-                            DesktopTimeline(controller,project,expandedWorkspace=inspectorExpanded,onAdd={pick()?.let {controller.append(it.path)}})
+                            if(!workspace.timelineTop)workspaceTimeline(project,inspectorExpanded,timelineLimit)
                         }
                     }
                     if (controller.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
@@ -303,8 +317,10 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                             }
                         }
                     },confirmButton={TextButton(onClick={showRecovery=false}) {Text("Keep editing")}})
+                    if(showWorkspace)DesktopWorkspaceEditor(workspace,workspaceStore,{workspaceStore.save(it);workspace=it},{showWorkspace=false})
                     if(showSettings)AlertDialog(onDismissRequest={showSettings=false},title={Row(verticalAlignment=Alignment.CenterVertically){SymbolLabel("settings","Settings")}},text={
                         ScrollArea(Modifier.heightIn(max=470.dp)) {
+                            Button(onClick={showSettings=false;showWorkspace=true}){Text("Customize workspace")}
                             Text("Appearance",style=MaterialTheme.typography.titleMedium)
                             Row(verticalAlignment=Alignment.CenterVertically){Switch(lightTheme,{lightTheme=it;preferences.putBoolean("lightTheme",it)});Spacer(Modifier.width(10.dp));Text("Light theme")}
                             Text("Offline models",style=MaterialTheme.typography.titleMedium)
@@ -315,7 +331,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
 
                             Text("Preview",style=MaterialTheme.typography.titleMedium)
                             Text("Play edit renders the edited result first, then plays it with sound. Edits invalidate that render. Source view does not show effects live.")
-                            Text("Shortcuts: Ctrl+S saves to the current project file (asks on first save); Ctrl+Shift+S saves a copy to a new destination. Ctrl+O opens media; Ctrl+Shift+O opens a project. Ctrl+Z undoes the last edit; Ctrl+Shift+Z or Ctrl+Y redoes. A new edit clears Redo. Undo and Redo restore clip selection and position. Esc clears clip selection. After clicking the timeline: Space plays, arrows step one output frame, Home/End seek to output start/end, Alt+Left/Right move the selected clip in the shown direction, I/O mark the selected clip source in/out at the playhead, S splits, D duplicates, Delete removes. Source in/out follow source time, including when reverse is on. Project Undo/Redo do not run while typing in fields. These timeline keys do not run while typing in fields. Click or drag the ruler to stop playback, seek and focus the timeline. Release stays paused; press Play or Space to resume. Click inside a clip to select and seek; double-click to open its controls. Use timeline Left/Right buttons or the small arrow handle to reorder. Escape or releasing outside the timeline cancels a drag. Transitions move with their clip. No drag edge auto-scroll yet.",style=MaterialTheme.typography.bodySmall)
+                            Text("Current shortcuts: "+workspace.shortcuts.entries.filter {it.value.isNotBlank()}.joinToString("; ") {"${it.key}: ${it.value}"}+". Timeline shortcuts run after clicking the timeline, not while typing in fields. Project Undo/Redo do not run while typing in fields. Customize these in Customize workspace. Escape clears clip selection or cancels a drag. Click or drag the ruler to stop playback, seek and focus the timeline. Release stays paused. Click inside a clip to select and seek; double-click to open controls. Source in/out follow source time, including reverse. Transitions move with their clip. No drag edge auto-scroll yet.",style=MaterialTheme.typography.bodySmall)
                             Text("Automatic recovery: edits save locally after a short pause and on normal close, even without a project filename. Recover reopens automatic saves. Save project keeps a separate manual copy. Sources must stay in place. Power loss can lose the most recent edits before the save finishes. Unapplied dialog drafts are not project edits.")
                             Text("Development preview. Not every mobile feature is available yet. Original files are never edited.",style=MaterialTheme.typography.bodySmall)
                         }
@@ -328,6 +344,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
         }
     }
     }
+    }
 }
 
 @Composable private fun ScrollArea(modifier:Modifier=Modifier,spacing:Int=12,resetKey:Any?=null,content:@Composable ColumnScope.()->Unit) {
@@ -338,9 +355,9 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
         if(scroll.canScrollForward)Text("⌄",Modifier.align(Alignment.BottomEnd).background(MaterialTheme.colorScheme.surfaceContainerLow),color=MaterialTheme.colorScheme.primary,style=MaterialTheme.typography.labelMedium)
     }
 }
-@Composable private fun DesktopToolRail(c:EditorController) {
+@Composable private fun DesktopToolRail(c:EditorController,width:Int=164) {
     val group=desktopGroups.entries.firstOrNull {c.tab in it.value}?.key ?: "Edit"
-    BoxWithConstraints(Modifier.width(164.dp).fillMaxHeight()) {
+    BoxWithConstraints(Modifier.width(width.dp).fillMaxHeight()) {
     val short=maxHeight<520.dp
     ScrollArea(Modifier.fillMaxSize(),spacing=if(short)2 else 12) {
         if(short) {
