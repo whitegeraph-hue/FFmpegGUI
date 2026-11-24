@@ -1,5 +1,7 @@
 package com.cuscus.ffmpeggui.media
 
+import com.cuscus.ffmpeggui.core.audio.AudioExecutionSafety
+
 import android.content.Context
 import android.net.Uri
 import com.arthenica.ffmpegkit.FFmpegKit
@@ -24,6 +26,11 @@ class FfmpegKitExecutor : FfmpegExecutor {
 
     override suspend fun execute(command: FfmpegCommand, onLog: (String) -> Unit): ExecutionResult =
         suspendCancellableCoroutine { continuation ->
+            AudioExecutionSafety.commandIssue(command)?.let { issue ->
+                onLog(issue)
+                continuation.resume(ExecutionResult.Failed(AudioExecutionSafety.RETURN_CODE))
+                return@suspendCancellableCoroutine
+            }
             val session = FFmpegKit.executeWithArgumentsAsync(
                 command.arguments.toTypedArray(),
                 { finished ->

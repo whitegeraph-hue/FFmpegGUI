@@ -20,6 +20,25 @@ internal fun runNativeChecks(args:Array<String>)=runBlocking {
     suspend fun verify(name:String,block:suspend ()->Unit) { if(filter==null || filter.containsMatchIn(name)){block();passed++;println("PASS $name")} }
 
     val video=media.probe(File(folder,"video.mp4").path)
+    verify("suspect native effects fail before execution preserve projects all scopes and outputs") {
+        val fx=CreativeVoice.ALIEN.effects
+        val base=DesktopProject.create(video).copy(format=OutputFormat.WAV)
+        val clip=base.timeline.clips.first()
+        val projects=listOf(base.copy(audioEffects=fx),base.copy(timeline=base.timeline.updateEffects(clip.id){it.copy(audioEffects=fx)}),base.copy(sounds=listOf(DesktopSound(video,PlacedSound(effects=fx)))))
+        for((i,p) in projects.withIndex()) {
+            val saved=File(folder,"blocked-$i.ffgui.json");DesktopProjects.save(p,saved)
+            val loaded=DesktopProjects.load(saved,media)
+            val before=saved.readText()
+            val out=File(folder,"blocked-$i.wav");out.delete()
+            check(runCatching{exporter.export(loaded,out)}.exceptionOrNull() is com.cuscus.ffmpeggui.core.audio.AudioExecutionSafety.Blocked)
+            check(!out.exists() && saved.readText()==before)
+        }
+        val out=File(folder,"blocked-direct.wav");out.delete()
+        for(option in listOf("-af","-filter:a","-filter_complex","-lavfi","-filter_complex_script","-/filter_complex")) {
+            val (code,log)=media.process.run(listOf("ffmpeg","-f","lavfi","-i","anullsrc",option,"vibrato=f=3",out.path))
+            check(code==com.cuscus.ffmpeggui.core.audio.AudioExecutionSafety.RETURN_CODE && log.isNotEmpty() && !out.exists())
+        }
+    }
     verify("creative voice presets render roundtrip and telephone band limits") {
         val sound=media.probe(File(folder,"video.mp4").path)
         val telephoneInput=File(folder,"telephone-spectrum-input.wav")
@@ -40,7 +59,7 @@ internal fun runNativeChecks(args:Array<String>)=runBlocking {
         val controller=EditorController(CoroutineScope(Dispatchers.Default));val original=DesktopProject.create(sound)
         controller.project=original;controller.mutate(original.copy(audioEffects=CreativeVoice.TELEPHONE.effects));controller.undo();check(controller.project===original)
         controller.mutate(original.copy(effects=original.effects.copy(color=CreativeColour.CINEMA.color)));controller.undo();check(controller.project===original)
-        for(preset in CreativeVoice.entries) {
+        for(preset in CreativeVoice.entries.filter {com.cuscus.ffmpeggui.core.audio.AudioExecutionSafety.available(it.effects)}) {
             val fx=preset.effects
             check(com.cuscus.ffmpeggui.core.project.ModelJson.audioEffects(com.cuscus.ffmpeggui.core.project.ModelJson.write(fx))==fx)
             val p=DesktopProject.create(sound).copy(format=OutputFormat.WAV,audioEffects=fx)
@@ -52,7 +71,7 @@ internal fun runNativeChecks(args:Array<String>)=runBlocking {
             val low=File(folder,"creative-speech-$rate.wav")
             media.process.checked(listOf("ffmpeg","-y","-v","error","-i",speechFile.path,"-t","2","-ar",rate.toString(),low.path))
             val lowSource=media.probe(low.path)
-            val recipes=CreativeVoice.entries.map{it.title to it.effects}+listOf("Manual high EQ" to AudioEffects(equalizer=List(10){12f}))
+            val recipes=CreativeVoice.entries.filter{com.cuscus.ffmpeggui.core.audio.AudioExecutionSafety.available(it.effects)}.map{it.title to it.effects}+listOf("Manual high EQ" to AudioEffects(equalizer=List(10){12f}))
             for((title,fx) in recipes) {
                 val out=File(folder,"creative-low-rate-output.wav")
                 exporter.export(DesktopProject.create(lowSource).copy(format=OutputFormat.WAV,audioEffects=fx),out)
@@ -72,7 +91,7 @@ internal fun runNativeChecks(args:Array<String>)=runBlocking {
         for(inputRate in listOf(8000,44100,48000)) {
             val av=File(folder,"creative-aac-$inputRate.mp4")
             media.process.checked(listOf("ffmpeg","-y","-v","error","-i",File(folder,"video.mp4").path,"-i",speechFile.path,"-map","0:v:0","-map","1:a:0","-t","1","-c:v","copy","-c:a","aac","-ar",inputRate.toString(),av.path))
-            for(voice in listOf(CreativeVoice.TELEPHONE,CreativeVoice.ROBOT,CreativeVoice.WARM,CreativeVoice.DEEP)) {
+            for(voice in listOf(CreativeVoice.TELEPHONE,CreativeVoice.ROBOT,CreativeVoice.WARM,CreativeVoice.DEEP).filter{com.cuscus.ffmpeggui.core.audio.AudioExecutionSafety.available(it.effects)}) {
                 val out=File(folder,"creative-${voice.name}-$inputRate.mp4")
                 exporter.export(DesktopProject.create(media.probe(av.path)).copy(audioEffects=voice.effects),out)
                 val pcm=File(folder,"creative-aac-check.pcm")
@@ -807,7 +826,7 @@ internal fun runNativeChecks(args:Array<String>)=runBlocking {
         val selected=first.copy(id="dsp-selected")
         val last=first.copy(id="dsp-last")
         val initial=DesktopProject.create(video).copy(format=OutputFormat.WAV,timeline=Timeline(listOf(first,selected,last)))
-        val effect=AudioEffects(highCutHz=150,lofiBits=5,echo=Echo(250,.5f),pitchSemitones=3f)
+        val effect=AudioEffects(highCutHz=150,echo=Echo(250,.5f),pitchSemitones=3f)
         val changed=initial.copy(timeline=initial.timeline.updateEffects(selected.id){it.copy(audioEffects=effect,normalizeAudio=true)})
         check(changed.timeline.clips.first()==first && changed.timeline.clips.last()==last)
         val saved=File(folder,"clip-dsp.ffgui.json");DesktopProjects.save(changed,saved)
@@ -1477,10 +1496,16 @@ internal fun runNativeChecks(args:Array<String>)=runBlocking {
         for(kind in ModulationKind.entries) {
             val fx=AudioEffects(lofiBits=8,modulation=Modulation(kind=kind,rateHz=2f,depth=.6f),gate=NoiseGate(-60f,-20f),compressor=Compressor(-20f,2f,10f,100f,2f),limiter=Limiter(-2f))
             val project=base.copy(audioEffects=fx)
-            val result=exporter.export(project,File(folder,"modulation-${kind.name}.wav"))
+            val target=File(folder,"modulation-${kind.name}.wav");target.delete()
+            val saved=File(folder,"modulation-${kind.name}.ffgui.json");DesktopProjects.save(project,saved);check(DesktopProjects.load(saved,media).audioEffects==fx)
+            if(!com.cuscus.ffmpeggui.core.audio.AudioExecutionSafety.available(fx)) {
+                val blocked=runCatching {exporter.export(project,target)}
+                check(blocked.exceptionOrNull() is com.cuscus.ffmpeggui.core.audio.AudioExecutionSafety.Blocked && !target.exists())
+                continue
+            }
+            val result=exporter.export(project,target)
             check(kotlin.math.abs(result.info.durationMs-audio.info.durationMs)<50)
             val hash=media.process.checked(listOf("ffmpeg","-v","error","-i",result.path,"-f","md5","-"));check(hash!=plain)
-            val saved=File(folder,"modulation-${kind.name}.ffgui.json");DesktopProjects.save(project,saved);check(DesktopProjects.load(saved,media).audioEffects==fx)
         }
         val failed=runCatching {exporter.export(base.copy(format=OutputFormat.OGG),File(folder,"invalid-vorbis.ogg"))}
         check(failed.isFailure && failed.exceptionOrNull()!!.message.orEmpty().contains("Vorbis rejected"))

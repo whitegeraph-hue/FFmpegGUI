@@ -1,5 +1,7 @@
 package com.cuscus.ffmpeggui.desktop
 
+import com.cuscus.ffmpeggui.core.audio.AudioExecutionSafety
+
 import com.cuscus.ffmpeggui.core.command.*
 import com.cuscus.ffmpeggui.core.preview.PreviewTimeline
 import com.cuscus.ffmpeggui.core.time.expectedOutputDurationMs
@@ -29,6 +31,12 @@ internal fun desktopProcessFailure(code:Int,log:String):String {
 class DesktopProcess {
     suspend fun run(arguments: List<String>, onLog: (String) -> Unit = {}): Pair<Int, String> = withContext(Dispatchers.IO) {
         require(arguments.isNotEmpty())
+        if (File(arguments.first()).name == "ffmpeg") {
+            AudioExecutionSafety.commandIssue(FfmpegCommand(arguments.drop(1)))?.let { issue ->
+                onLog(issue)
+                return@withContext AudioExecutionSafety.RETURN_CODE to issue
+            }
+        }
         val log = File.createTempFile("ffmpeggui-", ".log")
         var process: Process? = null
         try {
@@ -245,6 +253,7 @@ class DesktopExport(private val media: DesktopMedia = DesktopMedia()) {
         require(project.image.key?.mask?.let {File(it).canonicalFile!=output.canonicalFile} ?: true) {"Cannot replace a subject mask with output."}
         require(project.compression==null || project.format in listOf(OutputFormat.MP4,OutputFormat.MKV,OutputFormat.JPG,OutputFormat.PNG,OutputFormat.MP3,OutputFormat.M4A,OutputFormat.OGG,OutputFormat.OPUS)) {"Compression is not supported for this output format. Turn it off or choose another format."}
         require(project.format != OutputFormat.CUSTOM) { "This output needs an adapter that is still being ported." }
+        if (frameAtMs == null && project.format.hasAudio) AudioExecutionSafety.requestIssue(project.request())?.let { throw AudioExecutionSafety.Blocked(it) }
         val temporary = File(output.parentFile, ".${output.nameWithoutExtension}-${UUID.randomUUID()}.${project.format.extension}")
         val auxiliaries=Files.createTempDirectory("ffmpeggui-export-").toFile()
         try {

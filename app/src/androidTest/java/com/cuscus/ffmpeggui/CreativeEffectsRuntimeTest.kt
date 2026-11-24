@@ -43,9 +43,27 @@ class CreativeEffectsRuntimeTest {
         rule.runOnIdle {assertEquals(OriginalSound.WHOOSH,cue)}
         ShellShot.take("creative-original-sounds")
     }
+    @Test fun suspectGraphsRejectedBeforeNativeOutputAndSavedEffectCanBeRemoved(): Unit = runBlocking {
+        val context=InstrumentationRegistry.getInstrumentation().targetContext
+        val output=File(context.cacheDir,"blocked-native-output.wav");output.delete()
+        for(option in listOf("-af","-filter:a","-filter_complex","-lavfi","-filter_complex_script","-/filter_complex")) {
+            val graph=if(option.contains("script") || option.startsWith("-/")) "/missing/graph.txt" else "vibrato=f=3"
+            val logs=StringBuilder()
+            val result=FfmpegKitExecutor().execute(FfmpegCommand(listOf("-f","lavfi","-i","anullsrc",option,graph,output.path))){logs.append(it)}
+            assertEquals(ExecutionResult.Failed(com.cuscus.ffmpeggui.core.audio.AudioExecutionSafety.RETURN_CODE),result)
+            assertTrue(logs.isNotBlank());assertFalse(output.exists())
+        }
+        var fx by mutableStateOf(CreativeVoice.ALIEN.effects)
+        rule.setContent {Column(Modifier.verticalScroll(rememberScrollState())) {AudioEffectsContent(fx){_,change->fx=change(fx)}}}
+        rule.onNodeWithText("This scope retains a blocked effect. Use Off, turn off lo-fi, or choose Clean / reset. Saving keeps your settings.").assertExists()
+        rule.runOnIdle {assertEquals(CreativeVoice.ALIEN.effects,fx)}
+        ShellShot.take("blocked-effect-retained-warning")
+        rule.onNodeWithText("Clean / reset").performScrollTo().performClick()
+        rule.runOnIdle {assertEquals(AudioEffects.NONE,fx)}
+    }
     @Test fun allVoiceRecipesPreserveEightAndSixteenKhzSpeech() = runBlocking {
         val context=InstrumentationRegistry.getInstrumentation().targetContext
-        for(rate in listOf(8000,16000)) for(fx in CreativeVoice.entries.map{it.effects}+AudioEffects(equalizer=List(10){12f})) {
+        for(rate in listOf(8000,16000)) for(fx in CreativeVoice.entries.filter{com.cuscus.ffmpeggui.core.audio.AudioExecutionSafety.available(it.effects)}.map{it.effects}+AudioEffects(equalizer=List(10){12f})) {
         val input=File(context.cacheDir,"creative-speech${rate/1000}.wav")
         InstrumentationRegistry.getInstrumentation().context.assets.open(input.name).use {src->input.outputStream().use{src.copyTo(it)}}
         val reader=android.media.MediaMetadataRetriever();reader.setDataSource(input.path)
@@ -78,7 +96,7 @@ class CreativeEffectsRuntimeTest {
         for(rate in listOf(8000,16000,48000)) for(level in listOf(0,1,8)) for(channels in listOf(1,2)) {
             val input=File(context.cacheDir,"gritty-input.wav")
             assertEquals(ExecutionResult.Success,executor.execute(FfmpegCommand(listOf("-y","-i",speech.path,"-t","1","-af","volume=$level","-ar",rate.toString(),"-ac",channels.toString(),input.path))) {})
-            for((name,fx) in CreativeVoice.entries.filter{it!=CreativeVoice.CLEAN}.map{it.name to it.effects}) {
+            for((name,fx) in CreativeVoice.entries.filter{it!=CreativeVoice.CLEAN && com.cuscus.ffmpeggui.core.audio.AudioExecutionSafety.available(it.effects)}.map{it.name to it.effects}) {
                 val output=File(context.cacheDir,"gritty-output.wav")
                 val req=ConversionRequest(OutputFormat.WAV,input.name,sources=listOf(SourceInfo(1000,0,0,true)),segments=listOf(Segment(0,0,1000)),audioEffects=fx)
                 val command=CommandBuilder{"/fonts/Regular.ttf"}.build(req,MediaPaths(inputs=listOf(input.path),output=output.path))
@@ -103,8 +121,9 @@ class CreativeEffectsRuntimeTest {
 
     /** Diagnostic only: preserve the delivered recipes and collect every stage-prefix result. */
     @Test fun manualDspStagePrefixDiagnostics(): Unit = runBlocking {
+        org.junit.Assume.assumeTrue("Explicit isolated native diagnostic only", InstrumentationRegistry.getArguments().getString("unsafeDspDiagnostics") == "true")
         val context=InstrumentationRegistry.getInstrumentation().targetContext
-        val executor=FfmpegKitExecutor()
+        val executor=IsolatedDiagnosticExecutor()
         val speech=File(context.cacheDir,"manual-dsp-speech.wav")
         InstrumentationRegistry.getInstrumentation().context.assets.open("creative-speech16.wav").use{src->speech.outputStream().use{src.copyTo(it)}}
         val recipes=listOf(
@@ -178,11 +197,36 @@ class CreativeEffectsRuntimeTest {
 
 
     @Test fun deliveredCatalogSilentAacPeakCollection(): Unit = runBlocking {
-        val context=InstrumentationRegistry.getInstrumentation().targetContext;val executor=FfmpegKitExecutor()
+        org.junit.Assume.assumeTrue("Explicit isolated native diagnostic only", InstrumentationRegistry.getArguments().getString("unsafeDspDiagnostics") == "true")
+        val context=InstrumentationRegistry.getInstrumentation().targetContext;val executor=IsolatedDiagnosticExecutor()
         val input=File(context.cacheDir,"catalog-silence.wav");val failures=mutableListOf<String>();var cases=0
         for(rate in listOf(8000,16000,48000)) for(channels in listOf(1,2)) {
             assertEquals(ExecutionResult.Success,executor.execute(FfmpegCommand(listOf("-y","-f","lavfi","-i","anullsrc=r=$rate:cl=${if(channels==1)"mono"else "stereo"}","-t","1",input.path))) {})
             for(voice in CreativeVoice.entries.filter{it!=CreativeVoice.CLEAN}) {
+                cases++;val output=File(context.cacheDir,"catalog-silence.m4a");val raw=File(context.cacheDir,"catalog-silence.f32")
+                val req=ConversionRequest(OutputFormat.M4A,input.name,sources=listOf(SourceInfo(1000,0,0,true)),segments=listOf(Segment(0,0,1000)),audioEffects=voice.effects)
+                val cmd=CommandBuilder{"/fonts/Regular.ttf"}.build(req,MediaPaths(inputs=listOf(input.path),output=output.path))
+                val result=executor.execute(cmd){}
+                if(result!=ExecutionResult.Success){failures+="${voice.name}/$rate/ch$channels execute=$result";continue}
+                val decoded=executor.execute(FfmpegCommand(listOf("-y","-i",output.path,"-ac","1","-f","f32le",raw.path))){}
+                if(decoded!=ExecutionResult.Success){failures+="${voice.name}/$rate/ch$channels decode=$decoded";continue}
+                val data=java.nio.ByteBuffer.wrap(raw.readBytes()).order(java.nio.ByteOrder.LITTLE_ENDIAN);var peak=0f;var bad=0
+                while(data.remaining()>=4){val v=data.float;if(!v.isFinite())bad++ else peak=maxOf(peak,kotlin.math.abs(v))}
+                android.util.Log.i("CATALOG-PEAK","SILENT-AAC ${voice.name}/$rate/ch$channels bad=$bad peak=$peak")
+                if(bad>0 || peak>0.00001f)failures+="${voice.name}/$rate/ch$channels bad=$bad peak=$peak"
+                output.delete();raw.delete()
+            }
+        }
+        android.util.Log.i("CATALOG-PEAK","SILENT-AAC SUMMARY cases=$cases failures=${failures.size}")
+        assertTrue(failures.joinToString("\n"),failures.isEmpty())
+    }
+
+    @Test fun availableCatalogSilentAacPeakAcceptance(): Unit = runBlocking {
+        val context=InstrumentationRegistry.getInstrumentation().targetContext;val executor=FfmpegKitExecutor()
+        val input=File(context.cacheDir,"catalog-silence.wav");val failures=mutableListOf<String>();var cases=0
+        for(rate in listOf(8000,16000,48000)) for(channels in listOf(1,2)) {
+            assertEquals(ExecutionResult.Success,executor.execute(FfmpegCommand(listOf("-y","-f","lavfi","-i","anullsrc=r=$rate:cl=${if(channels==1)"mono"else "stereo"}","-t","1",input.path))) {})
+            for(voice in CreativeVoice.entries.filter{it!=CreativeVoice.CLEAN && com.cuscus.ffmpeggui.core.audio.AudioExecutionSafety.available(it.effects)}) {
                 cases++;val output=File(context.cacheDir,"catalog-silence.m4a");val raw=File(context.cacheDir,"catalog-silence.f32")
                 val req=ConversionRequest(OutputFormat.M4A,input.name,sources=listOf(SourceInfo(1000,0,0,true)),segments=listOf(Segment(0,0,1000)),audioEffects=voice.effects)
                 val cmd=CommandBuilder{"/fonts/Regular.ttf"}.build(req,MediaPaths(inputs=listOf(input.path),output=output.path))
@@ -209,7 +253,7 @@ class CreativeEffectsRuntimeTest {
         val executor=FfmpegKitExecutor()
         fun request()=ConversionRequest(OutputFormat.MP4,input.name,sources=listOf(SourceInfo(8000,640,360,true)),segments=listOf(Segment(0,0,1000)))
         val cases=PictureLook.entries.filter{it.ordinal>=PictureLook.SEPIA.ordinal}.map{request().copy(looks=listOf(LookSpan(it,0,900)))}+
-            CreativeVoice.entries.map{request().copy(audioEffects=it.effects)}+
+            CreativeVoice.entries.filter{com.cuscus.ffmpeggui.core.audio.AudioExecutionSafety.available(it.effects)}.map{request().copy(audioEffects=it.effects)}+
             TransitionKind.entries.filter{it.ordinal in TransitionKind.VENETIAN.ordinal..TransitionKind.CROSS_REVEAL.ordinal}.map{kind->request().copy(segments=listOf(Segment(0,0,1000,Effects(transition=Transition(kind,300))),Segment(0,4000,5000)))}
         val failures=mutableListOf<String>()
         for((index,req) in cases.withIndex()) {

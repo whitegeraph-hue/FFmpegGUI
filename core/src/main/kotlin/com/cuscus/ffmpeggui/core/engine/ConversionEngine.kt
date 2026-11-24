@@ -1,5 +1,7 @@
 package com.cuscus.ffmpeggui.core.engine
 
+import com.cuscus.ffmpeggui.core.audio.AudioExecutionSafety
+
 import com.cuscus.ffmpeggui.core.hdr.HdrVideoLook
 import com.cuscus.ffmpeggui.core.command.CommandBuilder
 import com.cuscus.ffmpeggui.core.command.CoverTags
@@ -81,6 +83,10 @@ class ConversionEngine(
      * progress against [expectedMs]; notes in [full] when the storage ran out.
      */
     private suspend fun logged(command: FfmpegCommand, expectedMs: Long?, full: StorageFull, onEvent: (ConversionEvent) -> Unit): ExecutionResult {
+        AudioExecutionSafety.commandIssue(command)?.let {
+            onEvent(ConversionEvent.LogLine(it))
+            return ExecutionResult.Failed(AudioExecutionSafety.RETURN_CODE)
+        }
         val lines = LogLineJoiner { line ->
             if (StorageFull.saysSo(line)) full.seen = true
             onEvent(ConversionEvent.LogLine(line))
@@ -99,6 +105,13 @@ class ConversionEngine(
      * files and any partial output, then rethrows the cancellation.
      */
     suspend fun run(job: ConversionJob, onEvent: (ConversionEvent) -> Unit = {}): ConversionOutcome {
+        val safetyIssue = if (job.mode is CommandMode.Manual) {
+            AudioExecutionSafety.commandIssue(FfmpegCommand(runCatching { com.cuscus.ffmpeggui.core.command.tokenizeCommandLine(job.mode.commandLine) }.getOrDefault(emptyList()).let { if (it.firstOrNull() == "ffmpeg") it.drop(1) else it }))
+        } else if (job.request.format.hasAudio) AudioExecutionSafety.requestIssue(job.request) else null
+        if (safetyIssue != null) {
+            onEvent(ConversionEvent.LogLine(safetyIssue))
+            return ConversionOutcome.Failure(FailureReason.AUDIO_EFFECT_BLOCKED, safetyIssue)
+        }
         var partialOutput: File? = null
         var packedPlan: OutputPlan? = null
         var succeeded = false
@@ -201,7 +214,7 @@ class ConversionEngine(
             // The phone's encoder refused (a size, a format it does not take, a busy chip):
             // the same file again, from the start, with x264.
             // (Not when the storage is full: x264 would not find more room.)
-            if (hardware && result is ExecutionResult.Failed && !full.seen) {
+            if (hardware && result is ExecutionResult.Failed && result.returnCode != AudioExecutionSafety.RETURN_CODE && !full.seen) {
                 currentCoroutineContext().ensureActive()
                 File(prepared.plan.commandPath).delete()
                 onEvent(ConversionEvent.LogLine("The phone's video encoder failed (exit code ${result.returnCode}): encoding on the processor"))
@@ -260,7 +273,8 @@ class ConversionEngine(
                 }
                 ExecutionResult.Cancelled -> ConversionOutcome.Cancelled
                 is ExecutionResult.Failed ->
-                    full.or(FailureReason.ENCODING_FAILED, "exit code ${result.returnCode}")
+                    if(result.returnCode == AudioExecutionSafety.RETURN_CODE) ConversionOutcome.Failure(FailureReason.AUDIO_EFFECT_BLOCKED, AudioExecutionSafety.NOTICE)
+                    else full.or(FailureReason.ENCODING_FAILED, "exit code ${result.returnCode}")
             }
         } finally {
             // Runs on success, failure and cancellation alike.

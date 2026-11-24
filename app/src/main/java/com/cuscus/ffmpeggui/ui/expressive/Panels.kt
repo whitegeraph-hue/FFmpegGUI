@@ -236,6 +236,7 @@ class TileOption<T>(
     val label: String,
     val icon: ImageVector? = null,
     val preview: (@Composable (color: Color) -> Unit)? = null,
+    val enabled: Boolean = true,
 )
 
 /** Picks one of [options] as a row of [OptionTile]s that scrolls sideways when it must. */
@@ -264,7 +265,7 @@ fun <T> OptionTileRow(
                 icon = option.icon,
                 preview = option.preview,
                 chosenShape = shapes[index % shapes.size],
-                enabled = enabled,
+                enabled = enabled && option.enabled,
                 role = role,
             )
         }

@@ -44,3 +44,46 @@ Android qualification found non-finite samples from the telephone recipe's EQ-pl
 The manual combination of EQ and lo-fi bitcrushing remains a known Android non-finite-output risk in this bundled runtime. No supplied preset now combines those two stages. The recipe change does not claim to repair every manual DSP combination.
 
 Broader Android float qualification found Tape non-finite output at8/16/48kHz, including failures with and without its crusher; Cyborg failed loud8k speech with crusher and passed its no-crusher control. Tape is now a soft high-cut/compressed tone without wow/flutter or bitcrushing; Cyborg retains pitch/flanger but omits bitcrushing. These are bounded catalog recipe changes, not a claim to fix the underlying manual modulation/lo-fi combinations. The regression matrix tests every non-clean voice recipe, so removing a risky stage does not remove its test coverage.
+
+## Temporary native-audio restriction
+
+The delivered 0997 Android runtime audit found Alien/Ghost generate unwanted sound
+from silence and one AM-radio loud 8 kHz stereo case produces non-finite samples.
+Previously exported files may contain that unwanted sound. Do not rely on the old
+finite-only checks. The crusher boundary was also reproduced on desktop FFmpeg
+4.4.2. Desktop vibrato silent input is not qualified across system FFmpeg versions.
+
+The interim policy refuses `acrusher` and `vibrato` before native execution on both
+platforms. Walkie-talkie, Robot flutter and 8-bit did not fail the bounded catalog
+run, but use the same unverified crusher mechanism and are restricted too. Preset
+availability is derived from stages, not names. Manual inline graphs are subject
+to the same rule; graph-file inputs are temporarily refused with a paste-inline
+alternative. No project settings are rewritten. Clean/reset or Off removes an
+unwanted setting explicitly. Other editing and saving remain available.
+
+Android live preview uses Kotlin DSP, not these FFmpeg filters. It may remain
+available with a warning, but it does not verify or clear the export restriction.
+FFmpeg-backed preview/render paths are blocked. This is mitigation, not repaired
+DSP, and no universal safety claim about system FFmpeg versions is made.
+
+### Isolated diagnostic route and removal gate
+
+Production has no bypass. The instrumentation test APK alone contains
+`IsolatedDiagnosticExecutor`. Run historical tests only in a disposable emulator,
+not while listening, explicitly naming the diagnostic test and enabling its flag:
+
+```
+./gradlew :app:connectedDebugAndroidTest \
+  -Pandroid.testInstrumentationRunnerArguments.class=com.cuscus.ffmpeggui.CreativeEffectsRuntimeTest#manualDspStagePrefixDiagnostics \
+  -Pandroid.testInstrumentationRunnerArguments.unsafeDspDiagnostics=true
+```
+
+The same flag with `#deliveredCatalogSilentAacPeakCollection` runs the preserved
+silent-AAC audit. Without the flag both historical diagnostic tests are skipped;
+available voices still run a separate silent-AAC acceptance test. To qualify a
+candidate, apply it only in an isolated diagnostic branch/runtime, re-enable the
+full float matrix for every voice, and repeat with independent application process
+starts. Passing finite, retained-signal, silent-float, silent-AAC and peak checks
+at 8/16/48 kHz, mono/stereo, all affected scopes and delivery sample rates is
+required before removing any production restriction. Local candidate comparisons
+alone, a date, or an ordinary-input MP4 pass do not meet that gate.

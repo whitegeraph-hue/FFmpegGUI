@@ -83,6 +83,8 @@ sealed interface ConversionEvent {
 }
 
 enum class FailureReason {
+    AUDIO_EFFECT_BLOCKED,
+
     /** A source could not be read; the detail holds its name. */
     SOURCE_UNREADABLE,
 

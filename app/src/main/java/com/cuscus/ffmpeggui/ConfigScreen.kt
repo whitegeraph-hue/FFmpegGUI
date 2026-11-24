@@ -1495,6 +1495,16 @@ fun ConfigScreen(
                         }
                     },
             )
+            val blockedScopes = buildList {
+                if (!com.cuscus.ffmpeggui.core.audio.AudioExecutionSafety.available(audioEffects)) add("whole output")
+                playingClips.forEachIndexed { i, clip -> if(!com.cuscus.ffmpeggui.core.audio.AudioExecutionSafety.available(clip.effects.audioEffects)) add("clip ${i+1}") }
+                audioClips.forEachIndexed { i, clip -> if(!com.cuscus.ffmpeggui.core.audio.AudioExecutionSafety.available(clip.effects)) add("sound ${i+1}") }
+            }
+            if(blockedScopes.isNotEmpty()) {
+                Surface(color=MaterialTheme.colorScheme.errorContainer,modifier=Modifier.align(Alignment.TopCenter).padding(8.dp)) {
+                    Text("FFmpeg render/export blocked: ${blockedScopes.joinToString()}. Turn off vibrato/lo-fi or choose Clean. Live Kotlin preview is separate, not export verification. Saved settings unchanged.",modifier=Modifier.padding(8.dp),style=MaterialTheme.typography.bodySmall)
+                }
+            }
             // The selected clip's (or sound's) own actions float over the bottom of the
             // picture while no panel is open.
             val motion = MaterialTheme.motionScheme

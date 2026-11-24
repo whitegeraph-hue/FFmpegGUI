@@ -13,9 +13,11 @@ import java.io.File
 @Composable internal fun CreativeVoicePicker(current:AudioEffects,enabled:Boolean,change:(AudioEffects)->Unit) {
     var family by remember {mutableStateOf("Retro")}
     Text("Voice presets",style=MaterialTheme.typography.titleMedium)
+    if(!com.cuscus.ffmpeggui.core.audio.AudioExecutionSafety.available(current)) Text("Render/export blocked in this scope. Turn off vibrato/lo-fi or choose Clean. Saved settings unchanged.",color=MaterialTheme.colorScheme.error)
+    Text("Native vibrato and lo-fi are temporarily blocked: they may produce invalid or unwanted audio. Other effects remain available.",style=MaterialTheme.typography.bodySmall)
     Text("Replaces DSP in this scope. Render/export to hear. Character presets are original DSP, not AI voices.",style=MaterialTheme.typography.bodySmall)
     FlowRow(horizontalArrangement=Arrangement.spacedBy(6.dp)) {CreativeVoice.entries.map{it.family}.distinct().forEach {f->FilterChip(family==f,{family=f},label={Text(f)},enabled=enabled)}}
-    FlowRow(horizontalArrangement=Arrangement.spacedBy(6.dp)) {CreativeVoice.entries.filter{it.family==family || it==CreativeVoice.CLEAN}.forEach {v->FilterChip(current==v.effects,{change(v.effects)},label={Text(v.title)},enabled=enabled)}}
+    FlowRow(horizontalArrangement=Arrangement.spacedBy(6.dp)) {CreativeVoice.entries.filter{it.family==family || it==CreativeVoice.CLEAN}.forEach {v->FilterChip(current==v.effects,{change(v.effects)},label={Text(v.title + if(com.cuscus.ffmpeggui.core.audio.AudioExecutionSafety.available(v.effects)) "" else " (blocked)")},enabled=enabled && com.cuscus.ffmpeggui.core.audio.AudioExecutionSafety.available(v.effects))}}
 }
 
 @OptIn(ExperimentalLayoutApi::class)

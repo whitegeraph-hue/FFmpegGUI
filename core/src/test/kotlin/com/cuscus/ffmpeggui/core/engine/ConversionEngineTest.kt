@@ -112,6 +112,43 @@ class ConversionEngineTest {
         glyphs = glyphs,
     )
 
+    @Test fun `blocked effects and manual graphs fail before staging execution or output`() = runBlocking {
+        val executor=FakeExecutor()
+        val stager=object:SourceStager { override fun open():StagingSession = error("Blocked job staged sources") }
+        val out=temp.newFolder("blocked")
+        val engine=engine(executor,stager,out)
+        val fx=com.cuscus.ffmpeggui.core.model.CreativeVoice.ALIEN.effects
+        val variants=listOf(
+            request.copy(audioEffects=fx),
+            request.copy(segments=listOf(Segment(0,effects=Effects(audioEffects=fx)))),
+            request.copy(sounds=listOf(com.cuscus.ffmpeggui.core.model.PlacedSound(effects=fx)))
+        )
+        for(r in variants) {
+            val sources=MediaSources(listOf(main),sounds=r.sounds.map{NamedSource("sound","sound.wav")})
+            val result=engine.run(ConversionJob(r,sources))
+            assertTrue(result is ConversionOutcome.Failure && result.reason==FailureReason.AUDIO_EFFECT_BLOCKED)
+            assertEquals(fx,if(r.audioEffects==fx)r.audioEffects else if(r.sounds.isNotEmpty())r.sounds[0].effects else r.segments[0].effects.audioEffects)
+        }
+        for(command in listOf("ffmpeg -i input.mov -af vibrato=f=3 output.mp4", "ffmpeg -filter_complex_script graph.txt output.mp4")) {
+            val result=engine.run(ConversionJob(request,MediaSources(listOf(main)),CommandMode.Manual(command)))
+            assertTrue(result is ConversionOutcome.Failure && result.reason==FailureReason.AUDIO_EFFECT_BLOCKED)
+        }
+        assertTrue(executor.commands.isEmpty())
+        assertTrue(out.listFiles()!!.isEmpty())
+    }
+
+    @Test fun `execution policy refusal never falls back to software and deletes partial output`() = runBlocking {
+        val outputDir=temp.newFolder("policy-fallback")
+        val hardware=request.copy(encoding=request.encoding.copy(hardwareEncoder=HardwareEncoder("c2.test.avc.encoder")))
+        val executor=FakeExecutor(ExecutionResult.Failed(com.cuscus.ffmpeggui.core.audio.AudioExecutionSafety.RETURN_CODE))
+        val events=mutableListOf<ConversionEvent>()
+        val result=engine(executor,FakeStager(),outputDir).run(ConversionJob(hardware,MediaSources(listOf(main)))){events+=it}
+        assertEquals(1,executor.commands.size)
+        assertTrue(result is ConversionOutcome.Failure && result.reason==FailureReason.AUDIO_EFFECT_BLOCKED)
+        assertFalse(events.any{it is ConversionEvent.Encoder && !it.hardware})
+        assertTrue(outputDir.listFiles()!!.isEmpty())
+    }
+
     /** A JPG-shaped file: the segments Ultra HDR looks at, then [body]. */
     private fun jpeg(body: String): ByteArray =
         byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 0xDA.toByte(), 0, 2) + body.toByteArray() + byteArrayOf(0xFF.toByte(), 0xD9.toByte())

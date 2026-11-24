@@ -20,6 +20,7 @@ class ConversionMessages(private val resources: Resources) {
     )
 
     fun failure(failure: ConversionOutcome.Failure): String = when (failure.reason) {
+        FailureReason.AUDIO_EFFECT_BLOCKED -> failure.detail
         FailureReason.SOURCE_UNREADABLE -> resources.getString(R.string.error_source_unreadable, failure.detail)
         FailureReason.ANALYSIS_FAILED -> resources.getString(R.string.error_analysis_failed)
         FailureReason.ENCODING_FAILED -> resources.getString(R.string.error_encoding_failed)
