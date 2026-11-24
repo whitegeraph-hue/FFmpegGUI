@@ -61,6 +61,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
     val controller=remember { EditorController(scope) }
     val preferences=remember {java.util.prefs.Preferences.userRoot().node("ffmpeggui-desktop")}
     var lightTheme by remember {mutableStateOf(preferences.getBoolean("lightTheme",false))}
+    var inspectorExpanded by remember {mutableStateOf(false)}
     var showSettings by remember {mutableStateOf(false)}
     var playbackNotice by remember {mutableStateOf<String?>(null)}
     var showExport by remember {mutableStateOf(false)}
@@ -103,8 +104,8 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
             dialog.isVisible=true
             return dialog.file?.let { File(dialog.directory,it) }
         }
-        fun openMedia() {if(!controller.busy)protectEdits {pick()?.let {controller.open(it.path)}}}
-        fun openProject() {if(!controller.busy)protectEdits {pick(title="Open project")?.let {controller.openProject(it)}}}
+        fun openMedia() {if(!controller.busy)protectEdits {pick()?.let {inspectorExpanded=false;controller.open(it.path)}}}
+        fun openProject() {if(!controller.busy)protectEdits {pick(title="Open project")?.let {inspectorExpanded=false;controller.openProject(it)}}}
         fun saveProject(saveAs:Boolean=false) {
             if(controller.busy || controller.project==null)return
             val target=if(saveAs)null else controller.projectFile
@@ -121,16 +122,17 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
             }) {
                 BoxWithConstraints {
                 val compact=maxWidth<1490.dp
+                val narrow=maxWidth<1150.dp
                 val short=maxHeight<720.dp
-                Column(Modifier.padding(12.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                Column(Modifier.padding(if(short)12.dp else 16.dp),verticalArrangement=Arrangement.spacedBy(if(short)8.dp else 10.dp)) {
                     @Composable fun RowScope.ProjectActions() {
                         OutlinedButton(onClick=::openMedia,enabled=!controller.busy) { SymbolLabel("folder_open","Open media") }
                         OutlinedButton(onClick=::openProject,enabled=!controller.busy) { SymbolLabel("folder","Open project") }
-                        OutlinedButton(onClick={saveProject()},enabled=!controller.busy && controller.project!=null) { SymbolLabel("save","Save project") }
+                        FilledTonalButton(onClick={saveProject()},enabled=!controller.busy && controller.project!=null) { SymbolLabel("save","Save project") }
                         TextButton(onClick={saveProject(true)},enabled=!controller.busy && controller.project!=null) { Text("Save as…") }
                         TextButton(onClick={recoveryFiles=controller.autosave.entries();showRecovery=true},enabled=!controller.busy) {Text("Recover") }
-                        OutlinedButton(onClick={ controller.undo() },enabled=!controller.busy && controller.canUndo) { SymbolLabel("undo","Undo") }
-                        OutlinedButton(onClick={ controller.redo() },enabled=!controller.busy && controller.canRedo) { Icon(DesktopSymbols.vector("undo"),null,Modifier.size(20.dp).graphicsLayer(scaleX=-1f));Spacer(Modifier.width(7.dp));Text("Redo") }
+                        DesktopHint("Undo (Ctrl+Z)") {OutlinedButton(contentPadding=PaddingValues(horizontal=12.dp),onClick={ controller.undo() },enabled=!controller.busy && controller.canUndo) { if(narrow)Symbol("undo",description="Undo") else SymbolLabel("undo","Undo") }}
+                        DesktopHint("Redo (Ctrl+Shift+Z)") {OutlinedButton(contentPadding=PaddingValues(horizontal=12.dp),onClick={ controller.redo() },enabled=!controller.busy && controller.canRedo) { Icon(DesktopSymbols.vector("undo"),if(narrow)"Redo" else null,Modifier.size(20.dp).graphicsLayer(scaleX=-1f));if(!narrow){Spacer(Modifier.width(7.dp));Text("Redo")} }}
                     }
                     @Composable fun RowScope.WindowActions() {
                         FilledTonalButton(onClick={showSettings=true}) {SymbolLabel("settings","Settings")}
@@ -158,7 +160,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                                 Text("Your files. Your machine.",style=MaterialTheme.typography.headlineMedium)
                                 Text("Open a clip to edit its timeline, find scene changes and musical beats, and export locally.")
                                 Text("Offline speech and subject models are imported once from their original downloads. This is not a finished release.",style=MaterialTheme.typography.bodyMedium)
-                                Button(onClick={ protectEdits {pick()?.let {file->controller.open(file.path)}} },enabled=!controller.busy) { Text("Choose a file") }
+                                Button(onClick={ protectEdits {pick()?.let {file->inspectorExpanded=false;controller.open(file.path)}} },enabled=!controller.busy) { Text("Choose a file") }
                             }
                         }
                     } else {
@@ -183,15 +185,21 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                                         if(project.sources.first().info.isVideo && !project.sources.first().info.isStill)TextButton(onClick={controller.inspectFrame()},enabled=!controller.busy){Text("Inspect frame")}
                                         if(controller.rendered!=null)TextButton(onClick={controller.preview()},enabled=!controller.busy){Text("Re-render")}
                                         TextButton(onClick={controller.splitHere()},enabled=!controller.busy && !project.sources[0].info.isStill){Text("Split")}
-                                        if(!compact)Text("%.3f s output · 25fps".format(java.util.Locale.US,(if(controller.player.engaged)controller.player.positionMs else project.outputAt(controller.position))/1000.0),style=MaterialTheme.typography.labelSmall)
                                     }
-                                    if(compact && !short)Text("%.3f s output · 25fps".format(java.util.Locale.US,(if(controller.player.engaged)controller.player.positionMs else project.outputAt(controller.position))/1000.0),style=MaterialTheme.typography.labelSmall,maxLines=1)
+                                    if(!short)Text("%.3f s output · 25fps".format(java.util.Locale.US,(if(controller.player.engaged)controller.player.positionMs else project.outputAt(controller.position))/1000.0),style=MaterialTheme.typography.labelSmall,maxLines=1)
                                     controller.player.notice?.let {notice->Text(if(short)"Silent video · audio output unavailable" else notice,style=MaterialTheme.typography.labelSmall,maxLines=if(short)1 else 2,overflow=TextOverflow.Ellipsis,modifier=Modifier.clickable {playbackNotice=notice})}
                                     controller.player.failure?.let {failure->Text(if(short)"Playback unavailable. Click for details." else failure,color=MaterialTheme.colorScheme.error,style=MaterialTheme.typography.labelSmall,maxLines=if(short)1 else 3,overflow=TextOverflow.Ellipsis,modifier=Modifier.clickable {controller.error=failure})}
                                 }
-                                Surface(Modifier.width(if(compact)320.dp else 360.dp).fillMaxHeight(),shape=RoundedCornerShape(28.dp),color=MaterialTheme.colorScheme.surfaceContainerLow) {
+                                Surface(Modifier.width(if(narrow)300.dp else if(compact)330.dp else 360.dp).fillMaxHeight(),shape=RoundedCornerShape(20.dp),color=MaterialTheme.colorScheme.surfaceContainerLow) {
                                     Column(Modifier.padding(14.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
-                                        Text(controller.tab,style=MaterialTheme.typography.titleLarge)
+                                        Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(10.dp)) {
+                                            Symbol(desktopToolSymbols[controller.tab] ?: "edit",size=22)
+                                            Text(if(controller.tab=="Edit")"Format & quality" else controller.tab,style=MaterialTheme.typography.titleMedium,modifier=Modifier.weight(1f))
+                                            DesktopHint(if(inspectorExpanded)"Show timeline. Zoom and selection are kept." else "More panel space. Timeline and its shortcuts pause until restored.") {
+                                                TextButton(onClick={inspectorExpanded=!inspectorExpanded},contentPadding=PaddingValues(horizontal=8.dp)) {Text(if(inspectorExpanded)"Show timeline" else "Expand",style=MaterialTheme.typography.labelMedium)}
+                                            }
+                                        }
+                                        HorizontalDivider(color=MaterialTheme.colorScheme.outlineVariant.copy(alpha=0.5f))
                                         ScrollArea(Modifier.weight(1f),resetKey=controller.tab) {
                                             if(controller.tab in listOf("Pause cuts","Scenes","Beats","Transcript","Scene stems","Audio","Effects"))DesktopScopePicker(controller,project)
                                     when(controller.tab) {
@@ -259,12 +267,12 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                                     }
                                 }
                             }
-                            DesktopTimeline(controller,project,onAdd={pick()?.let {controller.append(it.path)}})
+                            DesktopTimeline(controller,project,expandedWorkspace=inspectorExpanded,onAdd={pick()?.let {controller.append(it.path)}})
                         }
                     }
                     if (controller.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
                     Row(verticalAlignment=Alignment.CenterVertically) {
-                        Text(controller.status,modifier=Modifier.weight(1f),style=MaterialTheme.typography.bodySmall)
+                        DesktopHint(controller.status,Modifier.weight(1f)) {Text(controller.status,style=MaterialTheme.typography.bodySmall,maxLines=if(short)1 else 2,overflow=TextOverflow.Ellipsis,color=MaterialTheme.colorScheme.onSurfaceVariant)}
                         if (controller.busy) TextButton(onClick={ controller.status="Stopping the local process…";controller.job?.cancel() }) { Text("Stop") }
                     }
                     if(showExport && project!=null) {
@@ -288,8 +296,8 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                             if(recoveryFiles.isEmpty())Text("No automatic saves yet.")
                             recoveryFiles.forEach {file->
                                 Row(verticalAlignment=Alignment.CenterVertically) {
-                                    TextButton(onClick={showRecovery=false;controller.recoverProject(file)},modifier=Modifier.weight(1f)) {Text((recoveryLabels[file.path] ?: "Reading automatic save…")+"\n"+java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(java.util.Date(file.lastModified())))}
-                                    if(DesktopProjects.previousFile(file).isFile)TextButton(onClick={showRecovery=false;controller.recoverProject(DesktopProjects.previousFile(file))}) {Text("Previous")}
+                                    TextButton(onClick={showRecovery=false;inspectorExpanded=false;controller.recoverProject(file)},modifier=Modifier.weight(1f)) {Text((recoveryLabels[file.path] ?: "Reading automatic save…")+"\n"+java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(java.util.Date(file.lastModified())))}
+                                    if(DesktopProjects.previousFile(file).isFile)TextButton(onClick={showRecovery=false;inspectorExpanded=false;controller.recoverProject(DesktopProjects.previousFile(file))}) {Text("Previous")}
                                     TextButton(onClick={deleteRecovery=file},enabled=!controller.autosave.isCurrent(file)) {Text("Delete")}
                                 }
                             }
@@ -325,14 +333,15 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
 @Composable private fun ScrollArea(modifier:Modifier=Modifier,spacing:Int=12,resetKey:Any?=null,content:@Composable ColumnScope.()->Unit) {
     val scroll=key(resetKey) {rememberScrollState()}
     Box(modifier) {
-        Column(Modifier.fillMaxWidth().padding(end=10.dp).verticalScroll(scroll),verticalArrangement=Arrangement.spacedBy(spacing.dp),content=content)
-        VerticalScrollbar(rememberScrollbarAdapter(scroll),Modifier.align(Alignment.CenterEnd).fillMaxHeight().width(7.dp))
+        Column(Modifier.fillMaxWidth().padding(end=13.dp).verticalScroll(scroll),verticalArrangement=Arrangement.spacedBy(spacing.dp),content=content)
+        VerticalScrollbar(rememberScrollbarAdapter(scroll),Modifier.align(Alignment.CenterEnd).fillMaxHeight().width(8.dp),style=LocalScrollbarStyle.current.copy(unhoverColor=MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha=0.4f),hoverColor=MaterialTheme.colorScheme.primary))
+        if(scroll.canScrollForward)Text("⌄",Modifier.align(Alignment.BottomEnd).background(MaterialTheme.colorScheme.surfaceContainerLow),color=MaterialTheme.colorScheme.primary,style=MaterialTheme.typography.labelMedium)
     }
 }
 @Composable private fun DesktopToolRail(c:EditorController) {
     val group=desktopGroups.entries.firstOrNull {c.tab in it.value}?.key ?: "Edit"
-    BoxWithConstraints(Modifier.width(154.dp).fillMaxHeight()) {
-    val short=maxHeight<430.dp
+    BoxWithConstraints(Modifier.width(164.dp).fillMaxHeight()) {
+    val short=maxHeight<520.dp
     ScrollArea(Modifier.fillMaxSize(),spacing=if(short)2 else 12) {
         if(short) {
             var groups by remember {mutableStateOf(false)}
@@ -342,7 +351,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
             }
         }
         if(!short) {
-        Text("TOOLS",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.padding(8.dp))
+        Text("Workspace",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.padding(8.dp))
         desktopGroups.entries.toList().chunked(2).forEach {pair->
             Row(horizontalArrangement=Arrangement.spacedBy(6.dp)) {
                 pair.forEach {(name,tools)->
@@ -361,7 +370,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
         }
         desktopGroups[group].orEmpty().forEach {tool->
             Surface(onClick={c.tab=tool},shape=RoundedCornerShape(14.dp),color=if(c.tab==tool)MaterialTheme.colorScheme.secondaryContainer else Color.Transparent,modifier=Modifier.fillMaxWidth()) {
-                Row(Modifier.padding(horizontal=10.dp,vertical=if(short)7.dp else 9.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                Row(Modifier.padding(horizontal=10.dp,vertical=if(short)9.dp else 11.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                     Symbol(desktopToolSymbols.getValue(tool),size=18)
                     Text(if(tool=="Edit")"Format & quality" else tool,style=MaterialTheme.typography.labelLarge,maxLines=2,overflow=TextOverflow.Ellipsis)
                 }

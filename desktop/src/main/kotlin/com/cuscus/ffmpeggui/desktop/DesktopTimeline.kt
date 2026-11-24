@@ -11,6 +11,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
@@ -26,7 +27,17 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.CancellationException
 import java.io.File
 
-@Composable internal fun DesktopTimeline(c:EditorController,p:DesktopProject,onAdd:()->Unit) {
+@OptIn(ExperimentalFoundationApi::class)
+@Composable internal fun DesktopHint(label:String,modifier:Modifier=Modifier,content:@Composable ()->Unit) {
+    if(label.isBlank()) {Box(modifier) {content()};return}
+    TooltipArea(tooltip={
+        Surface(shape=RoundedCornerShape(8.dp),color=MaterialTheme.colorScheme.inverseSurface,shadowElevation=4.dp) {
+            Text(label,Modifier.padding(horizontal=12.dp,vertical=8.dp),color=MaterialTheme.colorScheme.inverseOnSurface,style=MaterialTheme.typography.labelMedium)
+        }
+    },modifier=modifier,delayMillis=500,content=content)
+}
+
+@Composable internal fun DesktopTimeline(c:EditorController,p:DesktopProject,expandedWorkspace:Boolean=false,onAdd:()->Unit) {
     val focus=remember {FocusRequester()}
     var zoom by remember {mutableStateOf(1f)}
     val scroll=rememberScrollState()
@@ -39,10 +50,10 @@ import java.io.File
     val index=p.timeline.clips.indexOfFirst {it.id==c.smartClipId}
     val density=LocalDensity.current.density
     val visualIndex=if(index<0)-1 else if(p.effects.reversed)p.timeline.clips.lastIndex-index else index
-    BoxWithConstraints {
+    BoxWithConstraints(Modifier.height(if(expandedWorkspace)0.dp else 204.dp).clipToBounds()) {
     val compact=maxWidth<1200.dp
     Surface(Modifier.fillMaxWidth().height(204.dp).focusRequester(focus).onKeyEvent {event->
-        if(event.type!=KeyEventType.KeyDown || c.busy || event.isCtrlPressed || event.isMetaPressed)false
+        if(expandedWorkspace || event.type!=KeyEventType.KeyDown || c.busy || event.isCtrlPressed || event.isMetaPressed)false
         else if(event.isAltPressed)when(event.key) {
             Key.DirectionLeft->{c.moveSelectedVisual(-1);true}
             Key.DirectionRight->{c.moveSelectedVisual(1);true}
@@ -65,10 +76,10 @@ import java.io.File
         Column(Modifier.padding(horizontal=14.dp,vertical=6.dp),verticalArrangement=Arrangement.spacedBy(3.dp)) {
             @Composable fun RowScope.ClipActions() {
                 TextButton(onClick={c.splitHere()},enabled=!c.busy){SymbolLabel("content_cut","Split")}
-                TextButton(onClick={c.duplicateSelected()},enabled=!c.busy && index>=0){SymbolLabel("content_copy","Duplicate")}
-                TextButton(onClick={c.moveSelectedVisual(-1)},enabled=!c.busy && visualIndex>0){SymbolLabel("arrow_back","Left")}
-                TextButton(onClick={c.moveSelectedVisual(1)},enabled=!c.busy && visualIndex>=0 && visualIndex<p.timeline.clips.lastIndex){SymbolLabel("arrow_forward","Right")}
-                TextButton(onClick={c.removeClip(index)},enabled=!c.busy && index>=0 && p.timeline.clips.size>1){SymbolLabel("delete","Remove")}
+                DesktopHint("Duplicate selected clip (D)") {TextButton(contentPadding=PaddingValues(horizontal=12.dp),onClick={c.duplicateSelected()},enabled=!c.busy && index>=0){if(compact)Symbol("content_copy",description="Duplicate selected clip") else SymbolLabel("content_copy","Duplicate")}}
+                DesktopHint("Move selected clip left (Alt+Left)") {TextButton(contentPadding=PaddingValues(horizontal=12.dp),onClick={c.moveSelectedVisual(-1)},enabled=!c.busy && visualIndex>0){if(compact)Symbol("arrow_back",description="Move selected clip left") else SymbolLabel("arrow_back","Left")}}
+                DesktopHint("Move selected clip right (Alt+Right)") {TextButton(contentPadding=PaddingValues(horizontal=12.dp),onClick={c.moveSelectedVisual(1)},enabled=!c.busy && visualIndex>=0 && visualIndex<p.timeline.clips.lastIndex){if(compact)Symbol("arrow_forward",description="Move selected clip right") else SymbolLabel("arrow_forward","Right")}}
+                DesktopHint("Remove selected clip (Delete)") {TextButton(contentPadding=PaddingValues(horizontal=12.dp),onClick={c.removeClip(index)},enabled=!c.busy && index>=0 && p.timeline.clips.size>1){if(compact)Symbol("delete",description="Remove selected clip") else SymbolLabel("delete","Remove")}}
                 FilledTonalButton(onClick=onAdd,enabled=!c.busy && !p.sources[0].info.isStill){SymbolLabel("add","Add")}
             }
             val actionScroll=rememberScrollState()
@@ -79,9 +90,9 @@ import java.io.File
                         p.timeline.clips.forEachIndexed {i,clip->DropdownMenuItem(text={Text("${i+1} · ${File(clip.sourceId).name} · ${clip.lengthMs} ms")},onClick={c.selectSmartClip(clip.id);c.seek(p.mediaForClipOutput(i,spans[i].startMs));chooseClip=false})}
                     }}
                 Text("${p.timeline.clips.size} clips · ${time(duration)}",maxLines=1,overflow=TextOverflow.Ellipsis,style=MaterialTheme.typography.labelSmall,modifier=if(compact)Modifier.width(100.dp) else Modifier.weight(1f))
-                TextButton(onClick={zoom=1f}) {SymbolLabel("fit_screen","Fit")}
-                TextButton(onClick={zoom=(zoom/1.5f).coerceAtLeast(1f)},enabled=zoom>1f){SymbolLabel("zoom_out","Out")}
-                TextButton(onClick={zoom=(zoom*1.5f).coerceAtMost(32f)}){SymbolLabel("zoom_in","In")}
+                TextButton(contentPadding=PaddingValues(horizontal=10.dp),onClick={zoom=1f}) {SymbolLabel("fit_screen","Fit")}
+                DesktopHint("Zoom out") {TextButton(contentPadding=PaddingValues(horizontal=10.dp),onClick={zoom=(zoom/1.5f).coerceAtLeast(1f)},enabled=zoom>1f){if(compact)Symbol("zoom_out",description="Zoom out") else SymbolLabel("zoom_out","Out")}}
+                DesktopHint("Zoom in") {TextButton(contentPadding=PaddingValues(horizontal=10.dp),onClick={zoom=(zoom*1.5f).coerceAtMost(32f)}){if(compact)Symbol("zoom_in",description="Zoom in") else SymbolLabel("zoom_in","In")}}
                 ClipActions()
             }
             if(actionScroll.maxValue>0)HorizontalScrollbar(rememberScrollbarAdapter(actionScroll),Modifier.fillMaxWidth().height(7.dp))
