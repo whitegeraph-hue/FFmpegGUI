@@ -223,5 +223,50 @@
     "name": "model_training_filled",
     "url": "https://raw.githubusercontent.com/google/material-design-icons/master/symbols/web/model_training/materialsymbolsrounded/model_training_fill1_24px.svg",
     "sha256": "eabcee34af896ba537300f5eb10c097513edd8ee87778d20f0c035d1e7c04995"
+  },
+  {
+    "name": "library_music",
+    "url": "https://raw.githubusercontent.com/google/material-design-icons/master/symbols/web/library_music/materialsymbolsrounded/library_music_24px.svg",
+    "sha256": "b25df6373f39b1d6ca4ad07914ab9d795e7622f8fabf117d77b685271f1c55c5"
+  },
+  {
+    "name": "call_split",
+    "url": "https://raw.githubusercontent.com/google/material-design-icons/master/symbols/web/call_split/materialsymbolsrounded/call_split_24px.svg",
+    "sha256": "671a66c4dd80570241c9924dfd3298ac9533697a0088d771d1309763ed9e2f31"
+  },
+  {
+    "name": "speech_to_text",
+    "url": "https://raw.githubusercontent.com/google/material-design-icons/master/symbols/web/speech_to_text/materialsymbolsrounded/speech_to_text_24px.svg",
+    "sha256": "72cfee67b2489af291e1f22e41b6dc08327b54b654f6a80c6cc8795a028ea161"
+  },
+  {
+    "name": "translate",
+    "url": "https://raw.githubusercontent.com/google/material-design-icons/master/symbols/web/translate/materialsymbolsrounded/translate_24px.svg",
+    "sha256": "9035ff8e8341ac5df3e990e42c15dd2ef78ab53d0c18be33c21e4e07523eb31c"
+  },
+  {
+    "name": "layers",
+    "url": "https://raw.githubusercontent.com/google/material-design-icons/master/symbols/web/layers/materialsymbolsrounded/layers_24px.svg",
+    "sha256": "60d86c9818101a3e8b971cfe0267de8e125292a9897c56290a11e2a927310915"
+  },
+  {
+    "name": "person",
+    "url": "https://raw.githubusercontent.com/google/material-design-icons/master/symbols/web/person/materialsymbolsrounded/person_24px.svg",
+    "sha256": "b60e9574bc2566ea0e72710cd40e4f61a00449130bdc258c0a1006af6857d727"
+  },
+  {
+    "name": "ink_eraser",
+    "url": "https://raw.githubusercontent.com/google/material-design-icons/master/symbols/web/ink_eraser/materialsymbolsrounded/ink_eraser_24px.svg",
+    "sha256": "34dec00748e5ae7876e920edff3edbb03bbab96bad8f820aba4686a5ae43aee3"
+  },
+  {
+    "name": "sell",
+    "url": "https://raw.githubusercontent.com/google/material-design-icons/master/symbols/web/sell/materialsymbolsrounded/sell_24px.svg",
+    "sha256": "e777a0e748dfc929b56e13a65384b20f556c619316814153c0a4883b75703963"
+  },
+  {
+    "name": "terminal",
+    "url": "https://raw.githubusercontent.com/google/material-design-icons/master/symbols/web/terminal/materialsymbolsrounded/terminal_24px.svg",
+    "sha256": "ba924a0c39561794685040e624daa32ac86a130323eeec67093611518cf03560"
   }
 ]

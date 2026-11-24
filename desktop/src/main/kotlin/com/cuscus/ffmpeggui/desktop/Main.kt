@@ -304,14 +304,6 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
         VerticalScrollbar(rememberScrollbarAdapter(scroll),Modifier.align(Alignment.CenterEnd).fillMaxHeight().width(7.dp))
     }
 }
-private val desktopGroups=linkedMapOf(
-    "Edit" to listOf("Effects","Clip editor","Scenes","Pause cuts","Beats","Follow crop"),
-    "Audio" to listOf("Audio","Sound tracks","Scene stems","Dubbing"),
-    "Text" to listOf("Transcript","Subtitles","Text layers","Translation"),
-    "Picture" to listOf("Image layers","Drawing","Subject cutout","Magic eraser"),
-    "Export" to listOf("Edit","Compression","Tags","Command studio"),
-    "Models" to listOf("Models")
-)
 @Composable private fun DesktopToolRail(c:EditorController) {
     val group=desktopGroups.entries.firstOrNull {c.tab in it.value}?.key ?: "Edit"
     BoxWithConstraints(Modifier.width(154.dp).fillMaxHeight()) {
@@ -345,7 +337,7 @@ private val desktopGroups=linkedMapOf(
         desktopGroups[group].orEmpty().forEach {tool->
             Surface(onClick={c.tab=tool},shape=RoundedCornerShape(14.dp),color=if(c.tab==tool)MaterialTheme.colorScheme.secondaryContainer else Color.Transparent,modifier=Modifier.fillMaxWidth()) {
                 Row(Modifier.padding(horizontal=10.dp,vertical=if(short)7.dp else 9.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                    Symbol(when(tool){"Clip editor"->"content_cut";"Scenes"->"movie";"Pause cuts"->"waves";"Beats"->"graphic_eq";"Follow crop"->"person_search";"Transcript"->"subtitles";"Drawing"->"draw";"Dubbing"->"mic";else->"tune"},size=18)
+                    Symbol(desktopToolSymbols.getValue(tool),size=18)
                     Text(if(tool=="Edit")"Format & quality" else tool,style=MaterialTheme.typography.labelLarge,maxLines=2,overflow=TextOverflow.Ellipsis)
                 }
             }
