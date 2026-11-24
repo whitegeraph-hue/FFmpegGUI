@@ -42,7 +42,7 @@ class CreativeEffectsRuntimeTest {
         rule.runOnIdle {assertEquals(OriginalSound.WHOOSH,cue)}
         ShellShot.take("creative-original-sounds")
     }
-    @Test fun telephonePreservesSixteenKhzSpeech() = runBlocking {
+    @Test fun allVoiceRecipesPreserveEightAndSixteenKhzSpeech() = runBlocking {
         val context=InstrumentationRegistry.getInstrumentation().targetContext
         for(rate in listOf(8000,16000)) for(fx in CreativeVoice.entries.map{it.effects}+AudioEffects(equalizer=List(10){12f})) {
         val input=File(context.cacheDir,"creative-speech${rate/1000}.wav")
