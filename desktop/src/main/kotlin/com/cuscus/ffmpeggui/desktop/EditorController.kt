@@ -203,6 +203,17 @@ class EditorController(val scope: CoroutineScope) {
         val p=project ?: return;val clip=p.timeline.clips.firstOrNull {it.id==smartClipId} ?: return
         val next=id();mutate(p.copy(timeline=p.timeline.duplicate(clip.id,next),looks=p.looks+p.looks.filter{it.clipId==clip.id}.map{it.copy(clipId=next)},followCrop=null));selectSmartClip(next);status="Duplicated selected clip. Undo removes the copy."
     }
+    internal fun applySoundTiming(expected:DesktopProject,index:Int,sound:DesktopSound,timing:SoundTiming):Boolean {
+        if(busy || project!==expected || expected.sounds.getOrNull(index)!==sound)return false
+        val valid=soundTiming(timing.startMs.toString(),timing.inMs.toString(),timing.outMs.toString(),sound.source.info.durationMs,expected.outputDurationMs) ?: return false
+        // A null end is semantically distinct for repeat/length handling, even at known duration.
+        val end=if(sound.placed.trimEndMs==null && valid.outMs==sound.source.info.durationMs)null else valid.outMs
+        val placed=sound.placed.copy(startMs=valid.startMs,trimStartMs=valid.inMs,trimEndMs=end)
+        if(placed==sound.placed)return true
+        mutate(expected.copy(sounds=expected.sounds.mapIndexed{i,old->if(i==index)old.copy(placed=placed)else old}))
+        status="Sound timing applied in milliseconds. Output timing stays fixed after clip edits."
+        return true
+    }
     fun trimSelected(start:Long,end:Long) {
         if(busy)return
         val p=project ?: return;val clip=p.timeline.clips.firstOrNull {it.id==smartClipId} ?: return

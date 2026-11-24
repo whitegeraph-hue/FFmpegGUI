@@ -789,6 +789,7 @@ private fun EditPanel(c: EditorController,p: DesktopProject,window:java.awt.Fram
         fun update(v:PlacedSound)=c.mutate(p.copy(sounds=p.sounds.mapIndexed {i,old->if(i==index)old.copy(placed=v)else old}))
         PanelCard {
             Text("${index+1}. ${File(sound.source.path).name}",style=MaterialTheme.typography.titleSmall)
+            PreciseSoundTiming(c,p,index)
             Row {Checkbox(sound.muted,{mute->c.mutate(p.copy(sounds=p.sounds.mapIndexed {i,old->if(i==index)old.copy(muted=mute)else old}))},enabled=!c.busy);Text("Muted")}
             ValueSlider("Start on output, seconds",s.startMs/1000f,0f..p.outputDurationMs/1000f,!c.busy){update(s.copy(startMs=(it*1000).toLong()))}
             ValueSlider("Trim start, seconds",s.trimStartMs/1000f,0f..sound.source.info.durationMs/1000f,!c.busy){update(s.copy(trimStartMs=(it*1000).toLong().coerceAtMost((s.trimEndMs ?: sound.source.info.durationMs)-1)))}
