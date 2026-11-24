@@ -3,7 +3,7 @@
 Development work, not a claim of full CapCut or InShot parity. The goal is original local equivalents with matching Android/Linux catalogs and test builds. No proprietary presets, recordings or paid assets are copied.
 
 ## New shared catalogs
-- 20 voice recipes including clean/reset: Old telephone, AM radio, walkie-talkie, megaphone, worn tape, tiny/deep/giant, alien, robot flutter, cyborg, double voice, dreamy/cave/stadium, underwater, 8-bit, ghost, warm narration. These replace DSP in the chosen scope; they are not AI voice models.
+- 20 voice recipes including clean/reset: Old telephone, AM radio, walkie-talkie, megaphone, soft tape tone, tiny/deep/giant, alien, robot flutter, cyborg, double voice, dreamy/cave/stadium, underwater, 8-bit, ghost, warm narration. These replace DSP in the chosen scope; they are not AI voice models.
 - 25 original algorithmically synthesized sound cues: whooshes/swipes/risers, bass impacts, clicks/pops/bleeps, notifications/chimes, telephone ring/busy, heartbeat, synthetic rain/wind. Not recorded Foley or another app's audio library.
 - 10 new procedural looks: sepia, cool/warm tone, scanlines, poster colours, negative flash, faded matte, high contrast, dream blur, neon edges. Android shader previews are approximations; export is the authoritative check, particularly blur/edge and tone looks. Existing pre-Android13 look-preview limits still apply.
 - 8 transitions: Venetian blinds, diamond mosaic, checker reveal, zigzag wipe, oval iris, angular sweep, stepped bars, cross reveal.
@@ -42,3 +42,5 @@ Speech fixture provenance: scripts/make-creative-speech-fixtures.py uses eSpeak 
 Android qualification found non-finite samples from the telephone recipe's EQ-plus-bitcrusher combination in bundled FFmpeg6.1.6. Stage ablation passed without EQ or without crusher, but failed without compressor/mono/limiter. The telephone recipe now omits bitcrushing and retains band-limit, retained EQ, compression, mono and limiting. The underlying EQ-plus-crusher trigger remains unidentified. This is a narrower original telephone recipe, not a general shared-defect fix or silent finite-sample sanitizer.
 
 The manual combination of EQ and lo-fi bitcrushing remains a known Android non-finite-output risk in this bundled runtime. No supplied preset now combines those two stages. The recipe change does not claim to repair every manual DSP combination.
+
+Broader Android float qualification found Tape non-finite output at8/16/48kHz, including failures with and without its crusher; Cyborg failed loud8k speech with crusher and passed its no-crusher control. Tape is now a soft high-cut/compressed tone without wow/flutter or bitcrushing; Cyborg retains pitch/flanger but omits bitcrushing. These are bounded catalog recipe changes, not a claim to fix the underlying manual modulation/lo-fi combinations. The regression matrix tests every non-clean voice recipe, so removing a risky stage does not remove its test coverage.

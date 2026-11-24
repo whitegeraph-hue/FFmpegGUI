@@ -77,7 +77,7 @@ class CreativeEffectsRuntimeTest {
         for(rate in listOf(8000,16000,48000)) for(level in listOf(0,1,8)) {
             val input=File(context.cacheDir,"gritty-input.wav")
             assertEquals(ExecutionResult.Success,executor.execute(FfmpegCommand(listOf("-y","-i",speech.path,"-t","1","-af","volume=$level","-ar",rate.toString(),input.path))) {})
-            for((name,fx) in (CreativeVoice.entries.filter{it.effects.lofiBits>0}+CreativeVoice.TELEPHONE).flatMap{listOf(it.name to it.effects,(it.name+" no crusher") to it.effects.copy(lofiBits=0))}) {
+            for((name,fx) in CreativeVoice.entries.filter{it!=CreativeVoice.CLEAN}.map{it.name to it.effects}) {
                 val output=File(context.cacheDir,"gritty-output.wav")
                 val req=ConversionRequest(OutputFormat.WAV,input.name,sources=listOf(SourceInfo(1000,0,0,true)),segments=listOf(Segment(0,0,1000)),audioEffects=fx)
                 val command=CommandBuilder{"/fonts/Regular.ttf"}.build(req,MediaPaths(inputs=listOf(input.path),output=output.path))
