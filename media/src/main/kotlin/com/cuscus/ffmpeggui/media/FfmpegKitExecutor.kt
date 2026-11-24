@@ -26,7 +26,7 @@ class FfmpegKitExecutor : FfmpegExecutor {
 
     override suspend fun execute(command: FfmpegCommand, onLog: (String) -> Unit): ExecutionResult =
         suspendCancellableCoroutine { continuation ->
-            AudioExecutionSafety.commandIssue(command)?.let { issue ->
+            AudioExecutionSafety.commandIssue(command, com.cuscus.ffmpeggui.core.command.AudioRuntime.ANDROID_BUNDLED_6_1_6)?.let { issue ->
                 onLog(issue)
                 continuation.resume(ExecutionResult.Failed(AudioExecutionSafety.RETURN_CODE))
                 return@suspendCancellableCoroutine

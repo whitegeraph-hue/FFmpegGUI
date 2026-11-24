@@ -83,7 +83,7 @@ class ConversionEngine(
      * progress against [expectedMs]; notes in [full] when the storage ran out.
      */
     private suspend fun logged(command: FfmpegCommand, expectedMs: Long?, full: StorageFull, onEvent: (ConversionEvent) -> Unit): ExecutionResult {
-        AudioExecutionSafety.commandIssue(command)?.let {
+        AudioExecutionSafety.commandIssue(command, commandBuilder.audioRuntime)?.let {
             onEvent(ConversionEvent.LogLine(it))
             return ExecutionResult.Failed(AudioExecutionSafety.RETURN_CODE)
         }
@@ -107,7 +107,7 @@ class ConversionEngine(
     suspend fun run(job: ConversionJob, onEvent: (ConversionEvent) -> Unit = {}): ConversionOutcome {
         val safetyIssue = if (job.mode is CommandMode.Manual) {
             AudioExecutionSafety.commandIssue(FfmpegCommand(runCatching { com.cuscus.ffmpeggui.core.command.tokenizeCommandLine(job.mode.commandLine) }.getOrDefault(emptyList()).let { if (it.firstOrNull() == "ffmpeg") it.drop(1) else it }))
-        } else if (job.request.format.hasAudio) AudioExecutionSafety.requestIssue(job.request) else null
+        } else if (job.request.format.hasAudio) AudioExecutionSafety.requestIssue(job.request, commandBuilder.audioRuntime) else null
         if (safetyIssue != null) {
             onEvent(ConversionEvent.LogLine(safetyIssue))
             return ConversionOutcome.Failure(FailureReason.AUDIO_EFFECT_BLOCKED, safetyIssue)

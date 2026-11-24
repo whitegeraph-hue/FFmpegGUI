@@ -18,7 +18,8 @@ class VibratoCandidateRuntimeTest {
     @Test fun fullPeriodInitializationRealBuilderScopesAndKotlinParity(): Unit = runBlocking {
         org.junit.Assume.assumeTrue(InstrumentationRegistry.getArguments().getString("candidateDspValidation") == "true")
         val dir=InstrumentationRegistry.getInstrumentation().targetContext.cacheDir
-        val executor=IsolatedDiagnosticExecutor()
+        val normalExecutor=com.cuscus.ffmpeggui.media.FfmpegKitExecutor()
+        val diagnosticExecutor=IsolatedDiagnosticExecutor()
         val failures=mutableListOf<String>();var cases=0
         val evidence=File(InstrumentationRegistry.getInstrumentation().targetContext.getExternalFilesDir(null),"vibrato-evidence").apply{mkdirs()}
         var executions=0
@@ -29,7 +30,14 @@ class VibratoCandidateRuntimeTest {
             val display=command.toDisplayString()
             val chunks=display.chunked(1200)
             chunks.forEachIndexed {part,text->android.util.Log.i("VIBRATO-CANDIDATE","COMMAND id=$id part=${part+1}/${chunks.size} $text")}
-            val log=StringBuilder();val result=executor.execute(command){log.append(it)}
+            val log=StringBuilder()
+            // Only unproven hand-built isolated references use the diagnostic path.
+            // All 215 builder commands, source fixtures and decodes use the real executor.
+            val hasNativeVibrato=command.arguments.any{it.contains("vibrato=")}
+            val isBuilder=command.arguments.any{it.contains("vibrato-candidate-speech.wav") || it.contains("vibrato-candidate-input.wav") || it.contains("vibrato-candidate-video.mp4")}
+            val executor=if(hasNativeVibrato && !isBuilder)diagnosticExecutor else normalExecutor
+            android.util.Log.i("VIBRATO-CANDIDATE","EXECUTOR id=$id normal=${executor===normalExecutor}")
+            val result=executor.execute(command){log.append(it)}
             if(!versionWritten && log.contains("ffmpeg version")) {
                 File(evidence,"runtime-version.txt").writeText(log.toString());versionWritten=true
                 android.util.Log.i("VIBRATO-CANDIDATE","RUNTIME "+log.lineSequence().first{it.contains("ffmpeg version")})
@@ -107,7 +115,7 @@ class VibratoCandidateRuntimeTest {
                 val req=ConversionRequest(OutputFormat.WAV,input.name,sources=listOf(SourceInfo(1000,0,0,true)),segments=listOf(Segment(0,0,1000,if(scope=="clip")Effects(audioEffects=fx)else Effects())),effects=if(scope=="sound")Effects(muted=true,volume=0f)else Effects(),audioEffects=if(scope=="output")fx else AudioEffects.NONE,sounds=if(scope=="sound")listOf(PlacedSound(trimEndMs=1000,effects=fx))else emptyList())
                 val out=File(dir,"vibrato-candidate.wav")
                 val built=CommandBuilder(AudioRuntime.ANDROID_BUNDLED_6_1_6){"/fonts/Regular.ttf"}.build(req,MediaPaths(inputs=listOf(input.path),output=out.path,sounds=if(scope=="sound")listOf(input.path)else emptyList()))
-                inspect("FLOAT $name/$rate/level$level/ch$ch/$scope",FfmpegCommand(built.arguments.map{if(it=="pcm_s16le")"pcm_f32le"else it}),out,1000,level>0)
+                inspect("PCM16 $name/$rate/level$level/ch$ch/$scope",built,out,1000,level>0)
                 if(level==0 && scope=="output") {
                     val aac=File(dir,"vibrato-candidate.m4a")
                     inspect("SILENT-AAC $name/$rate/ch$ch",CommandBuilder(AudioRuntime.ANDROID_BUNDLED_6_1_6){"/fonts/Regular.ttf"}.build(req.copy(format=OutputFormat.M4A),MediaPaths(inputs=listOf(input.path),output=aac.path)),aac,1000,false,true)
@@ -118,7 +126,7 @@ class VibratoCandidateRuntimeTest {
             val req=ConversionRequest(OutputFormat.WAV,speech.name,sources=listOf(SourceInfo(2000,0,0,true)),segments=listOf(Segment(0,0,1500)),effects=Effects(muted=true,volume=0f),sounds=listOf(PlacedSound(startMs=300,trimStartMs=100,trimEndMs=900,effects=fx)))
             val out=File(dir,"vibrato-candidate-placement.wav")
             val cmd=CommandBuilder(AudioRuntime.ANDROID_BUNDLED_6_1_6){"/fonts/Regular.ttf"}.build(req,MediaPaths(inputs=listOf(speech.path),output=out.path,sounds=listOf(speech.path)))
-            inspect("PLACEMENT $name",FfmpegCommand(cmd.arguments.map{if(it=="pcm_s16le")"pcm_f32le"else it}),out,1500,true,quietBefore=290,quietAfter=1120)
+            inspect("PLACEMENT $name",cmd,out,1500,true,quietBefore=290,quietAfter=1120)
         }
         // Neutral effects isolate placement from DSP. A deliberately mixed-source control
         // records the old fixture's leak without treating expected source speech as a defect.
@@ -126,15 +134,14 @@ class VibratoCandidateRuntimeTest {
             val req=ConversionRequest(OutputFormat.WAV,speech.name,sources=listOf(SourceInfo(2000,0,0,true)),segments=listOf(Segment(0,0,1500)),effects=Effects(muted=true,volume=if(zeroSource)0f else 1f),sounds=listOf(PlacedSound(startMs=300,trimStartMs=100,trimEndMs=900)))
             val out=File(dir,"vibrato-neutral.wav")
             val cmd=CommandBuilder(AudioRuntime.ANDROID_BUNDLED_6_1_6){"/fonts/Regular.ttf"}.build(req,MediaPaths(inputs=listOf(speech.path),output=out.path,sounds=listOf(speech.path)))
-            inspect("NEUTRAL-PLACEMENT sourceZero=$zeroSource",FfmpegCommand(cmd.arguments.map{if(it=="pcm_s16le")"pcm_f32le"else it}),out,1500,true,quietBefore=if(zeroSource)290 else 0,quietAfter=if(zeroSource)1120 else null)
+            inspect("NEUTRAL-PLACEMENT sourceZero=$zeroSource",cmd,out,1500,true,quietBefore=if(zeroSource)290 else 0,quietAfter=if(zeroSource)1120 else null)
         }
         // Verify explicit final output rates, including silent AAC and retained speech.
         for((name,fx) in recipes) for(rate in listOf(16000,44100)) for(format in listOf(OutputFormat.WAV,OutputFormat.M4A)) for(silent in listOf(false,true)) {
-            val req=ConversionRequest(format,speech.name,sources=listOf(SourceInfo(2000,0,0,true)),segments=listOf(Segment(0,0,1000)),effects=Effects(volume=if(silent)0f else 1f),audioEffects=fx)
+            val req=ConversionRequest(format,speech.name,sources=listOf(SourceInfo(2000,0,0,true)),segments=listOf(Segment(0,0,1000)),effects=Effects(volume=if(silent)0f else 1f),audioEffects=fx,encoding=EncodingSettings(audio=AudioEncoding(sampleRate=rate)))
             val out=File(dir,if(format==OutputFormat.M4A)"vibrato-rate.m4a"else "vibrato-rate.wav")
             val cmd=CommandBuilder(AudioRuntime.ANDROID_BUNDLED_6_1_6){"/fonts/Regular.ttf"}.build(req,MediaPaths(inputs=listOf(speech.path),output=out.path))
-            val args=cmd.arguments.dropLast(1).map{if(it=="pcm_s16le")"pcm_f32le"else it}+listOf("-ar",rate.toString(),cmd.arguments.last())
-            inspect("OUTPUT-RATE $name/$rate/$format/silent$silent",FfmpegCommand(args),out,1000,!silent,aac=format==OutputFormat.M4A)
+            inspect("OUTPUT-RATE $name/$rate/$format/silent$silent",cmd,out,1000,!silent,aac=format==OutputFormat.M4A)
         }
         val video=File(dir,"vibrato-candidate-video.mp4")
         InstrumentationRegistry.getInstrumentation().context.assets.open("ci-test-video.mp4").use{src->video.outputStream().use{src.copyTo(it)}}
@@ -142,6 +149,35 @@ class VibratoCandidateRuntimeTest {
             val req=ConversionRequest(OutputFormat.MP4,video.name,sources=listOf(SourceInfo(8000,640,360,true)),segments=listOf(Segment(0,0,1000)),effects=Effects(volume=if(silent)0f else 1f),audioEffects=fx)
             val out=File(dir,"vibrato-candidate.mp4")
             inspect("MP4 $name/silent$silent",CommandBuilder(AudioRuntime.ANDROID_BUNDLED_6_1_6){"/fonts/Regular.ttf"}.build(req,MediaPaths(inputs=listOf(video.path),output=out.path)),out,1000,!silent,aac=true)
+        }
+        // Full generated conversion path, including staging, policy, native executor,
+        // output planning and cleanup. No diagnostic executor or command edits here.
+        val engineOut=File(dir,"vibrato-engine-output").apply{mkdirs()}
+        val stager=com.cuscus.ffmpeggui.core.engine.SourceStager {
+            val work=File(dir,"vibrato-engine-staging").apply{mkdirs()}
+            object:com.cuscus.ffmpeggui.core.engine.StagingSession {
+                override fun stage(sourceUri:String,preferredName:String):String?=File(work,preferredName).also{File(sourceUri).copyTo(it,overwrite=true)}.path
+                override fun scratchFile(name:String)=File(work,name).path
+                override fun close(){work.deleteRecursively()}
+            }
+        }
+        val engine=com.cuscus.ffmpeggui.core.engine.ConversionEngine(
+            commandBuilder=CommandBuilder(AudioRuntime.ANDROID_BUNDLED_6_1_6){"/fonts/Regular.ttf"},
+            manualResolver=ManualCommandResolver(),outputPlanner=com.cuscus.ffmpeggui.core.output.OutputPlanner(),
+            progressParser=com.cuscus.ffmpeggui.core.engine.ProgressParser(),executor=normalExecutor,
+            stager=stager,outputDirectory={engineOut.path})
+        for((name,fx) in recipes) for(scope in listOf("output","clip","sound")) {
+            val req=ConversionRequest(OutputFormat.WAV,speech.name,sources=listOf(SourceInfo(2000,0,0,true)),segments=listOf(Segment(0,0,1000,if(scope=="clip")Effects(audioEffects=fx)else Effects())),audioEffects=if(scope=="output")fx else AudioEffects.NONE,effects=if(scope=="sound")Effects(volume=0f)else Effects(),sounds=if(scope=="sound")listOf(PlacedSound(trimEndMs=1000,effects=fx))else emptyList())
+            val sources=com.cuscus.ffmpeggui.core.engine.MediaSources(listOf(com.cuscus.ffmpeggui.core.engine.NamedSource(speech.path,speech.name)),sounds=if(scope=="sound")listOf(com.cuscus.ffmpeggui.core.engine.NamedSource(speech.path,"stem.wav"))else emptyList())
+            val result=engine.run(com.cuscus.ffmpeggui.core.engine.ConversionJob(req,sources))
+            cases++
+            android.util.Log.i("VIBRATO-CANDIDATE","ENGINE $name/$scope result=$result")
+            if(result !is com.cuscus.ffmpeggui.core.engine.ConversionOutcome.Success || !File(result.outputPath).isFile)failures+="engine $name/$scope $result"
+        }
+        // Direct manual native calls remain blocked, even when a safe-looking pad is pasted.
+        for(graph in listOf("vibrato=f=3","aresample=48000,adelay=16000S:all=1,vibrato=f=3:d=.3,atrim=start_sample=16000,asetpts=PTS-STARTPTS","acrusher=bits=9")) {
+            val result=normalExecutor.execute(FfmpegCommand(listOf("-y","-f","lavfi","-i","anullsrc","-t","1","-af",graph,File(dir,"must-not-export.wav").path))){}
+            check(result==ExecutionResult.Failed(com.cuscus.ffmpeggui.core.audio.AudioExecutionSafety.RETURN_CODE))
         }
         android.util.Log.i("VIBRATO-CANDIDATE","SUMMARY cases=$cases failures=${failures.size}")
         failures.forEach{android.util.Log.e("VIBRATO-CANDIDATE",it)}

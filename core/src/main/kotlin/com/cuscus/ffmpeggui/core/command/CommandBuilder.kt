@@ -57,7 +57,7 @@ import kotlin.math.abs
  *
  * Hand-written commands are not handled here; see [ManualCommandResolver].
  */
-class CommandBuilder(audioRuntime: AudioRuntime, fonts: FontProvider) {
+class CommandBuilder(val audioRuntime: AudioRuntime, fonts: FontProvider) {
     constructor(fonts: FontProvider) : this(AudioRuntime.SYSTEM, fonts)
 
     private val videoFilters = VideoFilters(fonts)
@@ -82,7 +82,9 @@ class CommandBuilder(audioRuntime: AudioRuntime, fonts: FontProvider) {
         require(needsFirstPass(request)) { "No first pass is needed" }
         val args = buildFor(request.withStillsForward(), paths, pass = 1).arguments.toMutableList()
         args.removeAt(args.lastIndex)
-        return FfmpegCommand(args + listOf("-f", "null", "-"))
+        return FfmpegCommand(args + listOf("-f", "null", "-")).also {
+            if (audioRuntime == AudioRuntime.ANDROID_BUNDLED_6_1_6) it.builtForInitializedAndroid()
+        }
     }
 
     private fun buildFor(request: ConversionRequest, paths: MediaPaths, pass: Int): FfmpegCommand {
@@ -106,7 +108,9 @@ class CommandBuilder(audioRuntime: AudioRuntime, fonts: FontProvider) {
                     transcode(request, paths, pass)
                 }
         }
-        return FfmpegCommand(oneMovFlags(args))
+        return FfmpegCommand(oneMovFlags(args)).also {
+            if (audioRuntime == AudioRuntime.ANDROID_BUNDLED_6_1_6) it.builtForInitializedAndroid()
+        }
     }
 
     /**

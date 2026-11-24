@@ -1,6 +1,7 @@
 package com.cuscus.ffmpeggui.core.audio
 
 import com.cuscus.ffmpeggui.core.command.FfmpegCommand
+import com.cuscus.ffmpeggui.core.command.AudioRuntime
 import com.cuscus.ffmpeggui.core.model.AudioEffects
 import com.cuscus.ffmpeggui.core.model.ConversionRequest
 
@@ -23,12 +24,14 @@ object AudioExecutionSafety {
             is AudioStage.Width, is AudioStage.Balance, AudioStage.Mono -> null
         }
     }.toSet()
-    fun available(effects: AudioEffects): Boolean = stages(effects).isEmpty()
-    fun requestIssue(request: ConversionRequest): String? {
+    @JvmOverloads fun available(effects: AudioEffects, runtime: AudioRuntime = AudioRuntime.SYSTEM): Boolean =
+        stages(effects).none { it == "acrusher" || runtime != AudioRuntime.ANDROID_BUNDLED_6_1_6 }
+
+    @JvmOverloads fun requestIssue(request: ConversionRequest, runtime: AudioRuntime = AudioRuntime.SYSTEM): String? {
         val scopes = buildList {
-            if (!available(request.audioEffects)) add("whole output")
-            request.segments.forEachIndexed { i, s -> if (!available(s.effects.audioEffects)) add("clip ${i + 1}") }
-            request.sounds.forEachIndexed { i, s -> if (!available(s.effects)) add("sound ${i + 1}") }
+            if (!available(request.audioEffects, runtime)) add("whole output")
+            request.segments.forEachIndexed { i, s -> if (!available(s.effects.audioEffects, runtime)) add("clip ${i + 1}") }
+            request.sounds.forEachIndexed { i, s -> if (!available(s.effects, runtime)) add("sound ${i + 1}") }
         }
         return scopes.takeIf { it.isNotEmpty() }?.let { "$NOTICE Affected: ${it.joinToString()}." }
     }
@@ -73,10 +76,27 @@ object AudioExecutionSafety {
         }.toSet()
     }
 
+    /** Only canonical builder syntax qualifies. Manual commands never carry provenance. */
+    private fun initializedVibratoGraph(graph: String): Boolean {
+        val matches=Regex("vibrato=f=([0-9.]+):d=([0-9.]+)").findAll(graph).toList()
+        if(matches.isEmpty())return false
+        for(m in matches) {
+            val frequency=m.groupValues[1].toDoubleOrNull() ?: return false
+            val depth=m.groupValues[2].toDoubleOrNull() ?: return false
+            if(!frequency.isFinite() || frequency !in .1..20.0 || !depth.isFinite() || depth !in 0.0..1.0)return false
+            val period=Math.rint(48000.0/frequency+.5).toLong()
+            val start=maxOf(graph.lastIndexOf(';',m.range.first),graph.lastIndexOf(']',m.range.first))
+            val prefix=graph.substring(start+1,m.range.first)
+            if(!prefix.contains("aresample=48000,") || !prefix.endsWith("adelay=${period}S:all=1,"))return false
+            if(!graph.substring(m.range.last+1).startsWith(",atrim=start_sample=$period,asetpts=PTS-STARTPTS"))return false
+        }
+        return true
+    }
+
     /** Script/file graph inputs fail closed: reading once here would have a file-change race.
      * Users can paste their graph inline to have its filter names checked instead.
      */
-    fun commandIssue(command: FfmpegCommand): String? {
+    @JvmOverloads fun commandIssue(command: FfmpegCommand, runtime: AudioRuntime = AudioRuntime.SYSTEM): String? {
         val args = command.arguments
         var lavfiInput = false
         for (i in args.indices) {
@@ -92,7 +112,10 @@ object AudioExecutionSafety {
                 option == "-i" && lavfiInput -> value
                 else -> null
             }
-            if (graph != null && filterNames(graph).any { it in blocked }) return NOTICE
+            if (graph != null && filterNames(graph).any {
+                    it == "acrusher" || (it == "vibrato" &&
+                        (runtime != AudioRuntime.ANDROID_BUNDLED_6_1_6 || !command.hasInitializedAndroidProvenance() || !initializedVibratoGraph(graph)))
+                }) return NOTICE
         }
         return null
     }
