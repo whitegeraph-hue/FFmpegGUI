@@ -101,7 +101,7 @@ class CreativeEffectsRuntimeTest {
 
 
     /** Diagnostic only: preserve the delivered recipes and collect every stage-prefix result. */
-    @Test fun manualDspStagePrefixDiagnostics() = runBlocking {
+    @Test fun manualDspStagePrefixDiagnostics(): Unit = runBlocking {
         val context=InstrumentationRegistry.getInstrumentation().targetContext
         val executor=FfmpegKitExecutor()
         val speech=File(context.cacheDir,"manual-dsp-speech.wav")
