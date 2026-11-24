@@ -835,7 +835,7 @@ class CommandBuilderTest {
             },
         )
         val chain = result.valueOf("-af")
-        assertTrue(chain, chain.startsWith("volume=0.50,aformat=sample_fmts=fltp,highpass=f=80:t=q:w=0.707,aecho=1:0.8:250|500|750|1000|1250:0.5|0.25|0.125|0.0625|0.03125,"))
+        assertTrue(chain, chain.startsWith("volume=0.50,aresample=48000,aformat=sample_fmts=fltp,highpass=f=80:t=q:w=0.707,aecho=1:0.8:250|500|750|1000|1250:0.5|0.25|0.125|0.0625|0.03125,"))
         assertTrue(chain, chain.contains("aresample=48000,asetrate=96000,aresample=48000,atempo=0.5000,atrim=end=20.000"))
         assertEquals(listOf("-vn", "-acodec", "pcm_s24le", "-ar", "44100", "-f", "wav", "output.wav"), result.takeLast(8))
     }
@@ -850,7 +850,7 @@ class CommandBuilderTest {
                 )
             },
         ).valueOf("-filter_complex")
-        assertTrue(graph, graph.contains("amix=inputs=2:duration=longest:dropout_transition=2:normalize=0,aformat=sample_fmts=fltp,pan=stereo|FL=FL+FC|FR=FR+FC,pan=mono|c0=0.5*c0+0.5*c1[aout]"))
+        assertTrue(graph, graph.contains("amix=inputs=2:duration=longest:dropout_transition=2:normalize=0,aresample=48000,aformat=sample_fmts=fltp,pan=stereo|FL=FL+FC|FR=FR+FC,pan=mono|c0=0.5*c0+0.5*c1[aout]"))
     }
 
     @Test
@@ -878,14 +878,14 @@ class CommandBuilderTest {
         ).valueOf("-filter_complex")
         assertTrue(
             graph,
-            graph.contains("asetpts=PTS-STARTPTS,aformat=sample_fmts=fltp,highpass=f=100:t=q:w=0.707,aecho=1:0.8:200|400|600|800|1000:0.5|0.25|0.125|0.0625|0.03125,atrim=end=3.000,adelay=delays=1000:all=1"),
+            graph.contains("asetpts=PTS-STARTPTS,aresample=48000,aformat=sample_fmts=fltp,highpass=f=100:t=q:w=0.707,aecho=1:0.8:200|400|600|800|1000:0.5|0.25|0.125|0.0625|0.03125,atrim=end=3.000,adelay=delays=1000:all=1"),
         )
     }
 
     @Test
     fun `a video's final sound gets its effects after the mix too`() {
         val result = args(request { copy(audioEffects = AudioEffects(limiter = Limiter(-3f))) })
-        assertTrue(result.valueOf("-af"), result.valueOf("-af").startsWith("aformat=sample_fmts=fltp,acompressor="))
+        assertTrue(result.valueOf("-af"), result.valueOf("-af").startsWith("aresample=48000,aformat=sample_fmts=fltp,acompressor="))
         assertEquals("libx264", result.valueOf("-vcodec"))
     }
 

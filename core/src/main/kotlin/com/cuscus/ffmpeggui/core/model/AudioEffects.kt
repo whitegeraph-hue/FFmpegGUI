@@ -107,7 +107,9 @@ data class StereoImage(
 /**
  * How the sound of an audio file is encoded. [bitrateKbps] applies to the
  * lossy formats; [bitDepth] (16 or 24) to WAV and FLAC; [sampleRate] 0 keeps
- * the source rate (Opus always uses 48 kHz).
+ * the source rate when no processing changes it. Export DSP works at 48 kHz,
+ * so automatic rate follows that processed rate. An explicit rate is honored
+ * at the encoder (Opus always uses 48 kHz).
  */
 data class AudioEncoding(
     val bitrateKbps: Int = 192,

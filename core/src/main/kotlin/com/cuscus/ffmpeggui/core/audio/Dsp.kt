@@ -79,7 +79,8 @@ enum class WidthType { Q, OCTAVE }
 
 /**
  * Normalised coefficients of an af_biquads filter (b0 b1 b2 a1 a2), or null
- * when FFmpeg bypasses it (frequency at or above half the sample rate).
+ * when the frequency is at or above Nyquist. At Nyquist, bypass deliberately
+ * avoids unstable octave-width math; exports resample to 48 kHz before DSP.
  */
 internal fun biquadCoefficients(
     type: BiquadType,
@@ -91,7 +92,7 @@ internal fun biquadCoefficients(
 ): DoubleArray? {
     val a = 10.0.pow(gainDb / 40)
     val w0 = 2 * PI * frequency / sampleRate
-    if (w0 > PI || w0 <= 0.0 || width <= 0.0) return null
+    if (w0 >= PI || w0 <= 0.0 || width <= 0.0) return null
     val alpha = when (widthType) {
         WidthType.Q -> sin(w0) / (2 * width)
         WidthType.OCTAVE -> sin(w0) * sinh(ln(2.0) / 2 * width * w0 / sin(w0))

@@ -182,7 +182,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                                     Column(Modifier.padding(14.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
                                         Text(controller.tab,style=MaterialTheme.typography.titleLarge)
                                         ScrollArea(Modifier.weight(1f),resetKey=controller.tab) {
-                                            if(controller.tab in listOf("Pause cuts","Scenes","Beats","Transcript","Scene stems","Audio"))DesktopScopePicker(controller,project)
+                                            if(controller.tab in listOf("Pause cuts","Scenes","Beats","Transcript","Scene stems","Audio","Effects"))DesktopScopePicker(controller,project)
                                     when(controller.tab) {
                                         "Edit" -> EditPanel(controller,project,window)
                                         "Subject cutout" -> SubjectPanel(controller,project)
@@ -190,6 +190,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                                         "Dubbing" -> DubPanel(controller,window){name->pick(true,name)}
                                         "Magic eraser" -> ErasePanel(controller,project,window){name->pick(true,name)}
                                         "Command studio" -> StudioPanel(controller,project){name->pick(true,name)}
+                                        "Effects" -> CreativeLooksPanel(controller,project)
                                         "Clip editor" -> ClipEditorPanel(controller,project)
                                         "Subtitles" -> SubtitlesPanel(controller,project){pick()}
                                         "Image layers" -> PictureLayersPanel(controller,project){pick()?.path}
@@ -302,7 +303,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
     }
 }
 private val desktopGroups=linkedMapOf(
-    "Edit" to listOf("Clip editor","Scenes","Pause cuts","Beats","Follow crop"),
+    "Edit" to listOf("Effects","Clip editor","Scenes","Pause cuts","Beats","Follow crop"),
     "Audio" to listOf("Audio","Sound tracks","Scene stems","Dubbing"),
     "Text" to listOf("Transcript","Subtitles","Text layers","Translation"),
     "Picture" to listOf("Image layers","Drawing","Subject cutout","Magic eraser"),
@@ -355,14 +356,14 @@ private val desktopGroups=linkedMapOf(
     val number=p.timeline.clips.indexOfFirst {it.id==c.smartClipId}
     Text("Apply to · select a timeline clip to change scope",style=MaterialTheme.typography.labelSmall)
     Box {
-        FilledTonalButton(onClick={expanded=true},enabled=!c.busy,modifier=Modifier.fillMaxWidth()) {Text(if(number>=0)"Clip ${number+1}" else if(c.tab=="Audio")"Whole output" else "Selected source · all clips")}
+        FilledTonalButton(onClick={expanded=true},enabled=!c.busy,modifier=Modifier.fillMaxWidth()) {Text(if(number>=0)"Clip ${number+1}" else if(c.tab in listOf("Audio","Effects"))"Whole output" else "Selected source · all clips")}
         DropdownMenu(expanded,{expanded=false}) {
-            DropdownMenuItem(text={Text(if(c.tab=="Audio")"Whole output" else "Selected source · all clips")},onClick={c.selectSmartClip(null);expanded=false})
+            DropdownMenuItem(text={Text(if(c.tab in listOf("Audio","Effects"))"Whole output" else "Selected source · all clips")},onClick={c.selectSmartClip(null);expanded=false})
             p.timeline.clips.forEachIndexed {i,clip->DropdownMenuItem(text={Text("Clip ${i+1} · ${time(clip.lengthMs)}")},onClick={c.selectSmartClip(clip.id);expanded=false})}
         }
     }
-    Text(if(number>=0)"Only this clip occurrence. Other clips stay unchanged." else if(c.tab=="Audio")"Final mix, including every source and added sound." else "All occurrences of the selected source. Choose a clip to limit changes.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
-    if(p.sources.size>1) {
+    Text(if(c.tab=="Effects")"Timed looks affect the composite. Choose a clip to bind their active range to that occurrence." else if(number>=0)"Only this clip occurrence. Other clips stay unchanged." else if(c.tab=="Audio")"Final mix, including every source and added sound." else "All occurrences of the selected source. Choose a clip to limit changes.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+    if(p.sources.size>1 && c.tab!="Effects") {
         var sources by remember {mutableStateOf(false)}
         Box {TextButton(onClick={sources=true}){Text("Source: "+File(p.sources[c.selectedSource].path).name.take(24))};DropdownMenu(sources,{sources=false}) {p.sources.forEachIndexed {i,source->DropdownMenuItem(text={Text(File(source.path).name)},onClick={c.selectSource(i);sources=false})}}}
     }
@@ -414,7 +415,7 @@ private fun EditPanel(c: EditorController,p: DesktopProject,window:java.awt.Fram
     if(!p.format.isTranscript)EncodingPanel(c,p)
 }
 @Composable private fun SelectionContainerCompat(text: String) { androidx.compose.foundation.text.selection.SelectionContainer { Text(text,style=MaterialTheme.typography.bodySmall) } }
-@Composable private fun ValueSlider(label:String,value:Float,range:ClosedFloatingPointRange<Float>,enabled:Boolean,onChange:(Float)->Unit) {
+@Composable internal fun ValueSlider(label:String,value:Float,range:ClosedFloatingPointRange<Float>,enabled:Boolean,onChange:(Float)->Unit) {
     var draft by remember(value) { mutableStateOf(value) }
     Text("$label · ${"%.2f".format(java.util.Locale.US,draft)}",style=MaterialTheme.typography.labelLarge)
     Slider(draft,{ draft=it },valueRange=range,onValueChangeFinished={ onChange(draft) },enabled=enabled)
@@ -546,6 +547,7 @@ private fun EditPanel(c: EditorController,p: DesktopProject,window:java.awt.Fram
             Row {Checkbox(selected.effects.normalizeAudio,{value->c.mutate(p.copy(timeline=p.timeline.updateEffects(selected.id){it.copy(normalizeAudio=value)}))},enabled=!c.busy);Text("Normalize selected clip")}
         }
         Text("The original ten-band EQ and mastering filter chain. Render edited preview to hear the actual result. Live DSP preview and waveform editing remain unported; sound tracks are edited separately.",style=MaterialTheme.typography.bodySmall)
+        CreativeVoicePicker(a,!c.busy,::change)
         OutlinedButton(onClick={change(AudioEffects.NONE)},enabled=!c.busy) {Text(if(selected==null)"Reset mastering" else "Reset clip effects")}
         var showEq by remember {mutableStateOf(false)}
         TextButton(onClick={showEq=!showEq}){Text(if(showEq)"Hide 10-band equalizer" else "Show 10-band equalizer")}
@@ -779,6 +781,7 @@ private fun EditPanel(c: EditorController,p: DesktopProject,window:java.awt.Fram
     PanelCard {
         Text("Sound tracks",style=MaterialTheme.typography.titleMedium)
         Text("Add music, voice or effects from local files. Tracks mix on the output clock and stop at its end. Render to hear the mix.",style=MaterialTheme.typography.bodySmall)
+        OriginalCues(c,p)
         Button(onClick={pick()?.let {path->c.work("Reading sound track…") {val source=c.media.probe(path);require(source.info.hasAudio){"File has no audio."};c.mutate(p.copy(sounds=p.sounds+DesktopSound(source,PlacedSound(trimEndMs=source.info.durationMs))));c.status="Sound track added: ${File(source.path).name}"}}},enabled=!c.busy){Text("Add sound file")}
     }
     p.sounds.forEachIndexed {index,sound->
@@ -951,6 +954,7 @@ private fun EditPanel(c: EditorController,p: DesktopProject,window:java.awt.Fram
         Row { Switch(f.reversed,{v->change {it.copy(reversed=v)}},enabled=!c.busy);Text("Reverse");Switch(f.keepPitch,{v->change {it.copy(keepPitch=v)}},enabled=!c.busy);Text("Keep pitch") }
         }
         if(section=="Sound") {
+        CreativeVoicePicker(f.audioEffects,!c.busy) {value->change {it.copy(audioEffects=value)}}
         Row {Switch(f.muted,{v->change {it.copy(muted=v)}},enabled=!c.busy);Text("Mute clip")}
         ValueSlider("Clip volume",f.volume,0f..2f,!c.busy){v->change {it.copy(volume=v)}}
         ValueSlider("Fade in (seconds)",f.fadeInSeconds,0f..3f,!c.busy){v->change {it.copy(fadeInSeconds=v)}}
@@ -962,6 +966,8 @@ private fun EditPanel(c: EditorController,p: DesktopProject,window:java.awt.Fram
         ValueSlider("Clip pan Y",f.panY,0f..1f,!c.busy){v->change {it.copy(panY=v)}}
         }
         if(section=="Colour") {
+        Text("Colour recipes replace this clip's colour settings.",style=MaterialTheme.typography.bodySmall)
+        FlowRowCompat {CreativeColour.entries.forEach {preset->FilterChip(f.color==preset.color,{change {it.copy(color=preset.color)}},label={Text(preset.title)},enabled=!c.busy)}}
         ValueSlider("Clip brightness",f.color.brightness,-1f..1f,!c.busy){v->change {it.copy(color=it.color.copy(brightness=v))}}
         ValueSlider("Clip contrast",f.color.contrast,0f..2f,!c.busy){v->change {it.copy(color=it.color.copy(contrast=v))}}
         ValueSlider("Clip saturation",f.color.saturation,0f..2f,!c.busy){v->change {it.copy(color=it.color.copy(saturation=v))}}
@@ -981,7 +987,11 @@ private fun EditPanel(c: EditorController,p: DesktopProject,window:java.awt.Fram
             Text("Transition into next clip",style=MaterialTheme.typography.titleMedium)
             Text("Clips overlap by the transition length, limited to half either clip. Native and original custom-expression transitions are available. Punch and technical-difficulties companion assets are still being ported. Render to inspect the final cut.")
             OutlinedButton(onClick={change {it.copy(transition=null)}},enabled=!c.busy){Text("No transition")}
-            FlowRowCompat {TransitionKind.entries.filter {it.companionEffect==null && !it.tvBreak}.forEach {kind->FilterChip(f.transition?.kind==kind,{change {it.copy(transition=Transition(kind,f.transition?.durationMs ?: 500L))}},label={Text(kind.name)},enabled=!c.busy)}}
+            var family by remember {mutableStateOf("Basic")}
+            var query by remember {mutableStateOf("")}
+            OutlinedTextField(query,{query=it},label={Text("Search transitions")},enabled=!c.busy,modifier=Modifier.isolateProjectHistory())
+            FlowRowCompat {TransitionKind.entries.filter{it.companionEffect==null && !it.tvBreak}.map{it.creativeFamily()}.distinct().forEach {name->FilterChip(family==name,{family=name},label={Text(name)},enabled=!c.busy)}}
+            FlowRowCompat {TransitionKind.entries.filter {it.companionEffect==null && !it.tvBreak && (if(query.isBlank())it.creativeFamily()==family else it.name.contains(query.replace(' ','_'),true))}.forEach {kind->FilterChip(f.transition?.kind==kind,{change {it.copy(transition=Transition(kind,f.transition?.durationMs ?: 500L))}},label={Text(kind.name.lowercase().replace('_',' '))},enabled=!c.busy)}}
             f.transition?.let {tr->ValueSlider("Transition seconds",tr.durationMs/1000f,.1f..3f,!c.busy){v->change {it.copy(transition=tr.copy(durationMs=(v*1000).toLong()))}}}
         }
     }

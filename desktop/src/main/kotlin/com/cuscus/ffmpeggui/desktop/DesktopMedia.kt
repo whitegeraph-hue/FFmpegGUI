@@ -112,21 +112,62 @@ class DesktopMedia(val process: DesktopProcess = DesktopProcess()) {
 }
 
 /** Mutable desktop state wraps the exact same immutable Timeline/Effects/ConversionRequest as Android. */
+data class DesktopLook(val span:LookSpan,val clipId:String?=null)
+
 class DesktopProject(val sources: List<DesktopSource>, val timeline: Timeline,
     val format: OutputFormat = OutputFormat.MP4, val effects: Effects = Effects(),
     val encoding: EncodingSettings = EncodingSettings(), val words: List<SpokenWord> = emptyList(),
-    val followCrop: FollowCropTrack? = null, val subtitleStyle: SubtitleStyle? = null, val audioEffects:AudioEffects=AudioEffects.NONE,val image:ImageEdit=ImageEdit(),val captions:List<TextOverlay> = emptyList(),val sounds:List<DesktopSound> = emptyList(),val tags:MetadataTags=MetadataTags(),val canvas:CanvasRatio=CanvasRatio.FIT,val canvasFit:CanvasFit=CanvasFit.FIT,val normalize:Boolean=false,val pictures:List<DesktopPicture> = emptyList(),val wordsBySource:Map<String,List<SpokenWord>> = emptyMap(),val wordsByClip:Map<String,List<SpokenWord>> = emptyMap(),val photoPlacement:ImagePlacement?=null,val externalSubtitles:DesktopSubtitles?=null,val stabilization:Stabilization?=null,val coverPng:String?=null,val compression:Compression?=null) {
+    val followCrop: FollowCropTrack? = null, val subtitleStyle: SubtitleStyle? = null, val audioEffects:AudioEffects=AudioEffects.NONE,val image:ImageEdit=ImageEdit(),val captions:List<TextOverlay> = emptyList(),val sounds:List<DesktopSound> = emptyList(),val tags:MetadataTags=MetadataTags(),val canvas:CanvasRatio=CanvasRatio.FIT,val canvasFit:CanvasFit=CanvasFit.FIT,val normalize:Boolean=false,val pictures:List<DesktopPicture> = emptyList(),val wordsBySource:Map<String,List<SpokenWord>> = emptyMap(),val wordsByClip:Map<String,List<SpokenWord>> = emptyMap(),val photoPlacement:ImagePlacement?=null,val externalSubtitles:DesktopSubtitles?=null,val stabilization:Stabilization?=null,val coverPng:String?=null,val compression:Compression?=null,val looks:List<DesktopLook> = emptyList()) {
     fun copy(sources:List<DesktopSource> = this.sources,timeline: Timeline = this.timeline, format: OutputFormat = this.format,
         effects: Effects = this.effects, encoding: EncodingSettings = this.encoding,
         words: List<SpokenWord> = this.words, followCrop: FollowCropTrack? = this.followCrop,
-        subtitleStyle: SubtitleStyle? = this.subtitleStyle,audioEffects:AudioEffects=this.audioEffects,image:ImageEdit=this.image,captions:List<TextOverlay> = this.captions,sounds:List<DesktopSound> = this.sounds,tags:MetadataTags=this.tags,canvas:CanvasRatio=this.canvas,canvasFit:CanvasFit=this.canvasFit,normalize:Boolean=this.normalize,pictures:List<DesktopPicture> = this.pictures,wordsBySource:Map<String,List<SpokenWord>> = this.wordsBySource,wordsByClip:Map<String,List<SpokenWord>> = this.wordsByClip,photoPlacement:ImagePlacement?=this.photoPlacement,externalSubtitles:DesktopSubtitles?=this.externalSubtitles,stabilization:Stabilization?=this.stabilization,coverPng:String?=this.coverPng,compression:Compression?=this.compression) = DesktopProject(sources, timeline, format, effects, encoding, words, followCrop, subtitleStyle,audioEffects,image,captions,sounds,tags,canvas,canvasFit,normalize,pictures,wordsBySource,wordsByClip,photoPlacement,externalSubtitles,stabilization,coverPng,compression)
+        subtitleStyle: SubtitleStyle? = this.subtitleStyle,audioEffects:AudioEffects=this.audioEffects,image:ImageEdit=this.image,captions:List<TextOverlay> = this.captions,sounds:List<DesktopSound> = this.sounds,tags:MetadataTags=this.tags,canvas:CanvasRatio=this.canvas,canvasFit:CanvasFit=this.canvasFit,normalize:Boolean=this.normalize,pictures:List<DesktopPicture> = this.pictures,wordsBySource:Map<String,List<SpokenWord>> = this.wordsBySource,wordsByClip:Map<String,List<SpokenWord>> = this.wordsByClip,photoPlacement:ImagePlacement?=this.photoPlacement,externalSubtitles:DesktopSubtitles?=this.externalSubtitles,stabilization:Stabilization?=this.stabilization,coverPng:String?=this.coverPng,compression:Compression?=this.compression,looks:List<DesktopLook> = this.looks) = DesktopProject(sources, timeline, format, effects, encoding, words, followCrop, subtitleStyle,audioEffects,image,captions,sounds,tags,canvas,canvasFit,normalize,pictures,wordsBySource,wordsByClip,photoPlacement,externalSubtitles,stabilization,coverPng,compression,looks)
     fun requestSegments()=timeline.clips.map { c -> Segment(sources.indexOfFirst {it.path==c.sourceId},c.startMs,c.endMs,c.effects,c.id) }
     fun request(): ConversionRequest = ConversionRequest(format, File(sources.first().path).name,
         sources = sources.map { s -> s.info.let { SourceInfo(it.durationMs, it.width, it.height, it.hasAudio, it.isStill, it.hdr, it.frameRate, it.hasAlpha) } },
         segments = timeline.clips.map { c -> Segment(sources.indexOfFirst { it.path == c.sourceId }, c.startMs, c.endMs, c.effects, c.id) },
         photoPlacement=photoPlacement,effects = effects, encoding = encoding, audioEffects=audioEffects,image=image,metadata=tags,canvas=canvas,canvasFit=canvasFit,normalizeAudio=normalize,imageOverlays=pictures.filter {it.activeOn(timeline)}.map {it.placement},sounds=sounds.filter {!it.muted}.map {it.placed.copy(aiVoice=if(it.source.aiSpeech)"AI-generated voice" else it.placed.aiVoice)},textOverlays=captions.filter { !it.hidden && (it.clipId==null || timeline.clips.any {c->c.id==it.clipId}) }, followCrop = followCrop, subtitleStyle = subtitleStyle,
-        aiEditedPictures=DesktopProvenance.needed(this),compression=compression,cover=coverPng!=null,stabilization=stabilization,subtitleSource=externalSubtitles?.takeIf {it.enabled}?.sourceIndex,
+        looks=resolvedLooks(),aiEditedPictures=DesktopProvenance.needed(this),compression=compression,cover=coverPng!=null,stabilization=stabilization,subtitleSource=externalSubtitles?.takeIf {it.enabled}?.sourceIndex,
         placedWords = if(externalSubtitles?.enabled==true)emptyList() else DesktopSpeech.timedWords(this))
+    fun resolvedLooks():List<LookSpan> {
+        val clock=clock()
+        return looks.mapNotNull { item ->
+            val span=item.span
+            if(item.clipId==null) span.takeIf {it.startMs<clock.outputDurationMs}?.copy(endMs=span.endMs.coerceAtMost(clock.outputDurationMs))
+            else {
+                val index=timeline.clips.indexOfFirst {it.id==item.clipId}
+                if(index<0)null else {
+                    val begin=clock.joinedStartMs(index)
+                    val finish=begin+timeline.clips[index].effects.playedMs(timeline.clips[index].lengthMs)
+                    val start=((if(effects.reversed)clock.joinedDurationMs-finish else begin)/clock.speed).toLong().coerceAtLeast(0)
+                    val end=((if(effects.reversed)clock.joinedDurationMs-begin else finish)/clock.speed).toLong().coerceAtMost(clock.outputDurationMs)
+                    val from=(start+span.startMs).coerceAtMost(end);val to=(start+span.endMs).coerceAtMost(end)
+                    if(to>from)span.copy(startMs=from,endMs=to)else null
+                }
+            }
+        }
+    }
+    /** Preserve bound effect coverage when one occurrence becomes several non-overlapping split children. */
+    fun rebindSplitLooks(previous:DesktopProject):DesktopProject {
+        if(timeline===previous.timeline || previous.looks.isEmpty())return this
+        val oldIds=previous.timeline.clips.map{it.id}.toSet()
+        var rebound=looks
+        previous.timeline.clips.forEach {old->
+            val children=timeline.clips.filter {it.sourceId==old.sourceId && it.startMs>=old.startMs && (it.endMs ?: Long.MAX_VALUE)<=(old.endMs ?: Long.MAX_VALUE) && (it.id==old.id || it.id !in oldIds)}
+            if(children.size<2 || children.sumOf{it.lengthMs}!=old.lengthMs)return@forEach
+            val bound=looks.filter{it.clipId==old.id}
+            if(bound.isEmpty())return@forEach
+            val speed=previous.clock().speed
+            rebound=rebound.filter{it.clipId!=old.id}+bound.flatMap {item->children.mapNotNull {child->
+                val consumed=if(old.effects.reversed)(old.endMs ?: old.startMs+old.lengthMs)-(child.endMs ?: child.startMs+child.lengthMs) else child.startMs-old.startMs
+                val begin=(old.effects.playedOffsetMs(old.lengthMs.toDouble(),consumed.toDouble())/speed).toLong()
+                val end=(old.effects.playedOffsetMs(old.lengthMs.toDouble(),(consumed+child.lengthMs).toDouble())/speed).toLong()
+                val a=maxOf(item.span.startMs,begin);val b=minOf(item.span.endMs,end)
+                if(b>a)item.copy(span=item.span.copy(startMs=a-begin,endMs=b-begin),clipId=child.id)else null
+            }}
+        }
+        return copy(looks=rebound)
+    }
     fun clock()=PreviewTimeline(timeline.clips.map {PreviewTimeline.SegmentTiming(it.lengthMs,it.effects.speed,it.effects.reversed,it.effects.curve,it.effects.keepPitch,it.effects.transition)},effects.speed,effects.reversed,effects.keepPitch)
     val outputDurationMs:Long get()=request().expectedOutputDurationMs() ?: timeline.durationMs
     fun outputAt(mediaMs:Long)=clock().outputMs(mediaMs).coerceIn(0,outputDurationMs)

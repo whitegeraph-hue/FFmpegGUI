@@ -127,11 +127,14 @@ internal class AudioFilters {
         }
         if (abs(tempo - 1.0) > PITCH_EPSILON) filters += atempo(tempo.toFloat())
         // Equaliser: low shelf, a bell in the middle, high shelf (the preview runs the same).
-        filters += soundEqualizerStages(sound.bassDb, sound.midDb, sound.trebleDb).map { it.filter }
+        val soundEq=soundEqualizerStages(sound.bassDb, sound.midDb, sound.trebleDb)
+        if(soundEq.isNotEmpty()) filters += "aresample=$WORK_SAMPLE_RATE"
+        filters += soundEq.map { it.filter }
         // Its own effects, on float samples like those of the final sound. An echo would
         // ring on past its end: it is cut there, as the preview's player stops there.
         val ownStages = sound.effects.stages()
         if (ownStages.isNotEmpty()) {
+            filters += "aresample=$WORK_SAMPLE_RATE"
             filters += "aformat=sample_fmts=fltp"
             filters += ownStages.map { it.filter }
             val length = sound.lengthMs
@@ -184,6 +187,8 @@ internal class AudioFilters {
         if (stages.isEmpty() && !shifts) return emptyList()
         val filters = mutableListOf<String>()
         if (stages.isNotEmpty()) {
+            // Fixed working rate keeps every supported EQ band below Nyquist, including low-rate speech.
+            filters += "aresample=$WORK_SAMPLE_RATE"
             filters += "aformat=sample_fmts=fltp"
             filters += stages.map { it.filter }
         }

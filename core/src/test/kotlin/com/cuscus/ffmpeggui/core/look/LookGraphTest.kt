@@ -25,6 +25,15 @@ class LookGraphTest {
             listOf("$look" to graph(look), "$look mixed" to graph(look, strength = 0.6f, fadeIn = 0.5f, hue = 90f))
         }
 
+    @Test fun `negative flash speed changes its export clock`() {
+        assertTrue(PictureLook.NEGATIVE_FLASH.moves)
+        assertFalse(PictureLook.SEPIA.moves)
+        val slow=lookSpanGraph(LookSpan(PictureLook.NEGATIVE_FLASH,0,1000,speed=1f),"in","out","f",320,180,25)
+        val fast=lookSpanGraph(LookSpan(PictureLook.NEGATIVE_FLASH,0,1000,speed=2f),"in","out","f",320,180,25)
+        assertFalse(slow==fast)
+        assertTrue(fast.joinToString(";").contains("2.0000"))
+    }
+
     @Test
     fun `each label is made once and used once`() {
         val label = Regex("""\[[A-Za-z0-9_]+]""")

@@ -28,13 +28,23 @@ enum class PictureLook(
     INVERT("invert", 2.0),
     MIRROR("mirror", 2.0),
     GLOW("glow", 2.0),
+    SEPIA("sepia", 2.0),
+    COOL("cool", 2.0),
+    WARM("warm", 2.0),
+    SCANLINES("scanlines", 2.0),
+    POSTER("poster", 2.0),
+    NEGATIVE_FLASH("negative_flash", 1.0),
+    FADED("faded", 2.0),
+    HIGH_CONTRAST("high_contrast", 2.0),
+    DREAM_BLUR("dream_blur", 2.0),
+    NEON_EDGES("neon_edges", 2.0),
     ;
 
     /** True when something in it moves (its speed can be set). */
-    val moves: Boolean get() = this != BLACK_WHITE && this != INVERT && this != MIRROR && this != PRISM && this != PIXELATE && this != GLOW
+    val moves: Boolean get() = this in setOf(OLD_FILM, VHS, GLITCH, TV_STATIC, SHAKE, PULSE, RAINBOW, STROBE, NEGATIVE_FLASH)
 
     /** True when how much it does can be set. */
-    val hasAmount: Boolean get() = this != INVERT && this != MIRROR
+    val hasAmount: Boolean get() = this !in setOf(INVERT, MIRROR, SEPIA, COOL, WARM, SCANLINES, POSTER, NEGATIVE_FLASH, FADED, HIGH_CONTRAST, NEON_EDGES)
 
     companion object {
         /** The slowest and fastest a look's loop runs, and the least and most it does. */

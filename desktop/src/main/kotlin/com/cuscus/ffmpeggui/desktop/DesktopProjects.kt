@@ -19,7 +19,7 @@ object DesktopProjects {
     fun save(project: DesktopProject, target: File) {
         DesktopSpeech.validateStored(project.wordsByClip)
         val data=buildJsonObject {
-            put("type","ffmpeggui-linux-project"); put("version",1)
+            put("type","ffmpeggui-linux-project"); put("version",if(project.looks.isEmpty())1 else 2)
             put("sources",buildJsonArray { project.sources.forEach { add(buildJsonObject { put("path",it.path); put("size",File(it.path).length()); put("durationMs",it.info.durationMs) }) } })
             put("format",project.format.name)
             project.compression?.let {v->put("compression",buildJsonObject {put("level",v.level.name);put("target",v.targetBytes);put("palette",v.pngPalette)})}
@@ -29,6 +29,10 @@ object DesktopProjects {
             project.photoPlacement?.let {v->put("photoPlacement",buildJsonObject {put("x",v.x);put("y",v.y);put("width",v.widthFraction);put("opacity",v.opacity);put("rotation",v.rotationDegrees);put("layer",v.layer);put("stretch",v.stretch);put("blend",v.blend.name);put("aspect",v.aspect)})}
             put("tags",core(ModelJson.write(project.tags)));put("canvas",project.canvas.name);put("canvasFit",project.canvasFit.name);put("normalize",project.normalize)
             put("effects",core(ModelJson.write(project.effects)))
+            put("looks",buildJsonArray {project.looks.forEach {item-> val s=item.span;add(buildJsonObject {
+                put("kind",s.look.name);put("start",s.startMs);put("end",s.endMs);item.clipId?.let {put("clipId",it)}
+                put("strength",s.strength);put("fadeIn",s.fadeInSeconds);put("fadeOut",s.fadeOutSeconds);put("hue",s.hueDegrees);put("speed",s.speed);put("amount",s.amount)
+            })}})
             put("pictures",buildJsonArray {project.pictures.forEach {picture->add(buildJsonObject {
                 put("path",picture.source.path);put("size",File(picture.source.path).length());put("hidden",picture.hidden)
                 val v=picture.placement
@@ -83,7 +87,7 @@ object DesktopProjects {
     internal fun previousFile(target:File)=File(target.absoluteFile.parentFile,target.name+".previous.ffgui.json")
     private fun isProject(file:File)=runCatching {
         val root=Json.parseToJsonElement(file.readText()).jsonObject
-        root["type"]?.jsonPrimitive?.content=="ffmpeggui-linux-project" && root["version"]?.jsonPrimitive?.int==1
+        root["type"]?.jsonPrimitive?.content=="ffmpeggui-linux-project" && root["version"]?.jsonPrimitive?.int in 1..2
     }.getOrDefault(false)
     internal fun writeWithPrevious(destination:File,text:String,protectedFiles:List<File>,
         move:(java.nio.file.Path,java.nio.file.Path)->Unit={from,to->Files.move(from,to,StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING);Unit}) {
@@ -122,7 +126,7 @@ object DesktopProjects {
     }
     suspend fun load(file:File,media:DesktopMedia):DesktopProject {
         val data=Json.parseToJsonElement(file.readText()).jsonObject
-        require(data["type"]?.jsonPrimitive?.content=="ffmpeggui-linux-project" && data["version"]?.jsonPrimitive?.int==1) { "Unsupported project file." }
+        require(data["type"]?.jsonPrimitive?.content=="ffmpeggui-linux-project" && data["version"]?.jsonPrimitive?.int in 1..2) { "Unsupported project file." }
         val sources=data["sources"]!!.jsonArray.map { item ->
             val value=item.jsonObject
             val source=media.probe(value["path"]!!.jsonPrimitive.content)
@@ -213,6 +217,9 @@ object DesktopProjects {
                 cpuSpeed=data["cpuSpeed"]?.jsonPrimitive?.content?.let { CpuEncoderSpeed.valueOf(it) } ?: CpuEncoderSpeed.BALANCED,
                 keepHdr=data["keepHdr"]?.jsonPrimitive?.boolean ?: true,gif=gifSettings,
                 audio=AudioEncoding(data["audioBitrate"]?.jsonPrimitive?.int ?: 192,data["audioSampleRate"]?.jsonPrimitive?.int ?: 0,data["audioDepth"]?.jsonPrimitive?.int ?: 16)),
-            followCrop=data["followCrop"]?.let { ModelJson.followCrop(read(it)) },subtitleStyle=data["subtitleStyle"]?.let { ModelJson.subtitleStyle(read(it)) },wordsBySource=perSource,wordsByClip=perClip,pictures=pictures,tags=data["tags"]?.let {ModelJson.metadataTags(read(it))} ?: MetadataTags(),canvas=data["canvas"]?.jsonPrimitive?.content?.let {CanvasRatio.valueOf(it)} ?: CanvasRatio.FIT,canvasFit=data["canvasFit"]?.jsonPrimitive?.content?.let {CanvasFit.valueOf(it)} ?: CanvasFit.FIT,normalize=data["normalize"]?.jsonPrimitive?.boolean ?: false,sounds=sounds,captions=data["captions"]?.jsonArray?.map { ModelJson.textOverlay(read(it)) ?: error("Invalid caption") } ?: emptyList(),image=image,audioEffects=data["audioEffects"]?.let {ModelJson.audioEffects(read(it))} ?: AudioEffects.NONE)
+            looks=data["looks"]?.jsonArray?.map { raw->val v=raw.jsonObject
+                fun f(key:String,default:Float)=v[key]?.jsonPrimitive?.float ?: default
+                DesktopLook(LookSpan(PictureLook.valueOf(v["kind"]!!.jsonPrimitive.content),v["start"]!!.jsonPrimitive.long,v["end"]!!.jsonPrimitive.long,f("strength",1f),f("fadeIn",0f),f("fadeOut",0f),f("hue",0f),f("speed",1f),f("amount",1f)),v["clipId"]?.jsonPrimitive?.content)
+            } ?: emptyList(),followCrop=data["followCrop"]?.let { ModelJson.followCrop(read(it)) },subtitleStyle=data["subtitleStyle"]?.let { ModelJson.subtitleStyle(read(it)) },wordsBySource=perSource,wordsByClip=perClip,pictures=pictures,tags=data["tags"]?.let {ModelJson.metadataTags(read(it))} ?: MetadataTags(),canvas=data["canvas"]?.jsonPrimitive?.content?.let {CanvasRatio.valueOf(it)} ?: CanvasRatio.FIT,canvasFit=data["canvasFit"]?.jsonPrimitive?.content?.let {CanvasFit.valueOf(it)} ?: CanvasFit.FIT,normalize=data["normalize"]?.jsonPrimitive?.boolean ?: false,sounds=sounds,captions=data["captions"]?.jsonArray?.map { ModelJson.textOverlay(read(it)) ?: error("Invalid caption") } ?: emptyList(),image=image,audioEffects=data["audioEffects"]?.let {ModelJson.audioEffects(read(it))} ?: AudioEffects.NONE)
     }
 }

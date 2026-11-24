@@ -3442,4 +3442,23 @@
     <string name="stack_go_back">Back to this editor</string>
     <string name="stack_go_open">Open this editor</string>
     <string name="stack_here_text">The editor open now.</string>
+
+    <string name="look_sepia">Sepia</string>
+    <string name="look_cool">Cool tone</string>
+    <string name="look_warm">Warm tone</string>
+    <string name="look_scanlines">Scanlines</string>
+    <string name="look_poster">Poster colours</string>
+    <string name="look_negative_flash">Negative flash</string>
+    <string name="look_faded">Faded matte</string>
+    <string name="look_high_contrast">High contrast</string>
+    <string name="look_dream_blur">Dream blur</string>
+    <string name="look_neon_edges">Neon edges</string>
+    <string name="transition_venetian">Venetian blinds</string>
+    <string name="transition_diamond_grid">Diamond mosaic</string>
+    <string name="transition_checker_reveal">Checker reveal</string>
+    <string name="transition_saw_wipe">Zigzag wipe</string>
+    <string name="transition_iris_ellipse">Oval iris</string>
+    <string name="transition_angular_sweep">Angular sweep</string>
+    <string name="transition_bars_random">Stepped bars</string>
+    <string name="transition_cross_reveal">Cross reveal</string>
 </resources>

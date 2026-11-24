@@ -62,7 +62,7 @@ jobs:
           # One line: the runner runs each line in its own shell, so a multiline
           # script would lose rc and mask test failures. The debug package is
           # com.cuscus.ffmpeggui.debug.
-          script: ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.cuscus.ffmpeggui.SmartPanelsScreenshotTest,com.cuscus.ffmpeggui.EditorOpenScreenshotTest,com.cuscus.ffmpeggui.ExportSmokeTest,com.cuscus.ffmpeggui.SelectedClipRuntimeTest --stacktrace; rc=$?; mkdir -p ci-shots; adb pull /sdcard/ci-shots/ ci-shots/ || echo "no screenshots pulled (tests may have failed before writing any)"; adb logcat -d -s CI-A11Y > ci-shots/editor-tree.txt; cp -r app/build/outputs/androidTest-results ci-shots/test-results; exit $rc
+          script: ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.cuscus.ffmpeggui.SmartPanelsScreenshotTest,com.cuscus.ffmpeggui.EditorOpenScreenshotTest,com.cuscus.ffmpeggui.ExportSmokeTest,com.cuscus.ffmpeggui.SelectedClipRuntimeTest,com.cuscus.ffmpeggui.CreativeEffectsRuntimeTest --stacktrace; rc=$?; mkdir -p ci-shots; adb pull /sdcard/ci-shots/ ci-shots/ || echo "no screenshots pulled (tests may have failed before writing any)"; adb logcat -d -s CI-A11Y > ci-shots/editor-tree.txt; cp -r app/build/outputs/androidTest-results ci-shots/test-results; exit $rc
 
       - uses: actions/upload-artifact@v4
         if: always()

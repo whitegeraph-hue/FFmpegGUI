@@ -119,6 +119,16 @@ internal fun lookGraph(
     fun chain(vararg filters: String) = listOf("[$input]${filters.joinToString(",")}[$output]")
 
     return when (look) {
+        PictureLook.SEPIA -> chain("colorchannelmixer=.393:.769:.189:0:.349:.686:.168:0:.272:.534:.131:$onWindow")
+        PictureLook.COOL -> chain("colorbalance=rs=-0.08:bs=0.10:rm=-0.04:bm=0.06:$onWindow")
+        PictureLook.WARM -> chain("colorbalance=rs=0.10:bs=-0.08:rm=0.06:bm=-0.04:$onWindow")
+        PictureLook.SCANLINES -> chain("drawgrid=w=iw:h=4:t=1:c=black@0.35:$onWindow")
+        PictureLook.POSTER -> chain("lutrgb=r='floor(val/64)*64':g='floor(val/64)*64':b='floor(val/64)*64':$onWindow")
+        PictureLook.NEGATIVE_FLASH -> chain("negate=${on("lt($phase,0.22)")}")
+        PictureLook.FADED -> chain("eq=contrast=0.72:brightness=0.08:saturation=0.65:$onWindow")
+        PictureLook.HIGH_CONTRAST -> chain("eq=contrast=1.5:saturation=1.15:$onWindow")
+        PictureLook.DREAM_BLUR -> chain("gblur=sigma=${f(2.0*a)}:$onWindow", "eq=brightness=0.035:saturation=0.85:$onWindow")
+        PictureLook.NEON_EDGES -> chain("edgedetect=low=0.08:high=0.2:mode=colormix:$onWindow")
         PictureLook.BLACK_WHITE -> chain("hue=s=0:$onWindow", "eq=contrast=${f(1 + 0.12 * a)}:$onWindow")
 
         PictureLook.OLD_FILM -> {
@@ -357,6 +367,36 @@ half4 main(float2 p) {
 fun lookShader(look: PictureLook): String = SHADER_HEAD + "\n\n" + lookBody(look) + "\n\n" + SHADER_MAIN
 
 private fun lookBody(look: PictureLook): String = when (look) {
+    PictureLook.SEPIA -> """
+        float3 look(float2 p) { float3 c=px(p); return float3(dot(c,float3(.393,.769,.189)),dot(c,float3(.349,.686,.168)),dot(c,float3(.272,.534,.131))); }
+    """
+    PictureLook.COOL -> """
+        float3 look(float2 p) { return px(p)+float3(-.06,0,.08); }
+    """
+    PictureLook.WARM -> """
+        float3 look(float2 p) { return px(p)+float3(.08,0,-.06); }
+    """
+    PictureLook.SCANLINES -> """
+        float3 look(float2 p) { return px(p)*(mod(p.y,4.0)<1.0?.65:1.0); }
+    """
+    PictureLook.POSTER -> """
+        float3 look(float2 p) { return floor(px(p)*255.0/64.0)*64.0/255.0; }
+    """
+    PictureLook.NEGATIVE_FLASH -> """
+        float3 look(float2 p) { return fract(uTime)<.22?1.0-px(p):px(p); }
+    """
+    PictureLook.FADED -> """
+        float3 look(float2 p) { float3 c=px(p); float y=dot(c,Y601); return (mix(float3(y),c,.65)-.5)*.72+.58; }
+    """
+    PictureLook.HIGH_CONTRAST -> """
+        float3 look(float2 p) { float3 c=px(p); return (mix(float3(dot(c,Y601)),c,1.15)-.5)*1.5+.5; }
+    """
+    PictureLook.DREAM_BLUR -> """
+        float3 look(float2 p) { float d=2.0*uAmount; float3 c=(px(p)+px(p+float2(d,d))+px(p-float2(d,d))+px(p+float2(d,-d))+px(p+float2(-d,d)))/5.0; return mix(float3(dot(c,Y601)),c,.85)+.035; }
+    """
+    PictureLook.NEON_EDGES -> """
+        float3 look(float2 p) { float3 dx=abs(px(p+float2(1,0))-px(p-float2(1,0))); float3 dy=abs(px(p+float2(0,1))-px(p-float2(0,1))); return (dx+dy)*2.0; }
+    """
     PictureLook.BLACK_WHITE -> """
         float3 look(float2 p) {
             float y = dot(px(p), Y601);

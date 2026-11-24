@@ -1,4 +1,4 @@
-@file:OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@file:OptIn(ExperimentalMaterial3ExpressiveApi::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 
 package com.cuscus.ffmpeggui
 
@@ -596,6 +596,19 @@ internal fun AudioSpaceContent(effects: AudioEffects, onChange: AudioChange) {
 internal fun AudioEffectsContent(effects: AudioEffects, onChange: AudioChange) {
     val modulation = effects.modulation
     Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = panelModifier) {
+        Text("Voice presets", style = MaterialTheme.typography.titleMedium)
+        PanelHint("Replaces effects in the selected clip, sound track or whole-output scope. Old telephone is a band-limited mono voice. Export DSP uses 48 kHz internally; an explicit export sample rate is applied afterward. Low-rate live preview can differ. Render/export to check; character presets are DSP, not AI voices.")
+        var family by remember { mutableStateOf("Retro") }
+        androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            com.cuscus.ffmpeggui.core.model.CreativeVoice.entries.map { it.family }.distinct().forEach { group ->
+                androidx.compose.material3.FilterChip(selected=family==group,onClick={family=group},label={Text(group)})
+            }
+        }
+        OptionTileRow(
+            options = com.cuscus.ffmpeggui.core.model.CreativeVoice.entries.filter {it.family==family || it==com.cuscus.ffmpeggui.core.model.CreativeVoice.CLEAN}.map { TileOption(it,it.title,icon=Icons.Rounded.GraphicEq) },
+            selected = com.cuscus.ffmpeggui.core.model.CreativeVoice.entries.firstOrNull {it.effects==effects},
+            onSelect = { preset -> onChange(null) { preset.effects } },
+        )
         OptionTileRow(
             options = listOf(TileOption<ModulationKind?>(null, stringResource(R.string.audio_off), icon = Icons.Rounded.Block)) +
                 ModulationKind.entries.map { TileOption<ModulationKind?>(it, stringResource(modulationLabel(it)), icon = modulationIcon(it)) },

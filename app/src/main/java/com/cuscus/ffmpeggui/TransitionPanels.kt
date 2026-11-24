@@ -411,6 +411,15 @@ enum class TransitionFamily(@StringRes val labelRes: Int, val kinds: List<Transi
             TransitionKind.CIRCLE_OPEN, TransitionKind.RECT_CROP, TransitionKind.RADIAL, TransitionKind.DIAMOND,
             TransitionKind.HEXAGON, TransitionKind.STAR, TransitionKind.STRIPES, TransitionKind.CHECKER,
             TransitionKind.PAPER_TEAR, TransitionKind.BRUSH,
+            TransitionKind.VENETIAN,
+            TransitionKind.DIAMOND_GRID,
+            TransitionKind.CHECKER_REVEAL,
+            TransitionKind.SAW_WIPE,
+            TransitionKind.IRIS_ELLIPSE,
+            TransitionKind.ANGULAR_SWEEP,
+            TransitionKind.BARS_RANDOM,
+            TransitionKind.CROSS_REVEAL,
+
         ),
     ),
     MASK(
@@ -536,6 +545,15 @@ fun transitionLabel(kind: TransitionKind): Int = when (kind) {
     TransitionKind.SWIPE_UP -> R.string.transition_swipe_up
     TransitionKind.SWIPE_DOWN -> R.string.transition_swipe_down
     TransitionKind.HEARTS -> R.string.transition_hearts
+    TransitionKind.VENETIAN -> R.string.transition_venetian
+    TransitionKind.DIAMOND_GRID -> R.string.transition_diamond_grid
+    TransitionKind.CHECKER_REVEAL -> R.string.transition_checker_reveal
+    TransitionKind.SAW_WIPE -> R.string.transition_saw_wipe
+    TransitionKind.IRIS_ELLIPSE -> R.string.transition_iris_ellipse
+    TransitionKind.ANGULAR_SWEEP -> R.string.transition_angular_sweep
+    TransitionKind.BARS_RANDOM -> R.string.transition_bars_random
+    TransitionKind.CROSS_REVEAL -> R.string.transition_cross_reveal
+
     TransitionKind.PENDULUM_1 -> R.string.transition_pendulum_1
     TransitionKind.PENDULUM_2 -> R.string.transition_pendulum_2
     TransitionKind.BOUNCE -> R.string.transition_bounce

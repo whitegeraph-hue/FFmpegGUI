@@ -1051,7 +1051,7 @@ the export lives in `:core`, package `preview`, and is unit tested:
 | volume above 100 %          | `LoudnessEnhancer` on the player's audio session                       |
 | loudness normalisation      | source loudness is measured once (ebur128), then a gain to the loudnorm target |
 | placed sounds               | a player per sound, kept in sync with the output clock (place, trim, volume, fades, speed, pitch, repeats, equaliser, levelling) |
-| sound effects (final sound, each placed sound) | sample-exact ports of the FFmpeg filters in an `AudioProcessor` of every player; pitch as the players' pitch; the waveform view drawn from the output's outline |
+| sound effects (final sound, each placed sound) | local ports of the FFmpeg filters in an `AudioProcessor` of every player; low-rate preview and export are not sample-exact: export DSP resamples to 48 kHz while the player processes its negotiated rate and bypasses at/above-Nyquist biquads; pitch as the players' pitch; the waveform view drawn from the output's outline |
 | stream copy, frame extraction | filters are ignored, exactly as the export ignores them              |
 | denoise (clip and whole)    | not live, as it works over time: a badge on the picture and a mark on the clip say it is there, and the Details panel shows it close up, made by FFmpeg with the export's own filter (see "Denoise") |
 

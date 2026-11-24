@@ -521,6 +521,15 @@ internal object Recipes {
             )
         }
 
+        TransitionKind.VENETIAN -> TransitionRecipe(outgoing=Part(),incoming=Part(alpha=iff(gte(T,num(1.0)),Ex.ONE,iff(lt(T,num(0.000001)),Ex.ZERO,lt(fract(Y*12.0),T)))))
+        TransitionKind.DIAMOND_GRID -> TransitionRecipe(outgoing=Part(),incoming=Part(alpha=iff(gte(T,num(1.0)),Ex.ONE,iff(lt(T,num(0.000001)),Ex.ZERO,lt(abs(fract(X*7.0)-0.5)+abs(fract(Y*7.0)-0.5),T)))))
+        TransitionKind.CHECKER_REVEAL -> TransitionRecipe(outgoing=Part(),incoming=Part(alpha=iff(gte(T,num(1.0)),Ex.ONE,iff(lt(T,num(0.000001)),Ex.ZERO,lt(fract((floor(X*8.0)+floor(Y*8.0))*0.5)*0.5+fract(X*8.0)*0.5,T)))))
+        TransitionKind.SAW_WIPE -> TransitionRecipe(outgoing=Part(),incoming=Part(alpha=iff(gte(T,num(1.0)),Ex.ONE,iff(lt(T,num(0.000001)),Ex.ZERO,lt(X*0.8+abs(fract(Y*10.0)-0.5)*0.4,T)))))
+        TransitionKind.IRIS_ELLIPSE -> TransitionRecipe(outgoing=Part(),incoming=Part(alpha=iff(gte(T,num(1.0)),Ex.ONE,iff(lt(T,num(0.000001)),Ex.ZERO,lt(hypot((X-0.5)*1.3,(Y-0.5)*.8),T*.77)))))
+        TransitionKind.ANGULAR_SWEEP -> TransitionRecipe(outgoing=Part(),incoming=Part(alpha=iff(gte(T,num(1.0)),Ex.ONE,iff(lt(T,num(0.000001)),Ex.ZERO,lt((atan2(Y-0.5,X-0.5)+PI)/(2*PI),T)))))
+        TransitionKind.BARS_RANDOM -> TransitionRecipe(outgoing=Part(),incoming=Part(alpha=iff(gte(T,num(1.0)),Ex.ONE,iff(lt(T,num(0.000001)),Ex.ZERO,lt(X*.7+fract(floor(Y*14.0)*.618)*.3,T)))))
+        TransitionKind.CROSS_REVEAL -> TransitionRecipe(outgoing=Part(),incoming=Part(alpha=iff(gte(T,num(1.0)),Ex.ONE,iff(lt(T,num(0.000001)),Ex.ZERO,lt(min(abs(X-.5),abs(Y-.5))*2.0,T)))))
+
         // -- Social -----------------------------------------------------------
         TransitionKind.SWIPE_UP -> swipe(up = true)
         TransitionKind.SWIPE_DOWN -> swipe(up = false)

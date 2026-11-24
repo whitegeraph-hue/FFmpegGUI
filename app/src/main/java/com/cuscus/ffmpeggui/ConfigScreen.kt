@@ -1763,7 +1763,17 @@ fun ConfigScreen(
                         }
                     },
                 )
-                EditorTool.AUDIO, EditorTool.VOLUME -> AudioSectionContent(
+                EditorTool.AUDIO, EditorTool.VOLUME -> androidx.compose.foundation.layout.Column {
+                    OriginalSoundPicker { cue ->
+                        val cueAt=playback.snapshot.value.outputMs
+                        transitionScope.launch {
+                            val file = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                cue.ensureFile(java.io.File(context.filesDir,"original-sounds"))
+                            }
+                            onAddAudioClips(listOf(PickedFile(Uri.fromFile(file),cue.title)),cueAt) { id -> selectSound(id); selectedTool=null }
+                        }
+                    }
+                    AudioSectionContent(
                     clipScope = scopeClipId != null,
                     removeAudio = scopeEffects.muted,
                     volumeLevel = scopeEffects.volume,
@@ -1789,6 +1799,7 @@ fun ConfigScreen(
                     onSoloThis = { scopeClipId?.let(onSoloClipSound) },
                     clipAtPlayhead = clipAtPlayhead,
                 )
+                }
                 EditorTool.VOICE_SPLIT -> {
                     // The clip's file, or those of every clip that plays (with sound).
                     val scopeClips = if (selectedClip != null) listOf(selectedClip) else playingClips
@@ -2014,7 +2025,9 @@ fun ConfigScreen(
                     onFadeIn = { seconds -> updateScope { it.copy(fadeInSeconds = seconds) } },
                     onFadeOut = { seconds -> updateScope { it.copy(fadeOutSeconds = seconds) } },
                 )
-                EditorTool.COLOR -> ColorSectionContent(
+                EditorTool.COLOR -> androidx.compose.foundation.layout.Column {
+                    CreativeColourPresets(scopeEffects.color) { value -> updateScope { it.copy(color=value) } }
+                    ColorSectionContent(
                     brightness = scopeEffects.color.brightness,
                     contrast = scopeEffects.color.contrast,
                     saturation = scopeEffects.color.saturation,
@@ -2022,6 +2035,7 @@ fun ConfigScreen(
                     onContrast = { value -> updateScope { it.copy(color = it.color.copy(contrast = value)) } },
                     onSaturation = { value -> updateScope { it.copy(color = it.color.copy(saturation = value)) } },
                 )
+                }
                 EditorTool.DETAILS -> {
                     val frame = denoiseFrame
                     // The clip at the frame compared, and its settings: the export runs them, then the whole video's.

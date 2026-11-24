@@ -118,7 +118,7 @@ class EditorController(val scope: CoroutineScope) {
     fun resetAnalysis() { pauseStatus=PauseCutsStatus.Idle; sceneStatus=SceneSplitsStatus.Idle; beatStatus=BeatsStatus.Idle; snap=false; followStatus=FollowCropStatus.Idle }
     fun mutate(next: DesktopProject) {
         rememberEdit()
-        project=next
+        project=project?.let {next.rebindSplitLooks(it)} ?: next
         selectedSource=selectedSource.coerceIn(next.sources.indices)
         player.stop();rendered?.delete(); rendered=null;previewFrame=null;inspectedOutputMs=null
         position=position.coerceAtMost(next.timeline.durationMs)
@@ -201,7 +201,7 @@ class EditorController(val scope: CoroutineScope) {
     }
     fun duplicateSelected() {
         val p=project ?: return;val clip=p.timeline.clips.firstOrNull {it.id==smartClipId} ?: return
-        val next=id();mutate(p.copy(timeline=p.timeline.duplicate(clip.id,next),followCrop=null));selectSmartClip(next);status="Duplicated selected clip. Undo removes the copy."
+        val next=id();mutate(p.copy(timeline=p.timeline.duplicate(clip.id,next),looks=p.looks+p.looks.filter{it.clipId==clip.id}.map{it.copy(clipId=next)},followCrop=null));selectSmartClip(next);status="Duplicated selected clip. Undo removes the copy."
     }
     fun trimSelected(start:Long,end:Long) {
         if(busy)return

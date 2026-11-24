@@ -31,3 +31,7 @@ import wave, struct, math
 with wave.open(str(root / "waveform-check.wav"), "wb") as target:
     target.setparams((1, 2, 8000, 0, "NONE", "not compressed"))
     target.writeframes(b"".join(struct.pack("<h", int((.8 if 1 <= i/8000 < 2 else .2 if 2 <= i/8000 < 3 else 0)*32767*math.sin(2*math.pi*400*i/8000))) for i in range(32000)))
+
+# Original synthetic speech, 16 kHz: catches a Nyquist EQ band erasing all speech.
+import shutil
+shutil.copyfile(Path(__file__).resolve().parents[2]/"app/src/androidTest/assets/creative-speech16.wav",root/"telephone-speech-input.wav")

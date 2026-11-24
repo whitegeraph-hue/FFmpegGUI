@@ -39,6 +39,15 @@ class AudioMasteringTest {
         return buffer
     }
 
+    @Test fun `Nyquist octave EQ safely bypasses instead of erasing speech`() {
+        for(rate in listOf(8000,16000)) {
+            val stage=AudioStage.Biquad(BiquadType.EQUALIZER,rate/2.0,1.0,WidthType.OCTAVE,12.0)
+            val samples=FloatArray(400){kotlin.math.sin(it*.23).toFloat()};val before=samples.copyOf()
+            stage.processor(rate,1).process(samples,samples.size)
+            org.junit.Assert.assertArrayEquals(before,samples,0f)
+        }
+    }
+
     @Test
     fun `nothing set means no stages`() {
         assertTrue(AudioEffects().stages().isEmpty())

@@ -140,6 +140,17 @@ fun effectLabelRes(name: String): Int? = when (name) {
     "invert" -> R.string.look_invert
     "mirror" -> R.string.look_mirror
     "glow" -> R.string.look_glow
+    "sepia" -> R.string.look_sepia
+    "cool" -> R.string.look_cool
+    "warm" -> R.string.look_warm
+    "scanlines" -> R.string.look_scanlines
+    "poster" -> R.string.look_poster
+    "negative_flash" -> R.string.look_negative_flash
+    "faded" -> R.string.look_faded
+    "high_contrast" -> R.string.look_high_contrast
+    "dream_blur" -> R.string.look_dream_blur
+    "neon_edges" -> R.string.look_neon_edges
+
     "fairy" -> R.string.effect_fairy
     "explosion" -> R.string.effect_explosion
     "flash" -> R.string.effect_flash
@@ -334,6 +345,9 @@ internal fun EffectPickerSheet(onPick: (String) -> Unit, onDismiss: () -> Unit) 
             verticalArrangement = Arrangement.spacedBy(10.dp),
             modifier = Modifier.fillMaxWidth().heightIn(max = 680.dp).padding(horizontal = 16.dp).selectableGroup(),
         ) {
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                Text("Flashing and strobe effects may affect photosensitive viewers. Android previews can approximate or omit effects on older devices; check an exported copy.", style=MaterialTheme.typography.bodySmall)
+            }
             item(span = { GridItemSpan(maxLineSpan) }) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,

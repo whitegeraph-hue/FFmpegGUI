@@ -20,6 +20,100 @@ internal fun runNativeChecks(args:Array<String>)=runBlocking {
     suspend fun verify(name:String,block:suspend ()->Unit) { if(filter==null || filter.containsMatchIn(name)){block();passed++;println("PASS $name")} }
 
     val video=media.probe(File(folder,"video.mp4").path)
+    verify("creative voice presets render roundtrip and telephone band limits") {
+        val sound=media.probe(File(folder,"video.mp4").path)
+        val telephoneInput=File(folder,"telephone-spectrum-input.wav")
+        media.process.checked(listOf("ffmpeg","-y","-v","error","-f","lavfi","-i","anoisesrc=color=white:amplitude=0.1:sample_rate=48000:duration=2:seed=71",telephoneInput.path))
+        val telephone=media.probe(telephoneInput.path)
+        exporter.export(DesktopProject.create(telephone).copy(format=OutputFormat.WAV,audioEffects=CreativeVoice.TELEPHONE.effects),File(folder,"telephone-spectrum-output.wav"))
+        val speechFile=File(folder,"telephone-speech-input.wav")
+        check(speechFile.isFile) {"Required telephone speech fixture missing"}
+        exporter.export(DesktopProject.create(media.probe(speechFile.path)).copy(format=OutputFormat.WAV,audioEffects=CreativeVoice.TELEPHONE.effects),File(folder,"telephone-speech-output.wav"))
+        run {
+            val levels=media.process.checked(listOf("ffmpeg","-hide_banner","-i",File(folder,"telephone-speech-output.wav").path,"-af","volumedetect","-f","null","-"))
+            check(!levels.contains("mean_volume: -inf")) {"Telephone preset erased speech"}
+            val pcm=File(folder,"telephone-speech-check.pcm")
+            media.process.checked(listOf("ffmpeg","-y","-v","error","-i",File(folder,"telephone-speech-output.wav").path,"-f","s16le",pcm.path))
+            val data=pcm.readBytes();check(data.size>20000 && data.any{it.toInt()!=0}) {"Telephone speech PCM is empty or silent"}
+            pcm.delete()
+        }
+        val controller=EditorController(CoroutineScope(Dispatchers.Default));val original=DesktopProject.create(sound)
+        controller.project=original;controller.mutate(original.copy(audioEffects=CreativeVoice.TELEPHONE.effects));controller.undo();check(controller.project===original)
+        controller.mutate(original.copy(effects=original.effects.copy(color=CreativeColour.CINEMA.color)));controller.undo();check(controller.project===original)
+        for(preset in CreativeVoice.entries) {
+            val fx=preset.effects
+            check(com.cuscus.ffmpeggui.core.project.ModelJson.audioEffects(com.cuscus.ffmpeggui.core.project.ModelJson.write(fx))==fx)
+            val p=DesktopProject.create(sound).copy(format=OutputFormat.WAV,audioEffects=fx)
+            val out=File(folder,"creative-voice-${preset.name}.wav")
+            exporter.export(p,out)
+            check(out.length()>1000)
+        }
+        for(rate in listOf(8000,16000)) {
+            val low=File(folder,"creative-speech-$rate.wav")
+            media.process.checked(listOf("ffmpeg","-y","-v","error","-i",speechFile.path,"-t","2","-ar",rate.toString(),low.path))
+            val lowSource=media.probe(low.path)
+            val recipes=CreativeVoice.entries.map{it.title to it.effects}+listOf("Manual high EQ" to AudioEffects(equalizer=List(10){12f}))
+            for((title,fx) in recipes) {
+                val out=File(folder,"creative-low-rate-output.wav")
+                exporter.export(DesktopProject.create(lowSource).copy(format=OutputFormat.WAV,audioEffects=fx),out)
+                val pcm=File(folder,"creative-low-rate.pcm")
+                media.process.checked(listOf("ffmpeg","-y","-v","error","-i",out.path,"-f","s16le",pcm.path))
+                val data=pcm.readBytes();check(data.size>10000 && data.any{it.toInt()!=0}) {"$title erased $rate Hz speech"}
+            }
+        }
+        for(inputRate in listOf(8000,44100)) for(outputRate in listOf(0,22050,44100)) {
+            val low=File(folder,"rate-$inputRate.wav")
+            media.process.checked(listOf("ffmpeg","-y","-v","error","-i",speechFile.path,"-t","1","-ar",inputRate.toString(),low.path))
+            val source=media.probe(low.path);val out=File(folder,"rate-result.wav")
+            exporter.export(DesktopProject.create(source).copy(format=OutputFormat.WAV,audioEffects=CreativeVoice.TELEPHONE.effects,encoding=EncodingSettings(audio=AudioEncoding(sampleRate=outputRate))),out)
+            val actual=media.process.checked(listOf("ffprobe","-v","error","-select_streams","a:0","-show_entries","stream=sample_rate","-of","csv=p=0",out.path)).trim().toInt()
+            check(actual==(if(outputRate==0)48000 else outputRate)) {"Audio output rate $actual did not honor $outputRate"}
+        }
+        val t=CreativeVoice.TELEPHONE.effects
+        check(t.lowCutHz==400 && t.highCutHz==3200 && t.stereo.mono && t.pitchSemitones==0f)
+    }
+    verify("original sound cues deterministic valid bounded PCM") {
+        for(cue in com.cuscus.ffmpeggui.core.sound.OriginalSound.entries) {
+            val a=java.io.ByteArrayOutputStream().also{cue.writeWav(it)}.toByteArray()
+            val b=java.io.ByteArrayOutputStream().also{cue.writeWav(it)}.toByteArray()
+            check(a.contentEquals(b) && a.size in 1000..150000 && String(a,0,4)=="RIFF")
+            val file=File(folder,"original-${cue.name}.wav").apply{writeBytes(a)}
+            val probe=media.probe(file.path);check(probe.info.hasAudio && kotlin.math.abs(probe.info.durationMs-cue.seconds*1000)<3)
+            val cache=File(folder,"cue-cache-test");val cached=cue.ensureFile(cache);cached.writeBytes(byteArrayOf(1,2,3));check(cue.ensureFile(cache).readBytes().contentEquals(a))
+        }
+    }
+    verify("creative visual looks roundtrip binding reverse overlap and real render") {
+        val source=media.probe(File(folder,"scenes.mp4").path)
+        val a=Clip("creative-a",source.path,0,3000,Effects(transition=Transition(TransitionKind.FADE,500)))
+        val b=Clip("creative-b",source.path,3000,6000)
+        val looks=listOf(DesktopLook(LookSpan(PictureLook.SEPIA,0,2000),b.id))
+        val p=DesktopProject.create(source).copy(timeline=Timeline(listOf(a,b)),looks=looks)
+        check(p.resolvedLooks().single().startMs==2500L && p.resolvedLooks().single().endMs==4500L)
+        check(p.copy(effects=Effects(reversed=true,speed=2f)).resolvedLooks().single().startMs==0L)
+        val saved=File(folder,"creative-looks.ffgui.json");DesktopProjects.save(p,saved)
+        check(DesktopProjects.load(saved,media).looks==p.looks)
+        check(Json.parseToJsonElement(saved.readText()).jsonObject["version"]!!.jsonPrimitive.int==2)
+        DesktopProjects.save(p,saved);check(DesktopProjects.load(DesktopProjects.previousFile(saved),media).looks==p.looks)
+        check(p.copy(timeline=Timeline(listOf(a))).resolvedLooks().isEmpty())
+        val split=p.copy(timeline=p.splitFootageAt(listOf(4500L)) ).rebindSplitLooks(p)
+        check(split.looks.size==2 && split.looks.map{it.span.endMs-it.span.startMs}.sum()==2000L)
+        val controller=EditorController(CoroutineScope(Dispatchers.Default));controller.project=p;controller.selectSmartClip(b.id);controller.duplicateSelected()
+        check(controller.project!!.looks.size==2);controller.undo();check(controller.project!!.looks==p.looks)
+        controller.mutate(split);controller.undo();check(controller.project!!.looks==p.looks)
+
+        for(look in PictureLook.entries.filter{it.ordinal>=PictureLook.SEPIA.ordinal}) {
+            val out=File(folder,"creative-look-${look.id}.mp4")
+            exporter.export(DesktopProject.create(source).copy(timeline=Timeline(listOf(a.copy(endMs=1200,effects=Effects.NONE))),looks=listOf(DesktopLook(LookSpan(look,0,1000)))),out)
+            check(out.length()>1000)
+        }
+    }
+    verify("creative transition additions render every new recipe") {
+        val source=media.probe(File(folder,"scenes.mp4").path)
+        for(kind in TransitionKind.entries.filter{it.ordinal in TransitionKind.VENETIAN.ordinal..TransitionKind.CROSS_REVEAL.ordinal}) {
+            val p=DesktopProject.create(source).copy(timeline=Timeline(listOf(Clip("a",source.path,0,1000,Effects(transition=Transition(kind,300))),Clip("b",source.path,4000,5000))))
+            val out=File(folder,"creative-transition-${kind.name}.mp4");exporter.export(p,out);check(out.length()>1000)
+        }
+    }
     verify("process failures retain exit code bounded log and qualified killed guidance") {
         val killed=desktopProcessFailure(137,"x".repeat(7000))
         check(killed.contains("exit 137") && killed.contains("does not prove") && killed.length<6600)
