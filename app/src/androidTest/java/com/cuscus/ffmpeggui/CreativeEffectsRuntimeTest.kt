@@ -112,12 +112,16 @@ class CreativeEffectsRuntimeTest {
             "tape-no-crusher" to AudioEffects(highCutHz=6500,modulation=Modulation(ModulationKind.VIBRATO,.7f,.12f),limiter=Limiter(-2f)),
             "cyborg-old" to CreativeVoice.CYBORG.effects.copy(lofiBits=9)
         )
-        var cases=0;var invalid=0
+        var cases=0;var invalid=0;var commandFailures=0
         suspend fun inspect(label:String,input:File,filters:List<String>,channels:Int):Boolean {
-            val out=File(context.cacheDir,"manual-dsp.f32")
+            val out=File(context.cacheDir,"manual-dsp.f32");out.delete()
             val logs=StringBuilder()
             val result=executor.execute(FfmpegCommand(listOf("-y","-i",input.path,"-af",filters.joinToString(","),"-ac",channels.toString(),"-f","f32le",out.path))){logs.append(it)}
-            assertEquals("$label ${logs.takeLast(1200)}",ExecutionResult.Success,result)
+            if(result!=ExecutionResult.Success || !out.isFile) {
+                cases++;commandFailures++
+                android.util.Log.e("MANUAL-DSP","$label COMMAND_FAILED result=$result ${logs.takeLast(1200)}")
+                out.delete();return false
+            }
             val data=java.nio.ByteBuffer.wrap(out.readBytes()).order(java.nio.ByteOrder.LITTLE_ENDIAN)
             var nonfinite=0;var firstBad=-1;var nonzero=0;var samples=0;var peak=0f
             while(data.remaining()>=4) {
@@ -138,8 +142,15 @@ class CreativeEffectsRuntimeTest {
                 val stages=fx.stages().map{it.filter}
                 for(count in 0..stages.size) inspect("$name/$rate/$level/ch$channels/prefix$count",input,listOf("aresample=48000","aformat=sample_fmts=fltp")+stages.take(count),channels)
                 if(fx.pitchSemitones!=0f) {
-                    val shiftedRate=Math.round(48000*Math.pow(2.0,fx.pitchSemitones/12.0))
-                    inspect("$name/$rate/$level/ch$channels/with-pitch",input,listOf("aresample=48000","aformat=sample_fmts=fltp")+stages+listOf("aresample=48000","asetrate=$shiftedRate","aresample=48000","atempo=${48000.0/shiftedRate}"),channels)
+                    val output=File(context.cacheDir,"manual-dsp-built.wav")
+                    val req=ConversionRequest(OutputFormat.WAV,input.name,sources=listOf(SourceInfo(1000,0,0,true)),segments=listOf(Segment(0,0,1000)),audioEffects=fx)
+                    val built=CommandBuilder{"/fonts/Regular.ttf"}.build(req,MediaPaths(inputs=listOf(input.path),output=output.path))
+                    val args=built.arguments.map{if(it=="pcm_s16le")"pcm_f32le" else it}
+                    val result=executor.execute(FfmpegCommand(args)){}
+                    android.util.Log.i("MANUAL-DSP","$name/$rate/$level/ch$channels/actual-builder result=$result command=${args.joinToString(" ")}")
+                    if(result==ExecutionResult.Success)inspect("$name/$rate/$level/ch$channels/actual-builder-decode",output,listOf("anull"),channels)
+                    else {cases++;commandFailures++}
+                    output.delete()
                 }
                 // Change one mechanism at a time. These controls are not production changes.
                 if(stages.any{it.startsWith("acrusher=")}) {
@@ -159,7 +170,7 @@ class CreativeEffectsRuntimeTest {
             assertEquals(ExecutionResult.Success,executor.execute(FfmpegCommand(listOf("-y","-f","lavfi","-i","aevalsrc=$value:s=48000:d=0.02","-c:a","pcm_f64le",input.path))) {})
             inspect("boundary/bits$bits/aa$aa",input,listOf("acrusher=bits=$bits:mode=lin:aa=$aa:mix=0:samples=1"),1)
         }
-        android.util.Log.i("MANUAL-DSP","SUMMARY cases=$cases invalid=$invalid. Diagnostic collection, invalid results intentionally recorded, not a production pass.")
+        android.util.Log.i("MANUAL-DSP","SUMMARY cases=$cases invalid=$invalid commandFailures=$commandFailures. Diagnostic collection, invalid results intentionally recorded, not a production pass.")
         speech.delete()
     }
 
