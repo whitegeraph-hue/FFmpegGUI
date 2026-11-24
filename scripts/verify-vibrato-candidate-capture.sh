@@ -5,12 +5,16 @@ set -u
 mkdir -p ci-shots
 rc=0
 run_test() {
-  local method=$1 label=$2 result
+  local method=$1 label=$2 result collector
   adb shell am force-stop com.cuscus.ffmpeggui.debug || return 1
   adb logcat -c || return 1
+  adb logcat -s VIBRATO-CANDIDATE > "ci-shots/$label.txt" &
+  collector=$!
   ./gradlew :app:connectedDebugAndroidTest "-Pandroid.testInstrumentationRunnerArguments.class=com.cuscus.ffmpeggui.VibratoCandidateRuntimeTest#$method" -Pandroid.testInstrumentationRunnerArguments.candidateDspValidation=true --stacktrace
   result=$?
-  adb logcat -d -s VIBRATO-CANDIDATE > "ci-shots/$label.txt" || return 1
+  sleep 1
+  kill "$collector" || return 1
+  wait "$collector" || true
   cp -r app/build/outputs/androidTest-results "ci-shots/test-results-$label" || return 1
   return "$result"
 }
