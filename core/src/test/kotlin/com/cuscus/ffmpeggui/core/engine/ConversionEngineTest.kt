@@ -96,8 +96,9 @@ class ConversionEngineTest {
         fonts: com.cuscus.ffmpeggui.core.command.FontProvider? = null,
         hdrMaker: HdrPictureMaker? = null,
         glyphs: GlyphAtlasSource? = null,
+        audioRuntime: com.cuscus.ffmpeggui.core.command.AudioRuntime = com.cuscus.ffmpeggui.core.command.AudioRuntime.SYSTEM,
     ) = ConversionEngine(
-        commandBuilder = CommandBuilder { "/fonts/font.ttf" },
+        commandBuilder = CommandBuilder(audioRuntime) { "/fonts/font.ttf" },
         manualResolver = ManualCommandResolver(),
         outputPlanner = OutputPlanner(),
         progressParser = ProgressParser(),
@@ -111,6 +112,22 @@ class ConversionEngineTest {
         hdrMaker = hdrMaker,
         glyphs = glyphs,
     )
+
+    @Test fun `android fallback reissues through builder while policy refusal never retries`() = runBlocking {
+        val runtime=com.cuscus.ffmpeggui.core.command.AudioRuntime.ANDROID_BUNDLED_6_1_6
+        val hardware=request.copy(audioEffects=com.cuscus.ffmpeggui.core.model.CreativeVoice.ALIEN.effects,encoding=request.encoding.copy(hardwareEncoder=HardwareEncoder("c2.test.avc.encoder")))
+        val executor=FakeExecutor(ExecutionResult.Failed(17),ExecutionResult.Success)
+        val result=engine(executor,FakeStager(),temp.newFolder("android-fallback"),audioRuntime=runtime).run(ConversionJob(hardware,MediaSources(listOf(main))))
+        assertTrue(result is ConversionOutcome.Success)
+        assertEquals(2,executor.commands.size)
+        executor.commands.forEach { assertEquals(null,com.cuscus.ffmpeggui.core.audio.AudioExecutionSafety.commandIssue(it,runtime)) }
+        assertTrue(executor.commands[0].arguments.contains("h264_mediacodec"))
+        assertTrue(executor.commands[1].arguments.contains("libx264"))
+        val refused=FakeExecutor(ExecutionResult.Failed(com.cuscus.ffmpeggui.core.audio.AudioExecutionSafety.RETURN_CODE))
+        val denied=engine(refused,FakeStager(),temp.newFolder("android-no-retry"),audioRuntime=runtime).run(ConversionJob(hardware,MediaSources(listOf(main))))
+        assertTrue(denied is ConversionOutcome.Failure)
+        assertEquals(1,refused.commands.size)
+    }
 
     @Test fun `blocked effects and manual graphs fail before staging execution or output`() = runBlocking {
         val executor=FakeExecutor()

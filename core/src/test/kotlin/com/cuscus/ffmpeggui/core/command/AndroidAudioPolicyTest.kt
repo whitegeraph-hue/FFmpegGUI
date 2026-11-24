@@ -33,6 +33,13 @@ class AndroidAudioPolicyTest {
         val good=built(CreativeVoice.GHOST.effects)
         assertNotNull(Safety.commandIssue(good,AudioRuntime.SYSTEM))
     }
+    @Test fun everyParsedVibratoOccurrenceMustBeCanonical() {
+        val canonical="aresample=48000,adelay=16000S:all=1,vibrato=f=3:d=0.3,atrim=start_sample=16000,asetpts=PTS-STARTPTS"
+        for(extra in listOf("vibrato=d=0.5:f=3","vibrato=3","vibrato","vib\\rato=f=3","'vibrato'=f=3","vibrato@extra=f=3")) {
+            val malformed=FfmpegCommand(listOf("-af","$canonical,$extra")).builtForInitializedAndroid()
+            assertNotNull(extra,Safety.commandIssue(malformed,runtime))
+        }
+    }
     @Test fun nativeManualAliasesAndScriptsStillFailClosed() {
         for(option in listOf("-af","-filter:a","-filter_complex","-lavfi","-vf","-graph"))
             for(graph in listOf("vibrato=f=3","anull,vib\\rato=f=3","'vibrato'=f=3","[in]vibrato@voice=f=3[out]","aresample=48000,adelay=16000S:all=1,vibrato=f=3:d=.3,atrim=start_sample=16000,asetpts=PTS-STARTPTS")) {

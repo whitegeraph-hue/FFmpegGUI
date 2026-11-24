@@ -37,7 +37,9 @@ object AudioExecutionSafety {
     }
 
     /** Parses element boundaries, not substrings in filenames, metadata or filter options. */
-    fun filterNames(graph: String): Set<String> {
+    fun filterNames(graph: String): Set<String> = filterElements(graph).toSet()
+
+    private fun filterElements(graph: String): List<String> {
         val elements = mutableListOf<String>()
         val part = StringBuilder()
         var quoted = false
@@ -73,13 +75,13 @@ object AudioExecutionSafety {
                 }
             }
             name.toString().takeIf { it.isNotEmpty() }
-        }.toSet()
+        }
     }
 
     /** Only canonical builder syntax qualifies. Manual commands never carry provenance. */
     private fun initializedVibratoGraph(graph: String): Boolean {
         val matches=Regex("vibrato=f=([0-9.]+):d=([0-9.]+)").findAll(graph).toList()
-        if(matches.isEmpty())return false
+        if(matches.isEmpty() || matches.size != filterElements(graph).count{it=="vibrato"})return false
         for(m in matches) {
             val frequency=m.groupValues[1].toDoubleOrNull() ?: return false
             val depth=m.groupValues[2].toDoubleOrNull() ?: return false
