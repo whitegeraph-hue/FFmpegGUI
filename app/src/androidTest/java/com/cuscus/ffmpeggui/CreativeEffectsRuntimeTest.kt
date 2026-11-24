@@ -68,20 +68,30 @@ class CreativeEffectsRuntimeTest {
         }
     }
 
-    @Test fun telephoneFiniteStageDiagnostics() = runBlocking {
+    @Test fun grittyVoicesFiniteAtRelevantRatesAndLevels() = runBlocking {
         val context=InstrumentationRegistry.getInstrumentation().targetContext
-        val input=File(context.cacheDir,"telephone-diagnostic.mp4")
-        InstrumentationRegistry.getInstrumentation().context.assets.open("ci-test-video.mp4").use{src->input.outputStream().use{src.copyTo(it)}}
-        val t=CreativeVoice.TELEPHONE.effects
-        val variants=listOf("full" to t,"noeq" to t.copy(equalizer=AudioEffects.NONE.equalizer),"nocompressor" to t.copy(compressor=null),"nocrush" to t.copy(lofiBits=0),"nomono" to t.copy(stereo=StereoImage()),"nolimiter" to t.copy(limiter=null),"onlyeq" to AudioEffects(equalizer=t.equalizer),"onlycuts" to AudioEffects(lowCutHz=400,highCutHz=3200))+
-            t.equalizer.indices.map{index->"eq$index" to AudioEffects(equalizer=List(10){if(it==index)t.equalizer[it] else 0f})}
-        for((name,fx) in variants) {
-            val output=File(context.cacheDir,"telephone-diag-$name.mp4")
-            val req=ConversionRequest(OutputFormat.MP4,input.name,sources=listOf(SourceInfo(8000,640,360,true)),segments=listOf(Segment(0,0,1000)),audioEffects=fx)
-            val command=CommandBuilder{ "/fonts/Regular.ttf" }.build(req,MediaPaths(inputs=listOf(input.path),output=output.path))
-            val logs=StringBuilder();val result=FfmpegKitExecutor().execute(command){logs.append(it)}
-            android.util.Log.e("TELEPHONE-DIAG","$name result=$result tail=${logs.takeLast(1600)}")
-            output.delete()
+        val speech=File(context.cacheDir,"gritty-speech.wav")
+        InstrumentationRegistry.getInstrumentation().context.assets.open("creative-speech16.wav").use{src->speech.outputStream().use{src.copyTo(it)}}
+        val executor=FfmpegKitExecutor()
+        for(rate in listOf(8000,16000,48000)) for(level in listOf(0,1,8)) {
+            val input=File(context.cacheDir,"gritty-input.wav")
+            assertEquals(ExecutionResult.Success,executor.execute(FfmpegCommand(listOf("-y","-i",speech.path,"-t","1","-af","volume=$level","-ar",rate.toString(),input.path))) {})
+            for(voice in CreativeVoice.entries.filter{it.effects.lofiBits>0}+CreativeVoice.TELEPHONE) {
+                val output=File(context.cacheDir,"gritty-output.wav")
+                val req=ConversionRequest(OutputFormat.WAV,input.name,sources=listOf(SourceInfo(1000,0,0,true)),segments=listOf(Segment(0,0,1000)),audioEffects=voice.effects)
+                val command=CommandBuilder{"/fonts/Regular.ttf"}.build(req,MediaPaths(inputs=listOf(input.path),output=output.path))
+                // Float WAV preserves NaN/Inf, unlike integer PCM which can hide it.
+                val args=command.arguments.map{if(it=="pcm_s16le")"pcm_f32le" else it}
+                assertTrue("Float diagnostic must replace int16 encoder",args.contains("pcm_f32le") && !args.contains("pcm_s16le"))
+                val logs=StringBuilder();val result=executor.execute(FfmpegCommand(args)){logs.append(it)}
+                assertEquals("$voice $rate level$level ${logs.takeLast(1000)}",ExecutionResult.Success,result)
+                val raw=File(context.cacheDir,"gritty.f32")
+                assertEquals(ExecutionResult.Success,executor.execute(FfmpegCommand(listOf("-y","-i",output.path,"-ac","1","-f","f32le",raw.path))) {})
+                val data=java.nio.ByteBuffer.wrap(raw.readBytes()).order(java.nio.ByteOrder.LITTLE_ENDIAN);var nonzero=false
+                while(data.remaining()>=4) {val sample=data.float;assertTrue("$voice $rate level$level non-finite",sample.isFinite());if(kotlin.math.abs(sample)>.00001f)nonzero=true}
+                if(level>0)assertTrue("$voice $rate level$level erased speech",nonzero)
+                raw.delete();output.delete()
+            }
         }
     }
 
@@ -102,6 +112,14 @@ class CreativeEffectsRuntimeTest {
             val logs=StringBuilder()
             val result=executor.execute(command){logs.append(it)}
             if(result!=ExecutionResult.Success || output.length()<=1000) failures+="case $index looks=${req.looks} voice=${req.audioEffects} result=$result command=${command.arguments} logs=${logs.takeLast(10000)}"
+            if(result==ExecutionResult.Success && req.audioEffects!=AudioEffects.NONE) {
+                val raw=File(context.cacheDir,"telephone-final.f32")
+                val decoded=executor.execute(FfmpegCommand(listOf("-y","-i",output.path,"-vn","-ac","1","-ar","48000","-f","f32le",raw.path))){}
+                assertEquals(ExecutionResult.Success,decoded)
+                val data=java.nio.ByteBuffer.wrap(raw.readBytes()).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+                var nonzero=false;while(data.remaining()>=4) {val sample=data.float;assertTrue("Voice AAC decoded non-finite sample",sample.isFinite());if(kotlin.math.abs(sample)>0.00001f)nonzero=true}
+                assertTrue("Voice AAC must retain content",nonzero);raw.delete()
+            }
             output.delete()
         }
         assertTrue(failures.joinToString("\n"),failures.isEmpty())
