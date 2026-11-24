@@ -1,5 +1,6 @@
 package com.cuscus.ffmpeggui
 
+import com.cuscus.ffmpeggui.core.audio.stages
 import android.graphics.RuntimeShader
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.*
@@ -96,6 +97,70 @@ class CreativeEffectsRuntimeTest {
             }
         }
         assertTrue(failures.joinToString("\n"),failures.isEmpty())
+    }
+
+
+    /** Diagnostic only: preserve the delivered recipes and collect every stage-prefix result. */
+    @Test fun manualDspStagePrefixDiagnostics() = runBlocking {
+        val context=InstrumentationRegistry.getInstrumentation().targetContext
+        val executor=FfmpegKitExecutor()
+        val speech=File(context.cacheDir,"manual-dsp-speech.wav")
+        InstrumentationRegistry.getInstrumentation().context.assets.open("creative-speech16.wav").use{src->speech.outputStream().use{src.copyTo(it)}}
+        val recipes=listOf(
+            "telephone-old" to CreativeVoice.TELEPHONE.effects.copy(lofiBits=10),
+            "tape-old" to AudioEffects(highCutHz=6500,lofiBits=12,modulation=Modulation(ModulationKind.VIBRATO,.7f,.12f),limiter=Limiter(-2f)),
+            "tape-no-crusher" to AudioEffects(highCutHz=6500,modulation=Modulation(ModulationKind.VIBRATO,.7f,.12f),limiter=Limiter(-2f)),
+            "cyborg-old" to CreativeVoice.CYBORG.effects.copy(lofiBits=9)
+        )
+        var cases=0;var invalid=0
+        suspend fun inspect(label:String,input:File,filters:List<String>,channels:Int):Boolean {
+            val out=File(context.cacheDir,"manual-dsp.f32")
+            val logs=StringBuilder()
+            val result=executor.execute(FfmpegCommand(listOf("-y","-i",input.path,"-af",filters.joinToString(","),"-ac",channels.toString(),"-f","f32le",out.path))){logs.append(it)}
+            assertEquals("$label ${logs.takeLast(1200)}",ExecutionResult.Success,result)
+            val data=java.nio.ByteBuffer.wrap(out.readBytes()).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+            var nonfinite=0;var firstBad=-1;var nonzero=0;var samples=0;var peak=0f
+            while(data.remaining()>=4) {
+                val v=data.float
+                if(!v.isFinite()){nonfinite++;if(firstBad<0)firstBad=samples}
+                else {peak=maxOf(peak,kotlin.math.abs(v));if(kotlin.math.abs(v)>.00001f)nonzero++}
+                samples++
+            }
+            cases++;if(nonfinite>0)invalid++
+            android.util.Log.i("MANUAL-DSP","$label n=$samples bad=$nonfinite first=$firstBad nonzero=$nonzero peak=$peak filters=${filters.joinToString(",")}")
+            assertTrue("$label output must contain samples",samples>0)
+            return nonfinite==0
+        }
+        for(rate in listOf(8000,16000,48000)) for(level in listOf(0,1,8)) for(channels in listOf(1,2)) {
+            val input=File(context.cacheDir,"manual-dsp-input.wav")
+            assertEquals(ExecutionResult.Success,executor.execute(FfmpegCommand(listOf("-y","-i",speech.path,"-t","1","-af","volume=$level","-ar",rate.toString(),"-ac",channels.toString(),input.path))) {})
+            for((name,fx) in recipes) {
+                val stages=fx.stages().map{it.filter}
+                for(count in 0..stages.size) inspect("$name/$rate/$level/ch$channels/prefix$count",input,listOf("aresample=48000","aformat=sample_fmts=fltp")+stages.take(count),channels)
+                if(fx.pitchSemitones!=0f) {
+                    val shiftedRate=Math.round(48000*Math.pow(2.0,fx.pitchSemitones/12.0))
+                    inspect("$name/$rate/$level/ch$channels/with-pitch",input,listOf("aresample=48000","aformat=sample_fmts=fltp")+stages+listOf("aresample=48000","asetrate=$shiftedRate","aresample=48000","atempo=${48000.0/shiftedRate}"),channels)
+                }
+                // Change one mechanism at a time. These controls are not production changes.
+                if(stages.any{it.startsWith("acrusher=")}) {
+                    inspect("$name/$rate/$level/ch$channels/aa-positive",input,listOf("aresample=48000","aformat=sample_fmts=fltp")+stages.map{if(it.startsWith("acrusher="))it.replace(":aa=0:",":aa=0.000001:")else it},channels)
+                }
+                if(stages.any{it.startsWith("vibrato=")}) {
+                    // A prefix of silence replaces stale delay values before the real signal begins.
+                    inspect("$name/$rate/$level/ch$channels/primed-vibrato",input,listOf("aresample=48000","aformat=sample_fmts=fltp","adelay=20:all=1")+stages+listOf("atrim=start=0.02","asetpts=PTS-STARTPTS"),channels)
+                }
+            }
+        }
+        // A precision boundary that is only 0.5000001 of a quantization step below an integer.
+        // roundf can choose the upper integer while the double comparison enters aa=0 division.
+        for(bits in listOf(5,8,9,12,16)) for(aa in listOf("0","0.000001")) {
+            val input=File(context.cacheDir,"manual-dsp-boundary.wav")
+            val value=(32.4999999)/(Math.pow(2.0,bits.toDouble())-1)
+            assertEquals(ExecutionResult.Success,executor.execute(FfmpegCommand(listOf("-y","-f","lavfi","-i","aevalsrc=$value:s=48000:d=0.02","-c:a","pcm_f64le",input.path))) {})
+            inspect("boundary/bits$bits/aa$aa",input,listOf("acrusher=bits=$bits:mode=lin:aa=$aa:mix=0:samples=1"),1)
+        }
+        android.util.Log.i("MANUAL-DSP","SUMMARY cases=$cases invalid=$invalid. Diagnostic collection, invalid results intentionally recorded, not a production pass.")
+        speech.delete()
     }
 
     @Test fun allNewShadersCompileAndRealPhoneRenders() = runBlocking {
