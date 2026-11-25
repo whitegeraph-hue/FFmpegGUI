@@ -37,7 +37,7 @@ import java.io.File
     },modifier=modifier,delayMillis=500,content=content)
 }
 
-@Composable internal fun DesktopTimeline(c:EditorController,p:DesktopProject,expandedWorkspace:Boolean=false,availableHeight:Int=360,onAdd:()->Unit) {
+@Composable internal fun DesktopTimeline(c:EditorController,p:DesktopProject,expandedWorkspace:Boolean=false,availableHeight:Int=360,onAdd:()->Unit,onMarkers:()->Unit={}) {
     val workspace=LocalDesktopWorkspace.current
     val focus=remember {FocusRequester()}
     var zoom by remember {mutableStateOf(1f)}
@@ -80,6 +80,12 @@ import java.io.File
                         p.timeline.clips.forEachIndexed {i,clip->DropdownMenuItem(text={Text("${i+1} · ${File(clip.sourceId).name} · ${clip.lengthMs} ms")},onClick={c.selectSmartClip(clip.id);c.seek(p.mediaForClipOutput(i,spans[i].startMs));chooseClip=false})}
                     }}
                 Text("${p.timeline.clips.size} clips · ${time(duration)}",maxLines=1,overflow=TextOverflow.Ellipsis,style=MaterialTheme.typography.labelSmall,modifier=if(compact)Modifier.width(100.dp) else Modifier.weight(1f))
+                Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(4.dp)) {
+                TextButton(onClick=onMarkers,contentPadding=PaddingValues(horizontal=8.dp)){Text("Markers ${p.markers.size}")}
+                val playhead=if(c.player.engaged)c.player.positionMs else p.outputAt(c.position)
+                TextButton(onClick={DesktopMarkers.next(p.markers,playhead,false,duration)?.let {c.seekOutput(it.atMs)}},enabled=DesktopMarkers.next(p.markers,playhead,false,duration)!=null,contentPadding=PaddingValues(horizontal=6.dp)){Text("‹")}
+                TextButton(onClick={DesktopMarkers.next(p.markers,playhead,true,duration)?.let {c.seekOutput(it.atMs)}},enabled=DesktopMarkers.next(p.markers,playhead,true,duration)!=null,contentPadding=PaddingValues(horizontal=6.dp)){Text("›")}
+            }
                 workspace.timelineToolbar.forEach {action->when(action) {
                     "Split" -> {TextButton(onClick={c.splitHere()},enabled=!c.busy){SymbolLabel("content_cut","Split")}}
                     "Duplicate" -> {DesktopHint("Duplicate selected clip ("+workspace.shortcuts["Duplicate"]+")") {TextButton(contentPadding=PaddingValues(horizontal=12.dp),onClick={c.duplicateSelected()},enabled=!c.busy && index>=0){if(compact)Symbol("content_copy",description="Duplicate selected clip") else SymbolLabel("content_copy","Duplicate")}}}
@@ -132,11 +138,19 @@ import java.io.File
                             onDragStart={at->focus.requestFocus();c.seekOutput((at.x/size.width*duration).toLong())},
                             onDrag={change,_->change.consume();c.seekOutput((change.position.x/size.width*duration).toLong())}
                         )}) {
+                        // Bucket dense notes into 12dp targets, keeping ruler labels readable.
+                        val visibleMarkers=p.markers.filter {it.atMs<=duration && width*it.atMs/duration in scroll.value/density..(scroll.value+scroll.viewportSize)/density}
+                        visibleMarkers.groupBy {(width*it.atMs/duration/12).toInt()}.values.forEach {bucket->
+                            val marker=bucket.minBy {it.atMs}
+                            DesktopHint(if(bucket.size==1)marker.name else "${bucket.size} markers. Open Markers to choose a note.",Modifier.offset(x=(width*marker.atMs/duration).dp,y=11.dp).width(12.dp).height(11.dp)) {
+                                Text("◆",color=MaterialTheme.colorScheme.tertiary,modifier=Modifier.clickable {c.seekOutput(marker.atMs)},style=MaterialTheme.typography.labelSmall)
+                            }
+                        }
                         val step=maxOf(100L,(duration/(maxOf(1,(width/120).toInt()))/100)*100)
                         var t=0L
                         while(t<=duration) {Text(time(t),Modifier.offset(x=(width*t/duration).dp),style=MaterialTheme.typography.labelSmall);t+=step}
                     }
-                    Box(Modifier.width(width.dp).weight(1f)) {
+                    BoxWithConstraints(Modifier.width(width.dp).weight(1f)) {
                         val viewportLeft=scroll.value/density
                         val viewportRight=viewportLeft+scroll.viewportSize/density
                         val overlapping=spans.sortedBy {it.startMs}.zipWithNext().any {(a,b)->a.endMs>b.startMs}
@@ -149,11 +163,12 @@ import java.io.File
                             val source=p.sources.first {it.path==clip.sourceId}
                             val selected=clip.id==c.smartClipId
                             val lane=if(overlapping)span.index%2 else 0
-                            val clipHeight=if(overlapping)46.dp else 88.dp
+                            val clipHeight=if(overlapping)minOf(46.dp,((maxHeight-3.dp)/2).coerceAtLeast(24.dp)) else minOf(88.dp,maxHeight)
+                            val smallClip=clipHeight<80.dp
                             val color=if(selected)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondaryContainer
                             val ink=if(selected)MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSecondaryContainer
                             key(clip.id) {
-                            Surface(shape=RoundedCornerShape(9.dp),color=color,contentColor=ink,border=BorderStroke(if(selected)3.dp else 1.dp,if(selected)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline),modifier=Modifier.offset(x=(width*span.startMs/duration).dp,y=(lane*49).dp).width(clipWidth.dp).height(clipHeight).padding(end=2.dp).pointerInput(p,span,c.busy){detectTapGestures(onDoubleTap={if(!c.busy){focus.requestFocus();c.selectSmartClip(clip.id);c.tab="Clip editor"}},onTap={at->if(!c.busy){focus.requestFocus();c.selectSmartClip(clip.id);val out=span.startMs+(at.x/size.width*(span.endMs-span.startMs)).toLong();c.seek(p.mediaForClipOutput(span.index,out))}})}) {
+                            Surface(shape=RoundedCornerShape(9.dp),color=color,contentColor=ink,border=BorderStroke(if(selected)3.dp else 1.dp,if(selected)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline),modifier=Modifier.offset(x=(width*span.startMs/duration).dp,y=(lane*(clipHeight.value+3)).dp).width(clipWidth.dp).height(clipHeight).padding(end=2.dp).pointerInput(p,span,c.busy){detectTapGestures(onDoubleTap={if(!c.busy){focus.requestFocus();c.selectSmartClip(clip.id);c.tab="Clip editor"}},onTap={at->if(!c.busy){focus.requestFocus();c.selectSmartClip(clip.id);val out=span.startMs+(at.x/size.width*(span.endMs-span.startMs)).toLong();c.seek(p.mediaForClipOutput(span.index,out))}})}) {
                                 var thumb by remember(source.path,clip.startMs,clip.endMs) {mutableStateOf<ImageBitmap?>(null)}
                                 val showThumb=clipWidth>if(overlapping)110f else 65f
                                 val showPeaks=clipWidth>140f && source.info.hasAudio
@@ -197,7 +212,7 @@ import java.io.File
                                 @Composable fun ClipLabels(modifier:Modifier=Modifier) {
                                     Column(modifier) {
                                         Text("${span.index+1}${if(span.backwards)" ←" else ""} · ${File(clip.sourceId).name}",Modifier.padding(horizontal=7.dp,vertical=2.dp),maxLines=1,overflow=TextOverflow.Ellipsis,style=MaterialTheme.typography.labelSmall)
-                                        if(clipWidth>95f)Text("${time(span.endMs-span.startMs)}${if(clip.effects.speed!=1f)" · ${clip.effects.speed}×" else ""}",Modifier.padding(horizontal=7.dp),maxLines=1,style=MaterialTheme.typography.labelSmall)
+                                        if(clipWidth>95f && (!overlapping || clipHeight>=42.dp))Text("${time(span.endMs-span.startMs)}${if(clip.effects.speed!=1f)" · ${clip.effects.speed}×" else ""}",Modifier.padding(horizontal=7.dp),maxLines=1,style=MaterialTheme.typography.labelSmall)
                                     }
                                 }
                                 Box(Modifier.fillMaxSize()) {
@@ -208,16 +223,16 @@ import java.io.File
                                         if(showPeaks)Peaks(Modifier.fillMaxWidth().height(13.dp))
                                     }
                                 } else Column {
-                                    if(showThumb)Thumbnail(Modifier.fillMaxWidth().height(if(showPeaks)34.dp else 48.dp))
+                                    if(showThumb)Thumbnail(Modifier.fillMaxWidth().height(if(smallClip)18.dp else if(showPeaks)34.dp else 48.dp))
                                     ClipLabels()
-                                    if(showPeaks)Peaks(Modifier.fillMaxWidth().height(14.dp))
+                                    if(showPeaks && !smallClip)Peaks(Modifier.fillMaxWidth().height(14.dp))
                                 }
                                 if(clipWidth>45f && p.timeline.clips.size>1)Box(Modifier.align(Alignment.TopEnd).size(25.dp).background(MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha=.9f),RoundedCornerShape(6.dp)).pointerInput(p,clip.id,width,c.busy) {
                                     if(!c.busy)detectDragGestures(
-                                        onDragStart={at->focus.requestFocus();dragging=clip.id;dragX=(clipLeft+clipWidth-27)*density+at.x;dragY=lane*49*density+at.y;dropIndex=span.index},
+                                        onDragStart={at->focus.requestFocus();dragging=clip.id;dragX=(clipLeft+clipWidth-27)*density+at.x;dragY=lane*(clipHeight.value+3)*density+at.y;dropIndex=span.index},
                                         onDragCancel={dragging=null;dropIndex=null},
                                         onDragEnd={val target=dropIndex;if(dragging==clip.id && target!=null && dragY in -20*density..115*density && dragX in scroll.value.toFloat()..(scroll.value+viewportWidth))c.reorderClip(p,clip.id,target);dragging=null;dropIndex=null},
-                                        onDrag={change,_->change.consume();if(dragging==clip.id){dragX=(clipLeft+clipWidth-27)*density+change.position.x;dragY=lane*49*density+change.position.y;dropIndex=if(dragging!=clip.id)null else if(dragY in -20*density..115*density && dragX in scroll.value.toFloat()..(scroll.value+viewportWidth))p.reorderTarget(clip.id,(dragX/(width*density)*duration).toLong()) else null}}
+                                        onDrag={change,_->change.consume();if(dragging==clip.id){dragX=(clipLeft+clipWidth-27)*density+change.position.x;dragY=lane*(clipHeight.value+3)*density+change.position.y;dropIndex=if(dragging!=clip.id)null else if(dragY in -20*density..115*density && dragX in scroll.value.toFloat()..(scroll.value+viewportWidth))p.reorderTarget(clip.id,(dragX/(width*density)*duration).toLong()) else null}}
                                     )
                                 },contentAlignment=Alignment.Center) {Row {Symbol("arrow_back",size=10);Symbol("arrow_forward",size=10)}}
                                 }

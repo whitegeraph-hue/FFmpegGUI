@@ -415,6 +415,7 @@ class EditorController(val scope: CoroutineScope, val autosave:DesktopAutosave=D
             } catch (e: Exception) { beatStatus=BeatsStatus.Failed; throw e }
         }
     }
+    internal val exportHistory=DesktopExportHistory()
     fun export(output: File,settings:DesktopProject?=project) {
         val p=settings ?: return
         work("Exporting locally with the shared FFmpeg engine…") {
@@ -431,7 +432,8 @@ class EditorController(val scope: CoroutineScope, val autosave:DesktopAutosave=D
                     player.stop();rendered?.delete();rendered=null;previewFrame=null;inspectedOutputMs=null
                 }
             }
-            status="Export complete: ${result.path} · ${result.info.durationFormatted}"
+            val historyError=runCatching {exportHistory.record(File(result.path),p.format,p.encoding)}.exceptionOrNull()
+            status="Export complete: ${result.path} · ${result.info.durationFormatted}"+(historyError?.let {" · Recent history could not be saved: ${it.message}"} ?: "")
         }
     }
     fun inspectFrame() {
