@@ -160,7 +160,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                 val compact=maxWidth<1490.dp
                 val narrow=maxWidth<1150.dp
                 val short=maxHeight<720.dp
-                val timelineLimit=(maxHeight.value*(if(short).29f else .36f)).toInt().coerceAtLeast(120)
+                val timelineLimit=(maxHeight.value*(if(short).26f else .36f)).toInt().coerceAtLeast(120)
                 Column(Modifier.padding(if(short)12.dp else 16.dp),verticalArrangement=Arrangement.spacedBy(if(short)8.dp else 10.dp)) {
                     @Composable fun RowScope.ProjectActions() {
                         workspace.projectToolbar.forEach {action->when(action) {
@@ -240,7 +240,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                                     controller.player.failure?.let {failure->Text(if(short)"Playback unavailable. Click for details." else failure,color=MaterialTheme.colorScheme.error,style=MaterialTheme.typography.labelSmall,maxLines=if(short)1 else 3,overflow=TextOverflow.Ellipsis,modifier=Modifier.clickable {controller.error=failure})}
                                 }}
                                 @Composable fun RowScope.InspectorPane() {Surface(Modifier.width(workspace.inspectorWidth.coerceAtMost(if(narrow)300 else if(compact)400 else 520).dp).fillMaxHeight(),shape=RoundedCornerShape(20.dp),color=MaterialTheme.colorScheme.surfaceContainerLow) {
-                                    Column(Modifier.padding(14.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
+                                    Column(Modifier.padding(if(short)8.dp else 14.dp),verticalArrangement=Arrangement.spacedBy(if(short)6.dp else 10.dp)) {
                                         Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(10.dp)) {
                                             Surface(shape=RoundedCornerShape(12.dp),color=MaterialTheme.colorScheme.secondaryContainer) {
                                                 Box(Modifier.padding(if(short)6.dp else 9.dp)) {Symbol(desktopToolSymbols[controller.tab] ?: "edit",size=if(short)18 else 22)}
@@ -261,7 +261,7 @@ fun main() = if (System.getenv("FFMPEGGUI_MODEL_WORKER") != null) {
                                         "Magic eraser" -> ErasePanel(controller,project,window){name->pick(true,name)}
                                         "Command studio" -> StudioPanel(controller,project){name->pick(true,name)}
                                         "Effects" -> CreativeLooksPanel(controller,project)
-                                        "Clip editor" -> ClipEditorPanel(controller,project)
+                                        "Clip editor" -> ClipEditorPanel(controller,project,short)
                                         "Subtitles" -> SubtitlesPanel(controller,project){pick()}
                                         "Image layers" -> PictureLayersPanel(controller,project){pick()?.path}
                                         "Tags" -> TagsPanel(controller,project){pick()}
@@ -1030,16 +1030,16 @@ private fun EditPanel(c: EditorController,p: DesktopProject,window:java.awt.Fram
     }
 }
 
-@Composable private fun ClipEditorPanel(c:EditorController,p:DesktopProject) {
+@Composable private fun ClipEditorPanel(c:EditorController,p:DesktopProject,compact:Boolean=false) {
     val index=p.timeline.clips.indexOfFirst {it.id==c.smartClipId}.takeIf {it>=0} ?: (p.timeline.locate(c.position)?.index ?: 0).coerceIn(p.timeline.clips.indices)
     val clip=p.timeline.clips[index]
     val source=p.sources.first {it.path==clip.sourceId}
     val f=clip.effects
     fun change(update:(Effects)->Effects){c.mutate(p.copy(timeline=p.timeline.updateEffects(clip.id,update),followCrop=null))}
     var section by remember {mutableStateOf("Trim")}
-    PanelCard {
-        Text("Clip ${index+1}: ${File(clip.sourceId).name}",style=MaterialTheme.typography.titleLarge)
-        Text("Only this clip. Original files stay unchanged.",style=MaterialTheme.typography.bodySmall)
+    @Composable fun ClipBody() {
+        Text("${if(c.smartClipId==clip.id)"Selected clip" else "At playhead · clip"} ${index+1}: ${File(clip.sourceId).name}",maxLines=1,overflow=TextOverflow.Ellipsis,style=if(compact)MaterialTheme.typography.titleSmall else MaterialTheme.typography.titleLarge)
+        if(!compact)Text("Only this clip. Original files stay unchanged.",style=MaterialTheme.typography.bodySmall)
         var expanded by remember {mutableStateOf(false)}
         Box {FilledTonalButton(onClick={expanded=true},modifier=Modifier.fillMaxWidth()){SymbolLabel(when(section){"Trim"->"content_cut";"Motion"->"crop";"Colour"->"palette";"Sound"->"volume_up";else->"transition_fade"},section+"  ▾")}
             DropdownMenu(expanded,{expanded=false}) {listOf("Trim","Motion","Colour","Sound","Transition").forEach {name->DropdownMenuItem(text={Row(verticalAlignment=Alignment.CenterVertically){SymbolLabel(when(name){"Trim"->"content_cut";"Motion"->"crop";"Colour"->"palette";"Sound"->"volume_up";else->"transition_fade"},name)}},onClick={section=name;expanded=false})}}}
@@ -1115,6 +1115,9 @@ private fun EditPanel(c: EditorController,p: DesktopProject,window:java.awt.Fram
             f.transition?.let {tr->ValueSlider("Transition seconds",tr.durationMs/1000f,.1f..3f,!c.busy){v->change {it.copy(transition=tr.copy(durationMs=(v*1000).toLong()))}}}
         }
     }
+    if(compact)Column(Modifier.fillMaxWidth().padding(2.dp),verticalArrangement=Arrangement.spacedBy(6.dp)){ClipBody()}
+    else PanelCard {ClipBody()}
+
 }
 
 @Composable private fun LayerBinding(c:EditorController,p:DesktopProject,bound:String?,update:(String?)->Unit) {

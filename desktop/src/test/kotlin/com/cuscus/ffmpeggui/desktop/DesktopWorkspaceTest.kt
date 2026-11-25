@@ -7,6 +7,19 @@ import java.util.UUID
 import java.util.prefs.Preferences
 
 class DesktopWorkspaceTest {
+    @Test fun responsiveToolbarKeepsExactOrderAndDoesNotRestoreHiddenActions() {
+        val p=DesktopWorkspace(timelineToolbar=listOf("Remove","Add","Split","Right","Fit"))
+        for(width in listOf(800,899,900,1024,1199,1200,1366)) {
+            val (primary,more)=p.timelineToolbarGroups(width)
+            assertEquals(p.timelineToolbar,primary+more)
+            assertFalse((primary+more).contains("Duplicate"))
+            assertEquals(if(width<900)3 else if(width<1200)4 else 5,primary.size)
+            val empty=DesktopWorkspace(timelineToolbar=emptyList()).timelineToolbarGroups(width)
+            assertTrue(empty.first.isEmpty());assertTrue(empty.second.isEmpty())
+        }
+        assertEquals(p,DesktopWorkspaceCodec.decode(DesktopWorkspaceCodec.encode(p)))
+    }
+
     @Test fun roundTripKeepsLayoutToolbarAndShortcuts() {
         val p=DesktopWorkspace(inspectorWidth=440,paneOrder=listOf("inspector","preview","tools"),timelineTop=true,accent="AB12EF",customAccent=true,projectToolbar=listOf("Undo","Save project"),shortcuts=DesktopWorkspace.shortcutDefaults+mapOf("Split" to "K"))
         assertEquals(p,DesktopWorkspaceCodec.decode(DesktopWorkspaceCodec.encode(p)))

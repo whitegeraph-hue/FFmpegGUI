@@ -16,6 +16,10 @@ data class DesktopWorkspace(
     val timelineToolbar:List<String> = timelineActions,
     val shortcuts:Map<String,String> = shortcutDefaults
 ) {
+    internal fun timelineToolbarGroups(widthDp:Int):Pair<List<String>,List<String>> {
+        val count=if(widthDp<900)3 else if(widthDp<1200)4 else timelineToolbar.size
+        return timelineToolbar.take(count) to timelineToolbar.drop(count)
+    }
     fun normalized()=copy(
         inspectorWidth=inspectorWidth.coerceIn(260,520),railWidth=railWidth.coerceIn(130,250),timelineHeight=timelineHeight.coerceIn(160,360),
         paneOrder=ordered(paneOrder,listOf("tools","preview","inspector"),true),

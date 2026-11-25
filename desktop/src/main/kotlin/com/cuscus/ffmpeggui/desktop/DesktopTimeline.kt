@@ -53,6 +53,8 @@ import java.io.File
     val visualIndex=if(index<0)-1 else if(p.effects.reversed)p.timeline.clips.lastIndex-index else index
     BoxWithConstraints(Modifier.height(if(expandedWorkspace)0.dp else workspace.timelineHeight.coerceAtMost(availableHeight).dp).clipToBounds()) {
     val compact=maxWidth<1200.dp
+    val smallToolbar=maxWidth<900.dp
+    val toolbarWidthDp=maxWidth.value.toInt()
     Surface(Modifier.fillMaxWidth().height(workspace.timelineHeight.coerceAtMost(availableHeight).dp).focusRequester(focus).onKeyEvent {event->
         if(expandedWorkspace || event.type!=KeyEventType.KeyDown || c.busy || event.isMetaPressed)false
         else when(workspace.action(event)) {
@@ -73,30 +75,60 @@ import java.io.File
     }.focusable(),shape=RoundedCornerShape(24.dp),color=MaterialTheme.colorScheme.surfaceContainer) {
         Column(Modifier.padding(horizontal=14.dp,vertical=6.dp),verticalArrangement=Arrangement.spacedBy(3.dp)) {
             val actionScroll=rememberScrollState()
+            var showMore by remember(compact,smallToolbar,workspace.timelineToolbar) {mutableStateOf(false)}
+            val (primaryActions,overflowActions)=workspace.timelineToolbarGroups(toolbarWidthDp)
+            fun actionEnabled(action:String)=when(action) {
+                "Fit","Zoom in"->true
+                "Zoom out"->zoom>1f
+                "Split"->!c.busy
+                "Duplicate"->!c.busy && index>=0
+                "Left"->!c.busy && visualIndex>0
+                "Right"->!c.busy && visualIndex>=0 && visualIndex<p.timeline.clips.lastIndex
+                "Remove"->!c.busy && index>=0 && p.timeline.clips.size>1
+                "Add"->!c.busy && !p.sources[0].info.isStill
+                else->false
+            }
+            fun runAction(action:String) {if(!actionEnabled(action))return;when(action) {
+                "Fit"->zoom=1f
+                "Zoom in"->zoom=(zoom*1.5f).coerceAtMost(32f)
+                "Zoom out"->zoom=(zoom/1.5f).coerceAtLeast(1f)
+                "Split"->c.splitHere()
+                "Duplicate"->c.duplicateSelected()
+                "Left"->c.moveSelectedVisual(-1)
+                "Right"->c.moveSelectedVisual(1)
+                "Remove"->c.removeClip(index)
+                "Add"->onAdd()
+            }}
             Row(Modifier.fillMaxWidth().horizontalScroll(actionScroll),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(6.dp)) {
                 var chooseClip by remember {mutableStateOf(false)}
                 Box {TextButton(onClick={chooseClip=true},enabled=!c.busy) {Text(if(index>=0)"Clip ${index+1} ▾" else "Timeline ▾")}
                     DropdownMenu(chooseClip,{chooseClip=false}) {
                         p.timeline.clips.forEachIndexed {i,clip->DropdownMenuItem(text={Text("${i+1} · ${File(clip.sourceId).name} · ${clip.lengthMs} ms")},onClick={c.selectSmartClip(clip.id);c.seek(p.mediaForClipOutput(i,spans[i].startMs));chooseClip=false})}
                     }}
-                Text("${p.timeline.clips.size} clips · ${time(duration)}",maxLines=1,overflow=TextOverflow.Ellipsis,style=MaterialTheme.typography.labelSmall,modifier=if(compact)Modifier.width(100.dp) else Modifier.weight(1f))
+                if(!compact)Text("${p.timeline.clips.size} clips · ${time(duration)}",maxLines=1,overflow=TextOverflow.Ellipsis,style=MaterialTheme.typography.labelSmall,modifier=if(compact)Modifier.width(100.dp) else Modifier.weight(1f))
                 Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(4.dp)) {
                 TextButton(onClick=onMarkers,contentPadding=PaddingValues(horizontal=8.dp)){Text("Markers ${p.markers.size}")}
                 val playhead=if(c.player.engaged)c.player.positionMs else p.outputAt(c.position)
                 TextButton(onClick={DesktopMarkers.next(p.markers,playhead,false,duration)?.let {c.seekOutput(it.atMs)}},enabled=DesktopMarkers.next(p.markers,playhead,false,duration)!=null,contentPadding=PaddingValues(horizontal=6.dp)){Text("‹")}
                 TextButton(onClick={DesktopMarkers.next(p.markers,playhead,true,duration)?.let {c.seekOutput(it.atMs)}},enabled=DesktopMarkers.next(p.markers,playhead,true,duration)!=null,contentPadding=PaddingValues(horizontal=6.dp)){Text("›")}
             }
-                workspace.timelineToolbar.forEach {action->when(action) {
-                    "Split" -> {TextButton(onClick={c.splitHere()},enabled=!c.busy){SymbolLabel("content_cut","Split")}}
-                    "Duplicate" -> {DesktopHint("Duplicate selected clip ("+workspace.shortcuts["Duplicate"]+")") {TextButton(contentPadding=PaddingValues(horizontal=12.dp),onClick={c.duplicateSelected()},enabled=!c.busy && index>=0){if(compact)Symbol("content_copy",description="Duplicate selected clip") else SymbolLabel("content_copy","Duplicate")}}}
-                    "Left" -> {DesktopHint("Move selected clip left ("+workspace.shortcuts["Left"]+")") {TextButton(contentPadding=PaddingValues(horizontal=12.dp),onClick={c.moveSelectedVisual(-1)},enabled=!c.busy && visualIndex>0){if(compact)Symbol("arrow_back",description="Move selected clip left") else SymbolLabel("arrow_back","Left")}}}
-                    "Right" -> {DesktopHint("Move selected clip right ("+workspace.shortcuts["Right"]+")") {TextButton(contentPadding=PaddingValues(horizontal=12.dp),onClick={c.moveSelectedVisual(1)},enabled=!c.busy && visualIndex>=0 && visualIndex<p.timeline.clips.lastIndex){if(compact)Symbol("arrow_forward",description="Move selected clip right") else SymbolLabel("arrow_forward","Right")}}}
-                    "Remove" -> {DesktopHint("Remove selected clip ("+workspace.shortcuts["Remove"]+")") {TextButton(contentPadding=PaddingValues(horizontal=12.dp),onClick={c.removeClip(index)},enabled=!c.busy && index>=0 && p.timeline.clips.size>1){if(compact)Symbol("delete",description="Remove selected clip") else SymbolLabel("delete","Remove")}}}
-                    "Add" -> {FilledTonalButton(onClick=onAdd,enabled=!c.busy && !p.sources[0].info.isStill){SymbolLabel("add","Add")}}
-                    "Fit" -> {TextButton(contentPadding=PaddingValues(horizontal=10.dp),onClick={zoom=1f}) {SymbolLabel("fit_screen","Fit")}}
-                    "Zoom out" -> {DesktopHint("Zoom out") {TextButton(contentPadding=PaddingValues(horizontal=10.dp),onClick={zoom=(zoom/1.5f).coerceAtLeast(1f)},enabled=zoom>1f){if(compact)Symbol("zoom_out",description="Zoom out") else SymbolLabel("zoom_out","Out")}}}
-                    "Zoom in" -> {DesktopHint("Zoom in") {TextButton(contentPadding=PaddingValues(horizontal=10.dp),onClick={zoom=(zoom*1.5f).coerceAtMost(32f)}){if(compact)Symbol("zoom_in",description="Zoom in") else SymbolLabel("zoom_in","In")}}}
+                primaryActions.forEach {action->when(action) {
+                    "Split" -> {TextButton(onClick={runAction(action)},enabled=actionEnabled(action)){SymbolLabel("content_cut","Split")}}
+                    "Duplicate" -> {DesktopHint("Duplicate selected clip ("+workspace.shortcuts["Duplicate"]+")") {TextButton(contentPadding=PaddingValues(horizontal=12.dp),onClick={runAction(action)},enabled=actionEnabled(action)){if(compact)Symbol("content_copy",description="Duplicate selected clip") else SymbolLabel("content_copy","Duplicate")}}}
+                    "Left" -> {DesktopHint("Move selected clip left ("+workspace.shortcuts["Left"]+")") {TextButton(contentPadding=PaddingValues(horizontal=12.dp),onClick={runAction(action)},enabled=actionEnabled(action)){if(compact)Symbol("arrow_back",description="Move selected clip left") else SymbolLabel("arrow_back","Left")}}}
+                    "Right" -> {DesktopHint("Move selected clip right ("+workspace.shortcuts["Right"]+")") {TextButton(contentPadding=PaddingValues(horizontal=12.dp),onClick={runAction(action)},enabled=actionEnabled(action)){if(compact)Symbol("arrow_forward",description="Move selected clip right") else SymbolLabel("arrow_forward","Right")}}}
+                    "Remove" -> {DesktopHint("Remove selected clip ("+workspace.shortcuts["Remove"]+")") {TextButton(contentPadding=PaddingValues(horizontal=12.dp),onClick={runAction(action)},enabled=actionEnabled(action)){if(compact)Symbol("delete",description="Remove selected clip") else SymbolLabel("delete","Remove")}}}
+                    "Add" -> {FilledTonalButton(onClick={runAction(action)},enabled=actionEnabled(action)){SymbolLabel("add","Add")}}
+                    "Fit" -> {TextButton(contentPadding=PaddingValues(horizontal=10.dp),onClick={runAction(action)},enabled=actionEnabled(action)) {SymbolLabel("fit_screen","Fit")}}
+                    "Zoom out" -> {DesktopHint("Zoom out") {TextButton(contentPadding=PaddingValues(horizontal=10.dp),onClick={runAction(action)},enabled=actionEnabled(action)){if(compact)Symbol("zoom_out",description="Zoom out") else SymbolLabel("zoom_out","Out")}}}
+                    "Zoom in" -> {DesktopHint("Zoom in") {TextButton(contentPadding=PaddingValues(horizontal=10.dp),onClick={runAction(action)},enabled=actionEnabled(action)){if(compact)Symbol("zoom_in",description="Zoom in") else SymbolLabel("zoom_in","In")}}}
                 }}
+                if(overflowActions.isNotEmpty())Box {
+                    TextButton(onClick={showMore=true}) {Text("More ▾")}
+                    DropdownMenu(showMore,{showMore=false}) {
+                        overflowActions.forEach {action->DropdownMenuItem(text={Text(action)},enabled=actionEnabled(action),onClick={showMore=false;runAction(action)})}
+                    }
+                }
             }
             if(actionScroll.maxValue>0)HorizontalScrollbar(rememberScrollbarAdapter(actionScroll),Modifier.fillMaxWidth().height(7.dp))
 
@@ -212,7 +244,7 @@ import java.io.File
                                 @Composable fun ClipLabels(modifier:Modifier=Modifier) {
                                     Column(modifier) {
                                         Text("${span.index+1}${if(span.backwards)" ←" else ""} · ${File(clip.sourceId).name}",Modifier.padding(horizontal=7.dp,vertical=2.dp),maxLines=1,overflow=TextOverflow.Ellipsis,style=MaterialTheme.typography.labelSmall)
-                                        if(clipWidth>95f && (!overlapping || clipHeight>=42.dp))Text("${time(span.endMs-span.startMs)}${if(clip.effects.speed!=1f)" · ${clip.effects.speed}×" else ""}",Modifier.padding(horizontal=7.dp),maxLines=1,style=MaterialTheme.typography.labelSmall)
+                                        if(clipWidth>95f && (clipHeight>=60.dp || overlapping && clipHeight>=42.dp))Text("${time(span.endMs-span.startMs)}${if(clip.effects.speed!=1f)" · ${clip.effects.speed}×" else ""}",Modifier.padding(horizontal=7.dp),maxLines=1,style=MaterialTheme.typography.labelSmall)
                                     }
                                 }
                                 Box(Modifier.fillMaxSize()) {
@@ -257,7 +289,7 @@ import java.io.File
                 }
             }
             HorizontalScrollbar(rememberScrollbarAdapter(scroll),Modifier.fillMaxWidth().height(7.dp))
-            Text(if(dragging!=null)dropIndex?.let {"Release to move to clip ${it+1}. Hold near an edge to scroll; outside cancels."} ?: "Outside drop area. Release to cancel." else if(compact)"${if(index>=0)"Clip ${index+1} · " else ""}Source thumbnails & peaks · drag ruler to seek · shortcuts in Settings" else if(index>=0)"Clip ${index+1} selected · click within a clip to seek · double-click for controls · drag ↔ to reorder · shortcuts in Settings · original source thumbnails & peaks" else "Click within a clip to select & seek · double-click for controls · drag ruler to seek · output time · thumbnails & peaks are original sources",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(if(dragging!=null)dropIndex?.let {"Release to move to clip ${it+1}. Hold near an edge to scroll; outside cancels."} ?: "Outside drop area. Release to cancel." else if(compact)"${p.timeline.clips.size} clips · ${time(duration)} · Originals unchanged · ${if(index>=0)"Clip ${index+1} selected · " else ""}Drag ruler to seek · shortcuts in Settings" else if(index>=0)"Clip ${index+1} selected · click within a clip to seek · double-click for controls · drag ↔ to reorder · shortcuts in Settings · original source thumbnails & peaks" else "Click within a clip to select & seek · double-click for controls · drag ruler to seek · output time · thumbnails & peaks are original sources",maxLines=1,overflow=TextOverflow.Ellipsis,style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
